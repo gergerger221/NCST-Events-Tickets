@@ -1,0 +1,377 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --bg-main: #f8fafc;
+  --bg-secondary: #ffffff;
+  --bg-card: #ffffff;
+  --bg-elevated: #f1f5f9;
+  --bg-input: #ffffff;
+  --border-color: #e2e8f0;
+  --border-input: #cbd5e1;
+  --text-primary: #0f172a;
+  --text-secondary: #64748b;
+  --text-muted: #94a3b8;
+  --color-primary: #2563eb;
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-info: #3b82f6;
+  color-scheme: light;
+}
+
+.dark,
+[data-theme="dark"] {
+  --bg-main: #121212;
+  --bg-secondary: #1e1e1e;
+  --bg-card: #242424;
+  --bg-elevated: #2c2c2c;
+  --bg-input: #1e1e1e;
+  --border-color: #333333;
+  --border-input: #3a3a3a;
+  --text-primary: #ffffff;
+  --text-secondary: #b3b3b3;
+  --text-muted: #888888;
+  --color-primary: #3b82f6;
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-info: #3b82f6;
+  color-scheme: dark;
+}
+
+@layer base {
+  * {
+    border-color: var(--border-color);
+  }
+  
+  html {
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+  }
+
+  code, pre, .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-input);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(150, 150, 150, 0.2);
+  border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary);
+}
+
+/* Glassmorphism effects */
+.glass-panel {
+  background: var(--bg-card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-color);
+}
+
+.glass-card {
+  background: var(--bg-card);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-color);
+}
+
+.glass-dropdown {
+  background: var(--bg-card);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-color);
+}
+
+/* Holographic ticket shimmer */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.ticket-hologram {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.05) 0%,
+    rgba(255, 255, 255, 0.2) 25%,
+    rgba(99, 102, 241, 0.2) 50%,
+    rgba(236, 72, 153, 0.2) 75%,
+    rgba(255, 255, 255, 0.05) 100%
+  );
+  background-size: 200% 200%;
+  animation: shimmer 6s linear infinite;
+}
+
+/* Print Specific Styles */
+@media print {
+  @page {
+    size: landscape;
+    margin: 5mm;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    font-size: 11pt;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  
+  .no-print,
+  nav,
+  header,
+  aside,
+  button,
+  .role-bar {
+    display: none !important;
+  }
+
+  /* Strict Isolation: When printing ticket badge */
+  body.is-printing-ticket #app,
+  body.is-printing-ticket .no-print,
+  body.is-printing-ticket .modal-header,
+  body.is-printing-ticket .modal-overlay .modal-header,
+  body.is-printing-ticket .modal-overlay button,
+  body.is-printing-ticket .modal-overlay > div:first-child,
+  body.is-printing-ticket .modal-footer {
+    display: none !important;
+  }
+
+  /* Strict Isolation: When printing single QR sticker label */
+  body.is-printing-single-label #app,
+  body.is-printing-single-label .modal-overlay,
+  body.is-printing-single-label nav,
+  body.is-printing-single-label header,
+  body.is-printing-single-label aside,
+  body.is-printing-single-label .no-print {
+    display: none !important;
+  }
+
+  body.is-printing-single-label {
+    background: #ffffff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body.is-printing-single-label #qr-single-label-printable {
+    display: block !important;
+    position: static !important;
+    background: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: auto !important;
+  }
+
+  body.is-printing-single-label #qr-single-label-printable * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* Strict Isolation: When printing QR sticker labels */
+  body.is-printing-qr-label #app,
+  body.is-printing-qr-label .modal-overlay,
+  body.is-printing-qr-label nav,
+  body.is-printing-qr-label header,
+  body.is-printing-qr-label aside,
+  body.is-printing-qr-label .no-print {
+    display: none !important;
+  }
+
+  body.is-printing-qr-label {
+    background: #ffffff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body.is-printing-qr-label #qr-labels-printable-sheet {
+    display: block !important;
+    position: static !important;
+    background: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+  }
+
+  body.is-printing-qr-label .print-sheet-page {
+    page-break-after: always !important;
+    break-after: page !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: #ffffff !important;
+    margin: 0 auto !important;
+    padding: 4mm 2mm !important;
+  }
+
+  body.is-printing-qr-label .print-sheet-page:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+
+  body.is-printing-qr-label #qr-labels-printable-sheet * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* Strict Isolation: When printing bulk stock passes */
+  body.is-printing-bulk-stock #app,
+  body.is-printing-bulk-stock .modal-overlay,
+  body.is-printing-bulk-stock nav,
+  body.is-printing-bulk-stock header,
+  body.is-printing-bulk-stock aside,
+  body.is-printing-bulk-stock .no-print {
+    display: none !important;
+  }
+
+  body.is-printing-bulk-stock #bulk-preprinted-tickets-sheet {
+    display: block !important;
+    position: static !important;
+    background: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+  }
+
+  body.is-printing-bulk-stock #bulk-preprinted-tickets-sheet * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  body.is-printing-ticket {
+    background: #ffffff !important;
+    overflow: visible !important;
+  }
+
+  body.is-printing-ticket .modal-overlay {
+    position: static !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+    background: transparent !important;
+    border: none !important;
+  }
+
+  body.is-printing-ticket .modal-overlay > div:last-child {
+    box-shadow: none !important;
+    border: none !important;
+    background: transparent !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body.is-printing-ticket #printable-ticket-badge {
+    display: flex !important;
+    flex-direction: row !important;
+    width: 820px !important;
+    height: 310px !important;
+    margin: 20px auto !important;
+    box-shadow: none !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  body.is-printing-ticket #printable-ticket-badge > div:first-child {
+    width: 230px !important;
+    min-width: 230px !important;
+    flex-shrink: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    background: #f1f5f9 !important;
+    color: #0f172a !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body.is-printing-ticket #printable-ticket-badge * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  .print-page {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 20px !important;
+    background: white !important;
+    color: black !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  th, td {
+    border: 1px solid #cbd5e1 !important;
+    padding: 6px 8px !important;
+    color: #0f172a !important;
+  }
+
+  th {
+    background-color: #f1f5f9 !important;
+    font-weight: 600 !important;
+  }
+
+  .page-break {
+    page-break-after: always;
+  }
+}
+
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.02); }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 3s ease-in-out infinite;
+}

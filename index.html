@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="./ncst-logo.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NCST Event Attendance & Ticketing System</title>
+
+    <script>
+      (function() {
+        var saved = localStorage.getItem('integ2_theme');
+        var isDark = saved === 'dark' || (!saved && !window.matchMedia('(prefers-color-scheme: light)').matches);
+        if (isDark) {
+          document.documentElement.classList.add('dark');
+          document.documentElement.setAttribute('data-theme', 'dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
+      })();
+    </script>
+  </head>
+  <body class="bg-slate-100 dark:bg-[#121212] text-slate-900 dark:text-slate-100 font-sans antialiased selection:bg-blue-600 selection:text-white min-h-screen transition-colors duration-200">
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
