@@ -193,98 +193,64 @@ export function stateSyncPlugin(): Plugin {
                 return res.end(JSON.stringify({ success: false, error: 'Identifier and password are required.' }));
               }
 
-              // Login identifier rules:
-              // - Student / Outsider: email OR ID (Student ID or Guest Ref)
-              // - Employee: institutional email OR Employee ID
-              const foundUser = allUsers.find((u: any) => {
-                const uEmail = (u.email || '').trim().toLowerCase();
-                const uStudentId = (u.studentId || '').trim().toLowerCase();
-                const uCleanStudentId = uStudentId.replace(/\s+/g, '');
-                const uEmpId = (u.employeeId || '').trim().toLowerCase();
-                const uCleanEmpId = uEmpId.replace(/\s+/g, '');
-                const uId = (u.id || '').trim().toLowerCase();
-
-                const emailMatch = uEmail === identifier;
-                const studentIdMatch = uStudentId && (uStudentId === identifier || uCleanStudentId === cleanIdentifier);
-                const employeeIdMatch = u.role !== 'student' && uEmpId && (uEmpId === identifier || uCleanEmpId === cleanIdentifier);
-                const idMatch = (isOutsiderUser(u) || u.role === 'student' || u.role === 'cashier' || u.role === 'admin' || u.role === 'event_staff' || u.role === 'teacher') && (uId === identifier || uId === cleanIdentifier);
-
-                return emailMatch || studentIdMatch || employeeIdMatch || idMatch;
-              });
-
-              let effectiveUser = foundUser;
-
-              // Check for Outsider Ticket Holders if user not directly in allUsers
-              if (!effectiveUser) {
-                const allTickets = parsedState?.tickets || [];
-                const digitsOnly = cleanIdentifier.replace(/[^0-9]/g, '');
-                const matchedTicket = allTickets.find((t: any) => {
-                  if (t.attendeeType !== 'OUTSIDER') return false;
-                  const tNumber = (t.ticketNumber || t.id || '').toLowerCase().replace(/\s+/g, '');
-                  const codeMatch = tNumber === cleanIdentifier || tNumber.includes(cleanIdentifier);
-                  const tContact = (t.contactNumber || t.attendeeContact || '').replace(/[^0-9]/g, '');
-                  const contactMatch = Boolean(digitsOnly && tContact && (tContact === digitsOnly || tContact.endsWith(digitsOnly) || digitsOnly.endsWith(tContact)));
-                  const tName = (t.currentAttendeeName || t.originalOwnerName || t.attendeeName || '').trim().toLowerCase();
-                  const nameMatch = Boolean(tName && (tName === identifier || tName.includes(identifier)));
-                  const tEmail = (t.attendeeEmail || '').trim().toLowerCase();
-                  const emailMatch = Boolean(tEmail && tEmail === identifier);
-                  const guestId = (t.attendeeStudentId || t.outsiderId || '').toLowerCase().replace(/\s+/g, '');
-                  const guestIdMatch = Boolean(guestId && guestId === cleanIdentifier);
-                  return codeMatch || contactMatch || nameMatch || emailMatch || guestIdMatch;
-                });
-
-                if (matchedTicket) {
-                  const guestUserId = matchedTicket.currentAttendeeId || matchedTicket.originalOwnerId || `usr-guest-${matchedTicket.ticketNumber || matchedTicket.id}`;
-                  effectiveUser = allUsers.find((u: any) => u.id === guestUserId);
-                  if (!effectiveUser) {
-                    effectiveUser = {
-                      id: guestUserId,
-                      name: matchedTicket.currentAttendeeName || matchedTicket.originalOwnerName || matchedTicket.attendeeName || 'Guest Attendee',
-                      email: matchedTicket.attendeeEmail || `${cleanIdentifier}@guest.ncst.edu.ph`,
-                      role: 'outsider',
-                      isOutsider: true,
-                      attendeeType: 'OUTSIDER',
-                      studentId: matchedTicket.ticketNumber || matchedTicket.contactNumber || matchedTicket.id || 'GUEST-PASS',
-                      department: 'External Guest / Outsider',
-                      password: 'password123',
-                      isActive: true,
-                      accountStatus: 'active',
-                      createdAt: matchedTicket.purchaseDate || matchedTicket.createdAt || new Date().toISOString(),
-                      assignedEventIds: [matchedTicket.eventId],
-                    };
-                    allUsers.push(effectiveUser);
-                    inMemoryState = JSON.stringify(parsedState);
-                  }
-                  matchedTicket.currentAttendeeId = effectiveUser.id;
-                  matchedTicket.originalOwnerId = matchedTicket.originalOwnerId || effectiveUser.id;
-                }
-              }
-
-              if (!effectiveUser) {
+              // Reject email addresses as login identifiers
+              if (identifier.includes('@')) {
                 res.statusCode = 401;
                 res.setHeader('Content-Type', 'application/json');
-                return res.end(JSON.stringify({ success: false, error: 'No account found matching this Email or Student/Employee ID.' }));
+                return res.end(JSON.stringify({ success: false, error: 'Invalid credentials. Please verify your ID Number and password.' }));
               }
+
+              // Reject invalid characters in identifier
+              if (!/^[a-z0-9\-]+$/i.test(cleanIdentifier)) {
+                res.statusCode = 401;
+                res.setHeader('Content-Type', 'application/json');
+                return res.end(JSON.stringify({ success: false, error: 'Invalid credentials. Please verify your ID Number and password.' }));
+              }
+
+              // Search user STRICTLY by registered Student ID or Employee ID (or authoritative internal ID)
+              // Email is strictly prohibited from serving as login credential
+              const matchedUsers = allUsers.filter((u: any) => {
+                const uStudentId = (u.studentId || '').trim().toLowerCase().replace(/\s+/g, '');
+                const uEmpId = (u.employeeId || '').trim().toLowerCase().replace(/\s+/g, '');
+                const uId = (u.id || '').trim().toLowerCase().replace(/\s+/g, '');
+
+                const studentIdMatch = u.role === 'student' && uStudentId && uStudentId === cleanIdentifier;
+                const employeeIdMatch = u.role !== 'student' && uEmpId && uEmpId === cleanIdentifier;
+                const idMatch = uId === cleanIdentifier;
+
+                return studentIdMatch || employeeIdMatch || idMatch;
+              });
+
+              if (matchedUsers.length === 0) {
+                res.statusCode = 401;
+                res.setHeader('Content-Type', 'application/json');
+                return res.end(JSON.stringify({ success: false, error: 'Invalid credentials. Please verify your ID Number and password.' }));
+              }
+
+              if (matchedUsers.length > 1) {
+                res.statusCode = 409;
+                res.setHeader('Content-Type', 'application/json');
+                return res.end(JSON.stringify({ success: false, error: 'Authentication conflict: multiple accounts match this identifier. Please contact the Administrator.' }));
+              }
+
+              const effectiveUser = matchedUsers[0];
 
               if (effectiveUser.isActive === false) {
                 res.statusCode = 403;
                 res.setHeader('Content-Type', 'application/json');
-                if (isOutsiderUser(effectiveUser)) {
-                  const { expirationDate } = getOutsiderAccountExpirationDate(effectiveUser, parsedState.events || [], parsedState.tickets || []);
-                  const dateFormatted = expirationDate ? formatPhilippineExpiration(expirationDate) : 'event conclusion';
-                  return res.end(JSON.stringify({
-                    success: false,
-                    error: `This temporary Outsider account expired on ${dateFormatted}. Historical ticket and attendance records remain preserved in the institutional archive.`
-                  }));
-                }
                 return res.end(JSON.stringify({ success: false, error: 'Account is deactivated. Please contact the Administrator.' }));
               }
 
-              const expectedPassword = (effectiveUser.password || (effectiveUser.mustChangePassword ? 'ncst123' : 'password123')).trim();
-              if (password !== expectedPassword && password !== 'password123' && password !== 'ncst123') {
+              const userSurname = (effectiveUser.lastName || (effectiveUser.name ? effectiveUser.name.trim().split(/\s+/).pop() : '') || '').toLowerCase();
+              const expectedPassword = (effectiveUser.password || (effectiveUser.mustChangePassword ? userSurname : 'password123')).trim();
+              const passLower = password.trim().toLowerCase();
+              const isValid = password === expectedPassword ||
+                (effectiveUser.mustChangePassword && (passLower === userSurname || password === 'ncst123')) ||
+                password === 'password123';
+              if (!isValid) {
                 res.statusCode = 401;
                 res.setHeader('Content-Type', 'application/json');
-                return res.end(JSON.stringify({ success: false, error: 'Invalid password. Please verify your credentials.' }));
+                return res.end(JSON.stringify({ success: false, error: 'Invalid credentials. Please verify your ID Number and password.' }));
               }
 
               const sessionToken = `sess_${effectiveUser.role}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
@@ -297,7 +263,7 @@ export function stateSyncPlugin(): Plugin {
               res.setHeader('Content-Type', 'application/json');
               return res.end(JSON.stringify({
                 success: true,
-                message: `Welcome back, ${foundUser.name}!`,
+                message: `Welcome back, ${effectiveUser.name}!`,
                 user: safeUser,
                 token: sessionToken,
                 sessionToken: sessionToken
@@ -306,6 +272,83 @@ export function stateSyncPlugin(): Plugin {
               res.statusCode = 400;
               res.setHeader('Content-Type', 'application/json');
               return res.end(JSON.stringify({ success: false, error: 'Invalid login payload.' }));
+            }
+          });
+          return;
+        }
+
+        // Backend API Endpoint: POST /api/tickets/guest-lookup (Outsider Find My Ticket)
+        if ((req.url === '/api/tickets/guest-lookup' || req.url === '/api/guest/lookup-ticket') && req.method === 'POST') {
+          let body = '';
+          req.on('data', (chunk: any) => { body += chunk; });
+          req.on('end', () => {
+            try {
+              const parsedState = getParsedState();
+              const payload = JSON.parse(body || '{}');
+              const controlNumber = (payload.controlNumber || payload.control_number || payload.ticketNumber || '').trim().toLowerCase().replace(/\s+/g, '');
+              const contactNumber = (payload.contactNumber || payload.contact_number || '').trim();
+
+              if (!controlNumber) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json');
+                return res.end(JSON.stringify({ success: false, error: 'Control Number is required to find your guest ticket.' }));
+              }
+
+              const allTickets = parsedState?.tickets || [];
+              const allEvents = parsedState?.events || [];
+              const ticket = allTickets.find((t: any) => {
+                if (t.attendeeType !== 'OUTSIDER') return false;
+                const tNum = (t.ticketNumber || '').toLowerCase().replace(/\s+/g, '');
+                const tQr = (t.qrToken || '').toLowerCase().replace(/\s+/g, '');
+                const tId = (t.id || '').toLowerCase().replace(/\s+/g, '');
+                return tNum === controlNumber || tQr === controlNumber || tId === controlNumber;
+              });
+
+              if (!ticket) {
+                res.statusCode = 404;
+                res.setHeader('Content-Type', 'application/json');
+                return res.end(JSON.stringify({ success: false, error: 'No guest ticket found matching this Control Number. Please check your ticket receipt.' }));
+              }
+
+              if (contactNumber) {
+                const cleanContact = contactNumber.replace(/[^0-9]/g, '');
+                const storedContact = (ticket.contactNumber || '').replace(/[^0-9]/g, '');
+                if (cleanContact && storedContact && !storedContact.includes(cleanContact) && !cleanContact.includes(storedContact)) {
+                  res.statusCode = 403;
+                  res.setHeader('Content-Type', 'application/json');
+                  return res.end(JSON.stringify({ success: false, error: 'Verification failed: Contact number does not match this ticket record.' }));
+                }
+              }
+
+              const event = allEvents.find((e: any) => e.id === ticket.eventId);
+
+              const sanitizedTicket = {
+                controlNumber: ticket.ticketNumber || ticket.id,
+                ticketId: ticket.id,
+                eventTitle: ticket.eventTitle || event?.title || 'NCST Event',
+                venue: event?.venue || 'NCST Campus',
+                date: event?.date || 'Upcoming',
+                startTime: event?.startTime || '',
+                endTime: event?.endTime || '',
+                attendeeName: ticket.currentAttendeeName || ticket.originalOwnerName || 'Guest Attendee',
+                ticketStatus: ticket.ticketStatus || 'ISSUED',
+                paymentStatus: ticket.paymentStatus || 'paid',
+                qrToken: ticket.qrToken || ticket.ticketNumber || ticket.id,
+                price: ticket.price || 0,
+                attendeeType: 'OUTSIDER'
+              };
+
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({
+                success: true,
+                message: 'Guest ticket verified successfully.',
+                ticket: sanitizedTicket
+              }));
+            } catch (err: any) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: false, error: 'Invalid guest ticket lookup payload.' }));
             }
           });
           return;
@@ -438,6 +481,52 @@ export function stateSyncPlugin(): Plugin {
           return;
         }
 
+        // Backend API Endpoint: POST /api/auth/change-password
+        if ((req.url === '/api/auth/change-password' || req.url === '/api/change-password') && req.method === 'POST') {
+          let body = '';
+          req.on('data', (chunk: any) => { body += chunk; });
+          req.on('end', () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const authHeader = req.headers['authorization'] || req.headers['x-session-token'];
+              const sessionToken = (authHeader || '').toString().replace(/^Bearer\s+/, '').trim();
+              const session = activeSessions.get(sessionToken);
+              if (!session) {
+                res.statusCode = 401;
+                res.setHeader('Content-Type', 'application/json');
+                return res.end(JSON.stringify({ success: false, error: '401 Unauthorized: Valid session required.' }));
+              }
+
+              const newPassword = (payload.newPassword || payload.password || '').trim();
+              if (newPassword.length < 4) {
+                res.statusCode = 422;
+                res.setHeader('Content-Type', 'application/json');
+                return res.end(JSON.stringify({ success: false, error: 'Password must be at least 4 characters.' }));
+              }
+
+              const parsedState = getParsedState();
+              const user = (parsedState?.users || []).find((u: any) => u.id === session.userId);
+              if (user) {
+                user.password = newPassword;
+                user.mustChangePassword = false;
+                inMemoryState = JSON.stringify(parsedState);
+                const { password: _p, ...safeUser } = user;
+                res.statusCode = 200;
+                res.setHeader('Content-Type', 'application/json');
+                return res.end(JSON.stringify({ success: true, message: 'Password changed successfully!', user: safeUser }));
+              }
+              res.statusCode = 404;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: false, error: 'User not found.' }));
+            } catch (err: any) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: false, error: 'Bad request.' }));
+            }
+          });
+          return;
+        }
+
         // Backend API Endpoint: POST /api/lookup-student (Automatic Authoritative StudentRecord Lookup)
         if (req.url === '/api/lookup-student' && req.method === 'POST') {
           let body = '';
@@ -473,7 +562,7 @@ export function stateSyncPlugin(): Plugin {
                   found: true,
                   hasExistingAccount: true,
                   message: existingUser.mustChangePassword
-                    ? `An account for Student ID ${rawStudentId} was automatically created during ticket purchase. Please sign in using default password "ncst123" to set your password.`
+                    ? `An account for Student ID ${rawStudentId} was automatically created during ticket purchase. Please sign in using your official surname as your initial temporary password to set your permanent password.`
                     : `An account is already registered for Student ID ${rawStudentId}. Please sign in.`,
                 }));
               }
@@ -956,7 +1045,7 @@ export function stateSyncPlugin(): Plugin {
                 return res.end(JSON.stringify({
                   success: false,
                   error: existingUser.mustChangePassword
-                    ? `An account for Student ID ${rawStudentId} was automatically created during ticket purchase. Please sign in with default password ncst123.`
+                    ? `An account for Student ID ${rawStudentId} was automatically created during ticket purchase. Please sign in with your official surname as your temporary password.`
                     : `An account is already registered for Student ID ${rawStudentId}. Please sign in to the portal.`
                 }));
               }
@@ -972,7 +1061,7 @@ export function stateSyncPlugin(): Plugin {
                 department: payload.department || 'CSD',
                 course: payload.course || 'BSIT',
                 yearLevel: payload.yearLevel || '1st Year',
-                section: payload.section || 'A1',
+                section: payload.section || '11M1',
                 password: payload.password || 'password123',
                 isActive: true,
                 accountStatus: 'active',
@@ -1130,14 +1219,14 @@ export function stateSyncPlugin(): Plugin {
               if (role === 'teacher') {
                 const assignedCourses: string[] = authUser.assignedCourses || ['BSIT'];
                 const assignedYears: string[] = authUser.assignedYearLevels || ['3rd Year'];
-                const assignedSections: string[] = authUser.assignedSections || ['A', 'M1', 'A1'];
+                const assignedSections: string[] = authUser.assignedSections || ['11M1', '21M1', '31M1'];
 
                 const filtered = eventLogs.filter((l: any) => {
                   if (l.attendeeType === 'OUTSIDER') return false;
                   const matchCourse = assignedCourses.includes(l.course || 'BSIT');
                   const matchYear = assignedYears.includes(l.yearLevel || '3rd Year');
                   const matchSection = assignedSections.some(sec => {
-                    const lSec = (l.section || 'A').toUpperCase();
+                    const lSec = (l.section || '11M1').toUpperCase();
                     const tSec = sec.toUpperCase();
                     return lSec === tSec || lSec.includes(tSec) || tSec.includes(lSec);
                   });
@@ -1360,6 +1449,21 @@ export function stateSyncPlugin(): Plugin {
             }
 
             if (role === 'student') {
+              // Server-Enforced Guard: Accounts requiring mandatory password change are blocked from accessing digital passes & attendance
+              if (authUser.mustChangePassword) {
+                return res.end(JSON.stringify({
+                  success: true,
+                  role: 'student',
+                  users: [sanitizeUser(authUser)],
+                  events: allEvents.filter((e: any) => e.status !== 'cancelled'),
+                  tickets: [],
+                  logs: [],
+                  transactions: [],
+                  mustChangePassword: true,
+                  timestamp: parsedState.timestamp || Date.now()
+                }));
+              }
+
               // Student: strictly authorized student-specific data
               const ownTickets = allTickets.filter((t: any) =>
                 (t.attendeeStudentId && t.attendeeStudentId === authUser.studentId) ||
@@ -1466,6 +1570,8 @@ export function stateSyncPlugin(): Plugin {
 
                 // 3. Cashier: Ticket Issuance, Transactions, and Student Onboarding
                 if (authUser.role === 'cashier') {
+                  const serverUsers = [...(parsedState.users || [])];
+
                   if (Array.isArray(payload.tickets)) {
                     const serverTickets = [...(parsedState.tickets || [])];
                     payload.tickets.forEach((incomingTicket: any) => {
@@ -1474,6 +1580,47 @@ export function stateSyncPlugin(): Plugin {
                         serverTickets[idx] = { ...serverTickets[idx], ...incomingTicket };
                       } else {
                         serverTickets.unshift(incomingTicket);
+                      }
+
+                      // Backend Account Provisioning Logic:
+                      // Case A: Existing account -> Reuse, strictly preserve password!
+                      // Case B: No account -> Provision initial account with ncst123 and mustChangePassword = true.
+                      // Case C: Outsider -> No student account created.
+                      if (incomingTicket.attendeeType === 'STUDENT' && incomingTicket.attendeeStudentId) {
+                        const cleanStdId = incomingTicket.attendeeStudentId.replace(/\s+/g, '').toLowerCase();
+                        const uIdx = serverUsers.findIndex(u =>
+                          u.id === incomingTicket.currentAttendeeId ||
+                          (u.studentId && u.studentId.replace(/\s+/g, '').toLowerCase() === cleanStdId)
+                        );
+
+                        if (uIdx !== -1) {
+                          // CASE A: EXISTING STUDENT PORTAL ACCOUNT
+                          // Re-bind ticket to existing account id and PRESERVE credentials
+                          incomingTicket.currentAttendeeId = serverUsers[uIdx].id;
+                          incomingTicket.originalOwnerId = serverUsers[uIdx].id;
+                        } else {
+                          // CASE B: STUDENTRECORD EXISTS BUT NO PORTAL ACCOUNT EXISTS
+                          const officialSurname = (incomingTicket.lastName || (incomingTicket.currentAttendeeName ? incomingTicket.currentAttendeeName.trim().split(/\s+/).pop() : '') || 'Student').trim();
+                          const newU = {
+                            id: incomingTicket.currentAttendeeId || `usr-student-${Date.now().toString().slice(-6)}`,
+                            name: incomingTicket.currentAttendeeName || 'Student',
+                            role: 'student',
+                            password: officialSurname,
+                            studentId: incomingTicket.attendeeStudentId,
+                            department: incomingTicket.attendeeDepartment || 'CSD',
+                            course: incomingTicket.course || 'BSIT',
+                            yearLevel: incomingTicket.yearLevel || '1st Year',
+                            section: incomingTicket.section || '11M1',
+                            email: incomingTicket.attendeeEmail || `${cleanStdId}@student.ncst.edu.ph`,
+                            isActive: true,
+                            accountStatus: 'active',
+                            mustChangePassword: true,
+                            verificationStatus: 'verified',
+                            isVerified: true,
+                            createdAt: new Date().toISOString(),
+                          };
+                          serverUsers.unshift(newU);
+                        }
                       }
                     });
                     parsedState.tickets = serverTickets;
@@ -1492,20 +1639,38 @@ export function stateSyncPlugin(): Plugin {
                   }
 
                   if (Array.isArray(payload.users)) {
-                    const serverUsers = [...(parsedState.users || [])];
                     payload.users.forEach((incomingUser: any) => {
                       if (incomingUser.role === 'student') {
-                        const idx = serverUsers.findIndex(u => u.id === incomingUser.id || (u.studentId && u.studentId === incomingUser.studentId));
+                        const cleanIncomingStudentId = (incomingUser.studentId || '').replace(/\s+/g, '').toLowerCase();
+                        const idx = serverUsers.findIndex(u =>
+                          u.id === incomingUser.id ||
+                          (u.studentId && u.studentId.replace(/\s+/g, '').toLowerCase() === cleanIncomingStudentId)
+                        );
                         if (idx !== -1) {
-                          serverUsers[idx] = { ...serverUsers[idx], ...incomingUser };
+                          const existing = serverUsers[idx];
+                          // CRITICAL: Preserve existing user's password, mustChangePassword, verification status, and role!
+                          serverUsers[idx] = {
+                            ...incomingUser,
+                            ...existing,
+                            name: incomingUser.name || existing.name,
+                            course: incomingUser.course || existing.course,
+                            yearLevel: incomingUser.yearLevel || existing.yearLevel,
+                            section: incomingUser.section || existing.section,
+                            department: incomingUser.department || existing.department,
+                            password: existing.password, // MUST PRESERVE
+                            mustChangePassword: existing.mustChangePassword, // MUST PRESERVE
+                            verificationStatus: existing.verificationStatus,
+                            isVerified: existing.isVerified,
+                            accountStatus: existing.accountStatus,
+                          };
                         } else {
                           serverUsers.unshift(incomingUser);
                         }
                       }
                     });
-                    parsedState.users = serverUsers;
                   }
 
+                  parsedState.users = serverUsers;
                   parsedState.timestamp = now;
                   inMemoryState = JSON.stringify(parsedState);
                   res.setHeader('Content-Type', 'application/json');

@@ -204,7 +204,17 @@ withDefaults(
   }
 );
 
-const { filters, resetFilters, events, setCurrentEvent, filteredTickets, users, tickets } = useAppStore();
+const {
+  filters,
+  resetFilters,
+  events,
+  setCurrentEvent,
+  filteredTickets,
+  users,
+  tickets,
+  studentRecords,
+  availableSections: storeSections
+} = useAppStore();
 
 const isMoreFiltersOpen = ref(false);
 
@@ -223,14 +233,15 @@ const availableYearLevels = computed(() => {
 });
 
 const availableSections = computed(() => {
-  const defaults = [
-    'M1', 'M2', 'M3', 'M4', 'M5',
-    'A1', 'A2', 'A3', 'A4',
-    'E1', 'E2', 'E3', 'E4'
-  ];
+  const sections = storeSections?.value || storeSections;
+  if (Array.isArray(sections) && sections.length > 0) {
+    return sections;
+  }
   const userSections = users.value.map(u => u.section).filter(Boolean) as string[];
   const ticketSections = tickets.value.map(t => t.section).filter(Boolean) as string[];
-  return Array.from(new Set([...defaults, ...userSections, ...ticketSections])).filter(s => s !== 'all');
+  const studentSections = (studentRecords?.value || []).map(r => r.section).filter(Boolean) as string[];
+  const allSystemSections = Array.from(new Set([...studentSections, ...userSections, ...ticketSections])).filter(s => s && s !== 'all');
+  return allSystemSections.length > 0 ? allSystemSections : ['11M1', '11M2', '12M1', '21M1', '21M2', '31M1', '31A1', '31A2', '41M1', '41A1'];
 });
 
 const activeMoreFiltersCount = computed(() => {

@@ -63,13 +63,13 @@
               <!-- 2. Attendee -->
               <td class="py-3.5 px-3.5">
                 <div class="flex items-center gap-2.5">
-                  <UserAvatar :src="ticket.attendeePhotoUrl" :alt="ticket.currentAttendeeName" size="sm" shape="circle" />
+                  <UserAvatar :src="ticket.attendeePhotoUrl || ticket.attendee_photo_url" :alt="ticket.currentAttendeeName || ticket.current_attendee_name || 'Attendee'" size="sm" shape="circle" />
                   <div class="min-w-0">
                     <div class="font-bold text-slate-900 dark:text-white truncate max-w-[160px] group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                      {{ ticket.currentAttendeeName }}
+                      {{ ticket.currentAttendeeName || ticket.current_attendee_name || ticket.originalOwnerName || ticket.original_owner_name || 'Guest Attendee' }}
                     </div>
                     <div class="text-[10px] text-slate-400 font-mono">
-                      {{ ticket.attendeeStudentId || 'Guest Attendee' }}
+                      {{ ticket.attendeeStudentId || ticket.attendee_student_id || ((ticket.attendeeType || ticket.attendee_type) === 'OUTSIDER' ? 'External Guest' : 'Guest Attendee') }}
                       <span v-if="ticket.course" class="text-slate-400 font-sans ml-1">({{ ticket.course }})</span>
                     </div>
                   </div>
@@ -80,11 +80,11 @@
               <td class="py-3.5 px-3.5 whitespace-nowrap">
                 <span
                   class="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider inline-block"
-                  :class="ticket.attendeeType === 'OUTSIDER'
-                    ? 'bg-purple-100 dark:bg-purple-950/70 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800'
-                    : 'bg-blue-100 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-800'"
+                  :class="(ticket.attendeeType || ticket.attendee_type) === 'OUTSIDER'
+                    ? 'bg-slate-100 dark:bg-[#252525] text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-[#3a3a3a]'
+                    : 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60'"
                 >
-                  {{ ticket.attendeeType || 'STUDENT' }}
+                  {{ ticket.attendeeType || ticket.attendee_type || (ticket.attendeeStudentId || ticket.attendee_student_id ? 'STUDENT' : 'OUTSIDER') }}
                 </span>
               </td>
 
@@ -241,8 +241,8 @@
               <span
                 class="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider inline-block"
                 :class="selectedTicket.attendeeType === 'OUTSIDER'
-                  ? 'bg-purple-100 dark:bg-purple-950/70 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800'
-                  : 'bg-blue-100 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-800'"
+                  ? 'bg-slate-100 dark:bg-[#252525] text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-[#3a3a3a]'
+                  : 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60'"
               >
                 {{ selectedTicket.attendeeType || 'STUDENT' }}
               </span>

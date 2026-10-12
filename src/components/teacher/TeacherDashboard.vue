@@ -44,7 +44,7 @@
           <button
             type="button"
             @click="$emit('navigate', 'teacher_attendance')"
-            class="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white rounded-xl text-xs font-black shadow-md shadow-blue-500/20 transition cursor-pointer"
+            class="flex items-center gap-2 px-5 py-2.5 bg-[#1E3A5F] hover:bg-[#152A45] active:scale-[0.98] text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer"
           >
             <GraduationCap class="w-4 h-4" />
             <span>Open Students' Attendance Roster</span>
@@ -54,9 +54,9 @@
           <button
             type="button"
             @click="$emit('navigate', 'student_roster_import')"
-            class="flex items-center gap-2 px-4 py-2.5 bg-purple-50 dark:bg-purple-950/50 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 rounded-xl text-xs font-bold border border-purple-200 dark:border-purple-800 transition cursor-pointer"
+            class="flex items-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-[#252525] hover:bg-slate-200 dark:hover:bg-[#2e2e2e] text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold border border-slate-200 dark:border-[#3a3a3a] transition cursor-pointer"
           >
-            <Upload class="w-4 h-4" />
+            <Upload class="w-4 h-4 text-slate-500 dark:text-slate-400" />
             <span>Import Class Roster</span>
           </button>
 
@@ -65,7 +65,7 @@
             @click="$emit('navigate', 'reports')"
             class="flex items-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-[#252525] hover:bg-slate-200 dark:hover:bg-[#2e2e2e] text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold border border-slate-200 dark:border-[#3a3a3a] transition cursor-pointer"
           >
-            <FileSpreadsheet class="w-4 h-4" />
+            <FileSpreadsheet class="w-4 h-4 text-slate-500 dark:text-slate-400" />
             <span>Attendance Reports</span>
           </button>
         </div>
@@ -112,7 +112,7 @@
       <!-- 2. Assigned Class Selector -->
       <div class="p-5 rounded-3xl bg-white dark:bg-[#1e1e1e] border border-slate-200 dark:border-[#333333] shadow-sm flex items-center justify-between gap-4">
         <div class="flex items-center gap-3 min-w-0">
-          <div class="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+          <div class="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
             <BookOpen class="w-5 h-5" />
           </div>
           <div class="min-w-0">
@@ -127,7 +127,7 @@
 
         <select
           v-model="selectedClassKey"
-          class="px-3 py-2 bg-slate-50 dark:bg-[#252525] border border-slate-200 dark:border-[#3a3a3a] rounded-xl text-xs font-bold text-purple-700 dark:text-purple-300 focus:outline-none focus:border-purple-500 cursor-pointer max-w-[220px]"
+          class="px-3 py-2 bg-slate-50 dark:bg-[#252525] border border-slate-200 dark:border-[#3a3a3a] rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 cursor-pointer max-w-[220px]"
         >
           <option v-if="teacherAssignedClasses.length > 1" value="ALL">
             All Assigned Classes ({{ teacherAssignedClasses.length }})

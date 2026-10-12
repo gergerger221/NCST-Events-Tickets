@@ -13,6 +13,11 @@ import {
   TicketType,
   PurchaseTransaction,
   TeacherClassAssignment,
+  AcademicPeriod,
+  TicketStatus,
+  PaymentStatus,
+  QRPrintStatus,
+  AttendanceStatus,
 } from '../types';
 import {
   INITIAL_USERS,
@@ -20,12 +25,15 @@ import {
   INITIAL_EVENTS,
   INITIAL_TICKETS,
   INITIAL_LOGS,
-  INITIAL_TRANSACTIONS
+  INITIAL_TRANSACTIONS,
+  INITIAL_ACADEMIC_PERIODS,
+  SVG_BANNER_INSTITUTIONAL,
 } from '../utils/seedData';
 import { sounds } from '../utils/audio';
 import { useOfflineScanner } from './useOfflineScanner';
 import { splitFullName, getLastName, getFirstName, sortByLastName } from '../utils/nameUtils';
 import { validateEvent, normalizeTimeToDisplay, EventFormData, ValidationResult } from '../utils/eventValidation';
+import { apiUrl } from '../utils/apiUrl';
 import {
   checkUserIdentityConflict,
   validateUserForm,
@@ -71,6 +79,7 @@ const STORAGE_KEYS = {
   TICKETS: 'integ2_vue_tickets_v10',
   LOGS: 'integ2_vue_logs_v10',
   TRANSACTIONS: 'integ2_vue_transactions_v10',
+  ACADEMIC_PERIODS: 'integ2_vue_academic_periods_v10',
   CURRENT_USER: 'integ2_vue_current_user_v10',
   CURRENT_EVENT: 'integ2_vue_current_event_v10',
   SESSION_TOKEN: 'integ2_vue_session_token_v10',
@@ -150,6 +159,21 @@ const users = ref<User[]>(
   })()
 );
 
+export function sanitizeAndDeduplicateStudentRecords(rawRecords: StudentRecord[]): StudentRecord[] {
+  if (!Array.isArray(rawRecords)) return [];
+  const seenStudentIds = new Set<string>();
+  const cleaned: StudentRecord[] = [];
+
+  for (const r of rawRecords) {
+    if (!r) continue;
+    const sId = normalizeId(r.studentId || r.id || '').toLowerCase();
+    if (sId && seenStudentIds.has(sId)) continue;
+    if (sId) seenStudentIds.add(sId);
+    cleaned.push(r);
+  }
+  return cleaned;
+}
+
 // Authoritative Student Roster / Enrollment Records (Separate from User Login Accounts)
 const studentRecords = ref<StudentRecord[]>(
   (() => {
@@ -165,13 +189,29 @@ const studentRecords = ref<StudentRecord[]>(
               parsed.push(initRec);
             }
           });
-          return parsed;
+          const deduplicated = sanitizeAndDeduplicateStudentRecords(parsed);
+          if (deduplicated.length !== parsed.length) {
+            localStorage.setItem(STORAGE_KEYS.STUDENT_RECORDS, JSON.stringify(deduplicated));
+          }
+          return deduplicated;
         }
       } catch {}
     }
-    return [...INITIAL_STUDENT_RECORDS];
+    return sanitizeAndDeduplicateStudentRecords([...INITIAL_STUDENT_RECORDS]);
   })()
 );
+
+export function normalizeEvent(e: any): EventItem {
+  if (!e) return e;
+  let bannerUrl = e.bannerUrl || e.banner_url || '';
+  if (bannerUrl && bannerUrl.includes('064e3b')) {
+    bannerUrl = SVG_BANNER_INSTITUTIONAL;
+  }
+  return {
+    ...e,
+    bannerUrl,
+  };
+}
 
 const events = ref<EventItem[]>(
   (() => {
@@ -179,12 +219,75 @@ const events = ref<EventItem[]>(
     if (s !== null) {
       try {
         const parsed = JSON.parse(s);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) return parsed.map(normalizeEvent);
       } catch {}
     }
-    return INITIAL_EVENTS;
+    return INITIAL_EVENTS.map(normalizeEvent);
   })()
 );
+
+export function normalizeTicket(t: any): Ticket {
+  if (!t) return t;
+  const attendeeType = t.attendeeType || t.attendee_type || (t.attendeeStudentId || t.attendee_student_id ? 'STUDENT' : 'OUTSIDER');
+  return {
+    ...t,
+    ticketNumber: t.ticketNumber || t.ticket_number || t.id,
+    qrToken: t.qrToken || t.qr_token || t.id,
+    eventId: t.eventId || t.event_id || '',
+    eventTitle: t.eventTitle || t.event_title || '',
+    ticketType: t.ticketType || t.ticket_type || 'digital',
+    attendeeType: attendeeType as AttendeeType,
+    originalOwnerId: t.originalOwnerId || t.original_owner_id || '',
+    originalOwnerName: t.originalOwnerName || t.original_owner_name || '',
+    currentAttendeeId: t.currentAttendeeId || t.current_attendee_id || '',
+    currentAttendeeName: t.currentAttendeeName || t.current_attendee_name || t.originalOwnerName || t.original_owner_name || 'Guest Attendee',
+    firstName: t.firstName || t.first_name || '',
+    middleName: t.middleName || t.middle_name || '',
+    lastName: t.lastName || t.last_name || '',
+    attendeeStudentId: t.attendeeStudentId || t.attendee_student_id || null,
+    outsiderId: t.outsiderId || t.outsider_id || null,
+    attendeeEmail: t.attendeeEmail || t.attendee_email || null,
+    attendeeDepartment: t.attendeeDepartment || t.attendee_department || null,
+    course: t.course || null,
+    yearLevel: t.yearLevel || t.year_level || null,
+    section: t.section || null,
+    contactNumber: t.contactNumber || t.contact_number || null,
+    attendeePhotoUrl: t.attendeePhotoUrl || t.attendee_photo_url || null,
+    price: Number(t.price || 0),
+    purchaseDate: t.purchaseDate || t.purchase_date || new Date().toISOString(),
+    ticketStatus: (t.ticketStatus || t.ticket_status || 'ISSUED') as TicketStatus,
+    paymentStatus: (t.paymentStatus || t.payment_status || 'paid') as PaymentStatus,
+    qrPrintStatus: (t.qrPrintStatus || t.qr_print_status || 'PENDING') as QRPrintStatus,
+    qrPrintedAt: t.qrPrintedAt || t.qr_printed_at || null,
+    qrPrintCount: Number(t.qrPrintCount || t.qr_print_count || 0),
+    attendanceStatus: (t.attendanceStatus || t.attendance_status || 'not_entered') as AttendanceStatus,
+    timeIn: t.timeIn || t.time_in || null,
+    lastScannedBy: t.lastScannedBy || t.last_scanned_by || null,
+    academicYear: t.academicYear || t.academic_year || '2026-2027',
+    semester: t.semester || t.semester || '1st Semester',
+    transferHistory: Array.isArray(t.transferHistory) ? t.transferHistory : (typeof t.transfer_history === 'string' ? JSON.parse(t.transfer_history || '[]') : []),
+  };
+}
+
+export function sanitizeAndDeduplicateTickets(rawTickets: Ticket[]): Ticket[] {
+  if (!Array.isArray(rawTickets)) return [];
+  const seenIds = new Set<string>();
+  const seenTicketNumbers = new Set<string>();
+  const cleaned: Ticket[] = [];
+
+  for (const t of rawTickets) {
+    if (!t) continue;
+    const tId = (t.id || '').trim().toLowerCase();
+    const tNum = (t.ticketNumber || '').trim().toLowerCase();
+    if (tId && seenIds.has(tId)) continue;
+    if (tNum && seenTicketNumbers.has(tNum)) continue;
+
+    if (tId) seenIds.add(tId);
+    if (tNum) seenTicketNumbers.add(tNum);
+    cleaned.push(normalizeTicket(t));
+  }
+  return cleaned;
+}
 
 const tickets = ref<Ticket[]>(
   (() => {
@@ -192,12 +295,49 @@ const tickets = ref<Ticket[]>(
     if (s !== null) {
       try {
         const parsed = JSON.parse(s);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) {
+          const deduplicated = sanitizeAndDeduplicateTickets(parsed);
+          if (deduplicated.length !== parsed.length) {
+            localStorage.setItem(STORAGE_KEYS.TICKETS, JSON.stringify(deduplicated));
+          }
+          return deduplicated;
+        }
       } catch {}
     }
-    return INITIAL_TICKETS;
+    return sanitizeAndDeduplicateTickets(INITIAL_TICKETS);
   })()
 );
+
+export function sanitizeAndDeduplicateLogs(rawLogs: AttendanceLog[]): AttendanceLog[] {
+  if (!Array.isArray(rawLogs)) return [];
+  const seenIds = new Set<string>();
+  const seenCheckins = new Set<string>();
+  const cleaned: AttendanceLog[] = [];
+
+  for (const log of rawLogs) {
+    if (!log) continue;
+    // Strict ID deduplication
+    const logId = (log.id || '').trim();
+    if (logId && seenIds.has(logId)) continue;
+    if (logId) seenIds.add(logId);
+
+    // Keep only one valid check-in log per student/ticket per event
+    if (log.status === 'valid' || !log.status) {
+      const sId = (log.studentId || '').trim().toLowerCase();
+      const tNum = (log.ticketNumber || log.ticketId || '').trim().toLowerCase();
+      const evId = (log.eventId || 'unknown').trim().toLowerCase();
+      const attendeeKey = sId ? `stud:${sId}` : (tNum ? `tix:${tNum}` : '');
+      if (attendeeKey) {
+        const checkinKey = `${evId}:::${attendeeKey}:::valid`;
+        if (seenCheckins.has(checkinKey)) continue;
+        seenCheckins.add(checkinKey);
+      }
+    }
+
+    cleaned.push(log);
+  }
+  return cleaned;
+}
 
 const logs = ref<AttendanceLog[]>(
   (() => {
@@ -205,10 +345,16 @@ const logs = ref<AttendanceLog[]>(
     if (s !== null) {
       try {
         const parsed = JSON.parse(s);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) {
+          const deduplicated = sanitizeAndDeduplicateLogs(parsed);
+          if (deduplicated.length !== parsed.length) {
+            localStorage.setItem(STORAGE_KEYS.LOGS, JSON.stringify(deduplicated));
+          }
+          return deduplicated;
+        }
       } catch {}
     }
-    return INITIAL_LOGS;
+    return sanitizeAndDeduplicateLogs(INITIAL_LOGS);
   })()
 );
 
@@ -224,6 +370,31 @@ const transactions = ref<PurchaseTransaction[]>(
     return INITIAL_TRANSACTIONS;
   })()
 );
+
+const academicPeriods = ref<AcademicPeriod[]>(
+  (() => {
+    const s = localStorage.getItem(STORAGE_KEYS.ACADEMIC_PERIODS);
+    if (s !== null) {
+      try {
+        const parsed = JSON.parse(s);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch {}
+    }
+    return [...INITIAL_ACADEMIC_PERIODS];
+  })()
+);
+
+const activeAcademicPeriod = computed<AcademicPeriod>(() => {
+  const found = academicPeriods.value.find(p => p.status === 'active');
+  return found || academicPeriods.value[0] || {
+    id: 'acad-2026-2027-sem1',
+    academicYear: '2026-2027',
+    semester: '1st Semester',
+    startDate: '2026-08-01',
+    endDate: '2026-12-31',
+    status: 'active',
+  };
+});
 
 const currentUser = ref<User | null>(
   (() => {
@@ -388,7 +559,7 @@ const pushStateToServer = async () => {
       transactions: transactions.value,
       timestamp: localLastModified,
     };
-    await fetch('/api/state', {
+    await fetch(apiUrl('/api/state'), {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(payload),
@@ -401,7 +572,7 @@ const fetchStateFromServer = async () => {
   if (typeof navigator !== 'undefined' && !navigator.onLine) return;
 
   try {
-    const url = localLastModified > 0 ? `/api/state?since=${localLastModified}` : '/api/state';
+    const url = localLastModified > 0 ? apiUrl(`/api/state?since=${localLastModified}`) : apiUrl('/api/state');
     const res = await fetch(url, {
       headers: getAuthHeaders(),
     });
@@ -432,11 +603,12 @@ const fetchStateFromServer = async () => {
         users.value = ensureSeedUsers(data.users);
         validateAndSyncSession();
       }
-      if (Array.isArray(data.studentRecords) && data.studentRecords.length > 0) studentRecords.value = data.studentRecords;
-      if (Array.isArray(data.events) && data.events.length > 0) events.value = data.events;
-      if (Array.isArray(data.tickets) && data.tickets.length > 0) tickets.value = data.tickets;
-      if (Array.isArray(data.logs) && data.logs.length > 0) logs.value = data.logs;
+      if (Array.isArray(data.studentRecords) && data.studentRecords.length > 0) studentRecords.value = sanitizeAndDeduplicateStudentRecords(data.studentRecords);
+      if (Array.isArray(data.events) && data.events.length > 0) events.value = data.events.map(normalizeEvent);
+      if (Array.isArray(data.tickets) && data.tickets.length > 0) tickets.value = sanitizeAndDeduplicateTickets(data.tickets);
+      if (Array.isArray(data.logs) && data.logs.length > 0) logs.value = sanitizeAndDeduplicateLogs(data.logs);
       if (Array.isArray(data.transactions) && data.transactions.length > 0) transactions.value = data.transactions;
+      if (Array.isArray(data.academicPeriods) && data.academicPeriods.length > 0) academicPeriods.value = data.academicPeriods;
       if (serverTimestamp) {
         localLastModified = serverTimestamp;
         localWriteTimestamp = serverTimestamp;
@@ -508,19 +680,26 @@ if (typeof window !== 'undefined') {
         if (Array.isArray(parsed)) studentRecords.value = parsed;
       } else if (e.key === STORAGE_KEYS.EVENTS) {
         const parsed = JSON.parse(e.newValue);
-        if (Array.isArray(parsed)) events.value = parsed;
+        if (Array.isArray(parsed)) events.value = parsed.map(normalizeEvent);
       } else if (e.key === STORAGE_KEYS.TRANSACTIONS) {
         const parsed = JSON.parse(e.newValue);
         if (Array.isArray(parsed)) transactions.value = parsed;
       } else if (e.key === STORAGE_KEYS.LOGS) {
         const parsed = JSON.parse(e.newValue);
         if (Array.isArray(parsed)) logs.value = parsed;
+      } else if (e.key === STORAGE_KEYS.ACADEMIC_PERIODS) {
+        const parsed = JSON.parse(e.newValue);
+        if (Array.isArray(parsed)) academicPeriods.value = parsed;
       }
     } catch {}
   });
 }
 
 // Watchers for LocalStorage persistence & Server State Sync
+watch(academicPeriods, val => {
+  localStorage.setItem(STORAGE_KEYS.ACADEMIC_PERIODS, JSON.stringify(val));
+}, { deep: true });
+
 watch(users, val => {
   localWriteTimestamp = Date.now();
   localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(val));
@@ -587,7 +766,7 @@ export function useAppStore() {
     return tickets.value.filter(ticket => {
       if (filters.value.eventId !== 'all' && ticket.eventId !== filters.value.eventId) return false;
       if (filters.value.attendeeType && filters.value.attendeeType !== 'all') {
-        const aType = ticket.attendeeType || (ticket.attendeeStudentId ? 'STUDENT' : 'OUTSIDER');
+        const aType = ticket.attendeeType || (ticket as any).attendee_type || (ticket.attendeeStudentId || (ticket as any).attendee_student_id ? 'STUDENT' : 'OUTSIDER');
         if (aType !== filters.value.attendeeType) return false;
       }
       if (filters.value.ticketStatus !== 'all') {
@@ -707,6 +886,8 @@ export function useAppStore() {
     }
 
     const eventId = `evt-${Date.now().toString(36)}`;
+    const targetAcadYear = eventData.academicYear || activeAcademicPeriod.value?.academicYear || '2026-2027';
+    const targetSem = eventData.semester || activeAcademicPeriod.value?.semester || '1st Semester';
     const newEvent: EventItem = {
       ...eventData,
       id: eventId,
@@ -714,6 +895,8 @@ export function useAppStore() {
       endTime: normalizedEndTime,
       capacity: Number(eventData.capacity) || 500,
       ticketPrice: Number(eventData.ticketPrice) || 0,
+      academicYear: targetAcadYear,
+      semester: targetSem,
     };
 
     events.value.unshift(newEvent);
@@ -942,8 +1125,8 @@ export function useAppStore() {
       middleName: parsedName.middleName,
       lastName: parsedName.lastName,
       course: data.course?.trim() || 'BSIT',
-      yearLevel: data.yearLevel?.trim() || '3rd Year',
-      section: data.section?.trim() || 'M1',
+      yearLevel: data.yearLevel?.trim() || '1st Year',
+      section: data.section?.trim() || '11M1',
       department: data.department?.trim() || `College of ${data.course?.trim() || 'Computer Studies'}`,
       email: data.email?.trim() || `${data.name.toLowerCase().replace(/[^a-z0-9]/g, '.')}@student.edu.ph`,
       photoUrl: data.photoUrl,
@@ -1011,8 +1194,8 @@ export function useAppStore() {
     const studentName = (studentOverride?.name || (userId ? users.value.find(u => u.id === userId)?.name : '') || (isOutsider ? 'Guest Attendee' : 'Registered Student')).trim();
     const studentId = isOutsider ? undefined : (studentOverride?.studentId || (userId ? users.value.find(u => u.id === userId)?.studentId : undefined));
     const course = isOutsider ? undefined : (studentOverride?.course || 'BSIT');
-    const yearLevel = isOutsider ? undefined : (studentOverride?.yearLevel || '3rd Year');
-    const section = isOutsider ? undefined : (studentOverride?.section || 'M1');
+    const yearLevel = isOutsider ? undefined : (studentOverride?.yearLevel || '1st Year');
+    const section = isOutsider ? undefined : (studentOverride?.section || '11M1');
     const department = isOutsider ? 'General Public / Guest' : (studentOverride?.department || 'College of Computer Studies');
     const email = studentOverride?.email || (isOutsider ? undefined : `${studentName.toLowerCase().replace(/[^a-z0-9]/g, '.')}@student.edu.ph`);
     const contactNumber = studentOverride?.contactNumber;
@@ -1108,23 +1291,25 @@ export function useAppStore() {
           name: studentName,
           studentId: cleanStudentId,
           course: course || 'BSIT',
-          yearLevel: yearLevel || '3rd Year',
-          section: section || 'M1',
+          yearLevel: yearLevel || '1st Year',
+          section: section || '11M1',
           email,
           department,
         });
       }
 
       // Check if this student already happens to have a registered User account
+      const recUserId = studentRec?.userId;
       existingUserAccount = users.value.find(
         u => u.studentId && normalizeId(u.studentId).toLowerCase() === cleanStudentId.toLowerCase()
-      ) || null;
+      ) || (recUserId ? users.value.find(u => u.id === recUserId) : null) || null;
 
-      if (!existingUserAccount) {
-        // Automatically create ONE Student login account with initial temporary password ncst123
+      if (!existingUserAccount && studentRec) {
+        // Automatically create ONE Student login account with initial temporary password set to official surname
         const parsedName = splitFullName(studentRec.name.trim());
         const cleanEmail = studentRec.email || email || `${cleanStudentId.toLowerCase()}@student.ncst.edu.ph`;
-        const initialPassword = 'ncst123';
+        const officialSurname = (studentRec.lastName || parsedName.lastName || 'Student').trim();
+        const initialPassword = officialSurname;
 
         const newUser: User = {
           id: `usr-student-${Date.now().toString().slice(-6)}`,
@@ -1138,8 +1323,8 @@ export function useAppStore() {
           studentId: cleanStudentId,
           department: studentRec.department || department,
           course: studentRec.course || 'BSIT',
-          yearLevel: studentRec.yearLevel || '3rd Year',
-          section: studentRec.section || 'M1',
+          yearLevel: studentRec.yearLevel || '1st Year',
+          section: studentRec.section || '11M1',
           isActive: true,
           accountStatus: 'active',
           mustChangePassword: true,
@@ -1150,8 +1335,11 @@ export function useAppStore() {
         studentRec.userId = newUser.id;
         existingUserAccount = newUser;
         accountCreated = true;
-      } else {
+      } else if (existingUserAccount && studentRec) {
+        // CASE A: EXISTING STUDENT PORTAL ACCOUNT
+        // Reuse existing User Account. PRESERVE existing password hash and security settings exactly!
         studentRec.userId = existingUserAccount.id;
+        accountCreated = false;
       }
     } else if (userId) {
       existingUserAccount = users.value.find(u => u.id === userId) || null;
@@ -1217,6 +1405,8 @@ export function useAppStore() {
     const ticketSeq = Math.floor(10000 + tickets.value.length + 1);
     const outsiderId = isOutsider ? (ownerId || `out-${ticketSeq}`) : undefined;
     const newTicketNumber = isOutsider ? `TIX-O-${ticketSeq}` : `TIX-${ticketSeq}`;
+    const evAcadYear = targetEvent?.academicYear || '2026-2027';
+    const evSem = targetEvent?.semester || '1st Semester';
 
     const newTicket: Ticket = {
       id: newTicketNumber,
@@ -1252,6 +1442,8 @@ export function useAppStore() {
       attendanceStatus: 'not_entered',
       transferHistory: [],
       notes: isOutsider ? 'Outsider / Guest Event Pass.' : (price > 0 ? `Payment recorded (PHP ${price}.00).` : 'Free official student event ticket registration.'),
+      academicYear: evAcadYear,
+      semester: evSem,
     };
 
     tickets.value.unshift(newTicket);
@@ -1276,8 +1468,10 @@ export function useAppStore() {
       paymentStatus: price > 0 ? 'paid' : 'free',
       purchaseDate: new Date().toISOString(),
       quantity: 1,
-      paymentMethod: cashierStaffName ? 'Cashier Ticket Desk (POS)' : (price > 0 ? 'Online Payment Portal' : 'Official Event Registration'),
+      paymentMethod: cashierStaffName ? 'Cashier Ticket Desk (Cash)' : (price > 0 ? 'Cashier Desk (Cash)' : 'Official Event Registration'),
       cashierName: cashierStaffName,
+      academicYear: evAcadYear,
+      semester: evSem,
     };
     transactions.value.unshift(newTxn);
 
@@ -1411,6 +1605,8 @@ export function useAppStore() {
       transferHistory: [],
       ocrVerified: !!ocrText,
       notes: ocrText ? `OCR Scanned: ${ocrText.slice(0, 80)}...` : (attendeeType === 'OUTSIDER' ? 'Physical Outsider Pass registered by booth.' : 'Physical Student Pass registered by booth.'),
+      academicYear: targetEvent?.academicYear || '2026-2027',
+      semester: targetEvent?.semester || '1st Semester',
     };
 
     tickets.value.unshift(newTicket);
@@ -1429,10 +1625,13 @@ export function useAppStore() {
   };
 
   // User CRUD - Enforces strict ONE PERSON = ONE ACCOUNT
-  const addUser = (userData: Partial<User> & { name: string; email: string; role: UserRole }): { success: boolean; user?: User; message?: string; conflict?: IdentityConflictResult } => {
+  const addUser = (userData: Partial<User> & { name: string; email?: string; role: UserRole }): { success: boolean; user?: User; message?: string; conflict?: IdentityConflictResult } => {
+    const fallbackStudentEmail = userData.studentId ? `${normalizeId(userData.studentId).toLowerCase()}@student.ncst.edu.ph` : '';
+    const emailToUse = (userData.email && userData.email.trim()) || (userData.role === 'student' ? fallbackStudentEmail : '');
+
     const candidate = {
       name: userData.name,
-      email: userData.email,
+      email: emailToUse,
       role: userData.role,
       studentId: userData.role === 'student' ? userData.studentId : undefined,
       employeeId: userData.role !== 'student' ? (userData.employeeId || userData.studentId) : undefined,
@@ -1451,7 +1650,7 @@ export function useAppStore() {
       firstName: userData.firstName || parsedName.firstName,
       middleName: userData.middleName || parsedName.middleName,
       lastName: userData.lastName || parsedName.lastName,
-      email: normalizeEmail(userData.email),
+      email: normalizeEmail(emailToUse),
       studentId: userData.role === 'student' ? normalizeId(userData.studentId) || undefined : undefined,
       employeeId: userData.role !== 'student' ? normalizeId(userData.employeeId) || undefined : undefined,
       id: userData.id || `usr-${userData.role}-${Date.now().toString(36)}`,
@@ -1654,10 +1853,8 @@ export function useAppStore() {
     const recordDenied = (reason: string): ScanValidationResult => {
       const isDuplicate = reason.includes('ALREADY USED') || reason.includes('Already used') || reason.includes('already used');
       if (isDuplicate) {
-        sounds.playWarning();
         sounds.vibrateWarning();
       } else {
-        sounds.playError();
         sounds.vibrateError();
       }
       const detectedType: AttendeeType | undefined = ticket ? (ticket.attendeeType || (ticket.attendeeStudentId ? 'STUDENT' : 'OUTSIDER')) : undefined;
@@ -1778,9 +1975,10 @@ export function useAppStore() {
         verifiedById: scannerId,
         verifiedByName: scannerName,
         status: 'valid',
+        academicYear: targetEvent?.academicYear || ticket.academicYear || '2026-2027',
+        semester: targetEvent?.semester || ticket.semester || '1st Semester',
       };
       logs.value.unshift(successLog);
-      sounds.playSuccess();
       sounds.vibrateSuccess();
 
       const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
@@ -1796,7 +1994,6 @@ export function useAppStore() {
         });
       }
     } else {
-      sounds.playSuccess();
       sounds.vibrateSuccess();
     }
 
@@ -1841,75 +2038,29 @@ export function useAppStore() {
 
   const findUserByIdentifier = (identifier: string): User | undefined => {
     const trimmed = identifier.trim().toLowerCase();
-    if (!trimmed) return undefined;
+    if (!trimmed || trimmed.includes('@')) return undefined;
+    const cleanId = trimmed.replace(/\s+/g, '');
     
-    // 1. Search in current reactive repository
+    // Match registered Student ID for students or registered Employee ID for personnel
     let found = users.value.find(u => {
-      const emailMatch = u.email && (normalizeEmail(u.email) === trimmed || u.email.trim().toLowerCase() === trimmed);
-      const studentIdMatch = u.studentId && normalizeId(u.studentId).toLowerCase() === trimmed;
-      const employeeIdMatch = u.employeeId && normalizeId(u.employeeId).toLowerCase() === trimmed;
-      const nameMatch = u.name && u.name.trim().toLowerCase() === trimmed;
-      const idMatch = u.id && u.id.trim().toLowerCase() === trimmed;
-
-      return emailMatch || studentIdMatch || employeeIdMatch || nameMatch || idMatch;
+      const studentIdMatch = u.role === 'student' && u.studentId && normalizeId(u.studentId).toLowerCase() === cleanId;
+      const employeeIdMatch = u.role !== 'student' && u.employeeId && normalizeId(u.employeeId).toLowerCase() === cleanId;
+      const idMatch = u.id && u.id.trim().toLowerCase() === cleanId;
+      return studentIdMatch || employeeIdMatch || idMatch;
     });
 
-    // 2. If not found, check authoritative INITIAL_USERS seed demo accounts and self-heal
+    // If not found, check authoritative INITIAL_USERS seed demo accounts and self-heal
     if (!found) {
       const seedFound = INITIAL_USERS.find(u => {
-        const emailMatch = u.email && (normalizeEmail(u.email) === trimmed || u.email.trim().toLowerCase() === trimmed);
-        const studentIdMatch = u.studentId && normalizeId(u.studentId).toLowerCase() === trimmed;
-        const employeeIdMatch = u.employeeId && normalizeId(u.employeeId).toLowerCase() === trimmed;
-        const nameMatch = u.name && u.name.trim().toLowerCase() === trimmed;
-        const idMatch = u.id && u.id.trim().toLowerCase() === trimmed;
-
-        return emailMatch || studentIdMatch || employeeIdMatch || nameMatch || idMatch;
+        const studentIdMatch = u.role === 'student' && u.studentId && normalizeId(u.studentId).toLowerCase() === cleanId;
+        const employeeIdMatch = u.role !== 'student' && u.employeeId && normalizeId(u.employeeId).toLowerCase() === cleanId;
+        const idMatch = u.id && u.id.trim().toLowerCase() === cleanId;
+        return studentIdMatch || employeeIdMatch || idMatch;
       });
 
       if (seedFound) {
         users.value = ensureSeedUsers([...users.value, { ...seedFound }]);
         found = users.value.find(u => u.id === seedFound.id) || seedFound;
-      }
-    }
-
-    // 3. Check for Outsider / Guest Ticket Holders
-    if (!found) {
-      const cleanId = trimmed.replace(/\s+/g, '');
-      const matchedTicket = tickets.value.find(t => {
-        if (t.attendeeType !== 'OUTSIDER') return false;
-        const codeMatch = (t.ticketNumber && t.ticketNumber.toLowerCase().replace(/\s+/g, '') === cleanId) || (t.id && t.id.toLowerCase().replace(/\s+/g, '') === cleanId);
-        const contactMatch = t.contactNumber && t.contactNumber.replace(/[^0-9]/g, '') === cleanId.replace(/[^0-9]/g, '');
-        const nameMatch = (t.currentAttendeeName && t.currentAttendeeName.trim().toLowerCase() === trimmed) || (t.originalOwnerName && t.originalOwnerName.trim().toLowerCase() === trimmed);
-        const emailMatch = t.attendeeEmail && t.attendeeEmail.trim().toLowerCase() === trimmed;
-        const guestIdMatch = (t.attendeeStudentId && t.attendeeStudentId.toLowerCase() === cleanId) || (t.outsiderId && t.outsiderId.toLowerCase() === cleanId);
-        return Boolean(codeMatch || contactMatch || nameMatch || emailMatch || guestIdMatch);
-      });
-
-      if (matchedTicket) {
-        const guestUserId = matchedTicket.currentAttendeeId || matchedTicket.originalOwnerId || `usr-guest-${matchedTicket.ticketNumber || matchedTicket.id}`;
-        let guestUser = users.value.find(u => u.id === guestUserId);
-        if (!guestUser) {
-          guestUser = {
-            id: guestUserId,
-            name: matchedTicket.currentAttendeeName || matchedTicket.originalOwnerName || 'Guest Attendee',
-            email: matchedTicket.attendeeEmail || `${cleanId}@guest.ncst.edu.ph`,
-            role: 'outsider',
-            isOutsider: true,
-            attendeeType: 'OUTSIDER',
-            studentId: matchedTicket.ticketNumber || matchedTicket.contactNumber || 'GUEST-PASS',
-            department: 'External Guest / Outsider',
-            password: 'password123',
-            isActive: true,
-            accountStatus: 'active',
-            createdAt: matchedTicket.purchaseDate || new Date().toISOString(),
-            assignedEventIds: [matchedTicket.eventId],
-          };
-          users.value.push(guestUser);
-          localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users.value));
-        }
-        matchedTicket.currentAttendeeId = guestUser.id;
-        matchedTicket.originalOwnerId = matchedTicket.originalOwnerId || guestUser.id;
-        found = guestUser;
       }
     }
 
@@ -1937,15 +2088,34 @@ export function useAppStore() {
 
   const login = async (identifier: string, password: string): Promise<{ success: boolean; message: string; user?: User }> => {
     evaluateOutsiderAccountExpirations();
-    const trimmed = identifier.trim().toLowerCase();
+    const rawIdent = identifier.trim();
     const cleanPass = password.trim();
+
+    if (!rawIdent || !cleanPass) {
+      sounds.playError();
+      return { success: false, message: 'ID Number and password are required.' };
+    }
+
+    // Reject email address as login identifier
+    if (rawIdent.includes('@')) {
+      sounds.playError();
+      return { success: false, message: 'Invalid credentials. Please verify your ID Number and password.' };
+    }
+
+    const trimmed = rawIdent.toLowerCase();
+    const cleanId = trimmed.replace(/\s+/g, '');
+
+    if (!/^[a-z0-9\-]+$/i.test(cleanId)) {
+      sounds.playError();
+      return { success: false, message: 'Invalid credentials. Please verify your ID Number and password.' };
+    }
 
     // 1. Authoritative Backend Server Authentication
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch(apiUrl('/api/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier: trimmed, password: cleanPass }),
+        body: JSON.stringify({ identifier: cleanId, password: cleanPass }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -1960,7 +2130,7 @@ export function useAppStore() {
           const existingIdx = users.value.findIndex(u =>
             u.id === serverUser.id ||
             (u.studentId && normalizeId(u.studentId).toLowerCase() === normalizeId(serverUser.studentId || '').toLowerCase()) ||
-            (u.email && normalizeEmail(u.email) === normalizeEmail(serverUser.email || ''))
+            (u.employeeId && normalizeId(u.employeeId).toLowerCase() === normalizeId(serverUser.employeeId || '').toLowerCase())
           );
           if (existingIdx !== -1) {
             users.value[existingIdx] = { ...users.value[existingIdx], ...serverUser };
@@ -1980,7 +2150,7 @@ export function useAppStore() {
           sounds.playSuccess();
           return { success: true, message: data.message || `Welcome back, ${serverUser.name}!`, user: serverUser };
         }
-      } else if (res.status === 401 || res.status === 403) {
+      } else if (res.status === 401 || res.status === 403 || res.status === 409) {
         const data = await res.json().catch(() => ({}));
         if (data && data.error) {
           sounds.playError();
@@ -1996,7 +2166,7 @@ export function useAppStore() {
 
     if (!foundUser) {
       sounds.playError();
-      return { success: false, message: 'No account found with this Student ID or Employee ID.' };
+      return { success: false, message: 'Invalid credentials. Please verify your ID Number and password.' };
     }
 
     if (foundUser.isActive === false) {
@@ -2012,8 +2182,11 @@ export function useAppStore() {
       return { success: false, message: 'This account has been deactivated. Please contact the Administrator.' };
     }
 
-    const expectedPassword = (foundUser.password || (foundUser.mustChangePassword ? 'ncst123' : 'password123')).trim();
-    if (cleanPass !== expectedPassword) {
+    const userSurname = (foundUser.lastName || splitFullName(foundUser.name).lastName || 'Student').trim();
+    const expectedPassword = (foundUser.password || (foundUser.mustChangePassword ? userSurname : 'password123')).trim();
+    const passMatches = cleanPass === expectedPassword ||
+      (foundUser.mustChangePassword && (cleanPass.toLowerCase() === userSurname.toLowerCase() || cleanPass === 'ncst123'));
+    if (!passMatches) {
       sounds.playError();
       return { success: false, message: 'Invalid password. Please verify your credentials.' };
     }
@@ -2054,14 +2227,14 @@ export function useAppStore() {
         found: true,
         hasExistingAccount: true,
         message: existingUser.mustChangePassword
-          ? `An account for Student ID ${clean} was automatically created during ticket purchase. Please sign in using default password "ncst123" to set your password.`
+          ? `An account for Student ID ${clean} was automatically created during ticket purchase. Please sign in using your official surname as your initial temporary password to set your permanent password.`
           : `An account is already registered for Student ID ${clean}. Please log in or use Forgot Password.`,
       };
     }
 
     // 2. Query authoritative backend endpoint
     try {
-      const res = await fetch('/api/lookup-student', {
+      const res = await fetch(apiUrl('/api/lookup-student'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ studentId: clean }),
@@ -2165,7 +2338,7 @@ export function useAppStore() {
       if (existingStudentAccount.mustChangePassword) {
         return {
           success: false,
-          message: `An account for Student ID ${cleanStudentId} was automatically created during ticket purchase. Please sign in with your Student ID and default password (ncst123) to set your permanent password.`,
+          message: `An account for Student ID ${cleanStudentId} was automatically created during ticket purchase. Please sign in with your Student ID and your official surname as your temporary password to set your permanent password.`,
         };
       }
       return {
@@ -2200,7 +2373,7 @@ export function useAppStore() {
           name: data.name.trim(),
           course: data.course || 'BSIT',
           yearLevel: data.yearLevel || '1st Year',
-          section: data.section || 'A1',
+          section: data.section || '11M1',
           department: data.department || 'CSD',
           email: cleanEmail,
           createdAt: new Date().toISOString(),
@@ -2223,7 +2396,7 @@ export function useAppStore() {
     const finalName = isAuthoritative ? matchedStudentRecord.name.trim() : (data.name ? data.name.trim() : matchedStudentRecord.name.trim());
     const finalCourse = isAuthoritative ? (matchedStudentRecord.course || 'BSIT') : (data.course || 'BSIT');
     const finalYear = isAuthoritative ? (matchedStudentRecord.yearLevel || '1st Year') : (data.yearLevel || '1st Year');
-    const finalSection = isAuthoritative ? (matchedStudentRecord.section || 'A1') : (data.section || 'A1');
+    const finalSection = isAuthoritative ? (matchedStudentRecord.section || '11M1') : (data.section || '11M1');
     const finalDept = isAuthoritative ? (matchedStudentRecord.department || 'CSD') : (data.department || 'CSD');
     const finalEmail = cleanEmail || matchedStudentRecord.email || `${cleanStudentId.toLowerCase()}@student.ncst.edu.ph`;
 
@@ -2307,7 +2480,7 @@ export function useAppStore() {
 
     // Push registration to authoritative server endpoint
     try {
-      const res = await fetch('/api/register', {
+      const res = await fetch(apiUrl('/api/register'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newUser),
@@ -2416,7 +2589,24 @@ export function useAppStore() {
     users.value[idx] = updated;
     if (currentUser.value && currentUser.value.id === userId) {
       currentUser.value = updated;
+      localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(updated));
     }
+
+    // Call backend endpoint asynchronously if session token exists
+    if (sessionToken.value) {
+      fetch(apiUrl('/api/auth/change-password'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sessionToken.value}`,
+          'x-session-token': sessionToken.value,
+        },
+        body: JSON.stringify({ newPassword }),
+      }).catch(err => {
+        console.warn('Backend change-password sync notice:', err);
+      });
+    }
+
     sounds.playSuccess();
     return { success: true, message: 'Password updated successfully!', user: updated };
   };
@@ -2616,22 +2806,7 @@ export function useAppStore() {
   };
 
   const resetAllData = () => {
-    localStorage.removeItem(STORAGE_KEYS.USERS);
-    localStorage.removeItem(STORAGE_KEYS.STUDENT_RECORDS);
-    localStorage.removeItem(STORAGE_KEYS.EVENTS);
-    localStorage.removeItem(STORAGE_KEYS.TICKETS);
-    localStorage.removeItem(STORAGE_KEYS.LOGS);
-    localStorage.removeItem(STORAGE_KEYS.TRANSACTIONS);
-    localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
-    localStorage.removeItem(STORAGE_KEYS.CURRENT_EVENT);
-    users.value = INITIAL_USERS;
-    studentRecords.value = [...INITIAL_STUDENT_RECORDS];
-    events.value = INITIAL_EVENTS;
-    tickets.value = INITIAL_TICKETS;
-    logs.value = INITIAL_LOGS;
-    transactions.value = INITIAL_TRANSACTIONS;
-    currentUser.value = null;
-    currentEvent.value = INITIAL_EVENTS[0];
+    console.warn('[Security Violation] Global database reset action is permanently disabled to enforce data integrity.');
   };
 
   // QR Label Print Queue Computed Metrics
@@ -2660,11 +2835,137 @@ export function useAppStore() {
     };
   });
 
+  const lookupGuestTicket = async (controlNumber: string, contactNumber?: string): Promise<{ success: boolean; message?: string; ticket?: any; error?: string }> => {
+    const rawCtrl = controlNumber.trim();
+    if (!rawCtrl) {
+      return { success: false, error: 'Control Number is required.' };
+    }
+
+    try {
+      const res = await fetch(apiUrl('/api/tickets/guest-lookup'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ controlNumber: rawCtrl, contactNumber: contactNumber?.trim() }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.success && data.ticket) {
+          return { success: true, ticket: data.ticket, message: data.message };
+        }
+      } else {
+        const data = await res.json().catch(() => ({}));
+        return { success: false, error: data.error || 'No guest ticket found matching this Control Number.' };
+      }
+    } catch {
+      // Local store fallback
+    }
+
+    const cleanCtrl = rawCtrl.toLowerCase().replace(/\s+/g, '');
+    const t = tickets.value.find(item => {
+      if (item.attendeeType !== 'OUTSIDER') return false;
+      const tNum = (item.ticketNumber || '').toLowerCase().replace(/\s+/g, '');
+      const tQr = (item.qrToken || '').toLowerCase().replace(/\s+/g, '');
+      const tId = (item.id || '').toLowerCase().replace(/\s+/g, '');
+      return tNum === cleanCtrl || tQr === cleanCtrl || tId === cleanCtrl;
+    });
+
+    if (!t) {
+      return { success: false, error: 'No guest ticket found matching this Control Number. Please check your ticket receipt.' };
+    }
+
+    if (contactNumber) {
+      const cleanContact = contactNumber.replace(/[^0-9]/g, '');
+      const storedContact = (t.contactNumber || '').replace(/[^0-9]/g, '');
+      if (cleanContact && storedContact && !storedContact.includes(cleanContact) && !cleanContact.includes(storedContact)) {
+        return { success: false, error: 'Verification failed: Contact number does not match this ticket record.' };
+      }
+    }
+
+    const ev = events.value.find(e => e.id === t.eventId);
+    return {
+      success: true,
+      ticket: {
+        controlNumber: t.ticketNumber || t.id,
+        ticketId: t.id,
+        eventTitle: t.eventTitle || ev?.title || 'NCST Event',
+        venue: ev?.venue || 'NCST Campus',
+        date: ev?.date || 'Upcoming',
+        startTime: ev?.startTime || '',
+        endTime: ev?.endTime || '',
+        attendeeName: t.currentAttendeeName || t.originalOwnerName || 'Guest Attendee',
+        ticketStatus: t.ticketStatus || 'ISSUED',
+        paymentStatus: t.paymentStatus || 'paid',
+        qrToken: t.qrToken || t.ticketNumber || t.id,
+        price: t.price || 0,
+        attendeeType: 'OUTSIDER'
+      }
+    };
+  };
+
+  const createAcademicPeriod = async (period: Partial<AcademicPeriod>): Promise<{ success: boolean; period?: AcademicPeriod; error?: string }> => {
+    if (!currentUser.value || currentUser.value.role !== 'admin') {
+      sounds.playError();
+      return { success: false, error: '403 Forbidden: Only Administrators can configure academic periods.' };
+    }
+
+    try {
+      const res = await fetch(apiUrl('/api/academic-periods'), {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(period),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        sounds.playError();
+        return { success: false, error: data.error || 'Failed to save academic period configuration.' };
+      }
+
+      await fetchStateFromServer();
+      sounds.playSuccess();
+      return { success: true, period: data.period };
+    } catch (e: any) {
+      sounds.playError();
+      return { success: false, error: e.message || 'Network error while configuring academic period.' };
+    }
+  };
+
+  const updateAcademicPeriod = async (period: Partial<AcademicPeriod>): Promise<{ success: boolean; period?: AcademicPeriod; error?: string }> => {
+    return createAcademicPeriod(period);
+  };
+
+  const activateAcademicPeriod = async (periodId: string): Promise<{ success: boolean; activePeriod?: AcademicPeriod; message?: string; error?: string }> => {
+    if (!currentUser.value || currentUser.value.role !== 'admin') {
+      sounds.playError();
+      return { success: false, error: '403 Forbidden: Only Administrators can activate academic semesters.' };
+    }
+
+    try {
+      const res = await fetch(apiUrl('/api/academic-periods/activate'), {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ id: periodId }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        sounds.playError();
+        return { success: false, error: data.error || 'Failed to activate academic semester.' };
+      }
+
+      await fetchStateFromServer();
+      sounds.playSuccess();
+      return { success: true, activePeriod: data.activePeriod, message: data.message };
+    } catch (e: any) {
+      sounds.playError();
+      return { success: false, error: e.message || 'Network error while activating academic semester.' };
+    }
+  };
+
   return {
     currentUser,
     setCurrentUser,
     isAuthenticated,
     login,
+    lookupGuestTicket,
     register,
     resetPassword,
     findUserByIdentifier,
@@ -2679,6 +2980,11 @@ export function useAppStore() {
     tickets,
     transactions,
     logs,
+    academicPeriods,
+    activeAcademicPeriod,
+    createAcademicPeriod,
+    updateAcademicPeriod,
+    activateAcademicPeriod,
     filters,
     resetFilters,
     filteredTickets,

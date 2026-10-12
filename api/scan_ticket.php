@@ -202,7 +202,7 @@ try {
             `time_in` = :time_in,
             `current_area` = :area,
             `last_scanned_by` = :scanned_by
-        WHERE `id` = :id
+        WHERE `id` = :id AND `ticket_status` != 'USED' AND (`attendance_status` != 'present' OR `attendance_status` IS NULL)
     ");
     $updateTicket->execute([
         ':time_in'    => $now,
@@ -211,6 +211,24 @@ try {
         ':id'         => $ticket['id']
     ]);
 
+    if ($updateTicket->rowCount() === 0) {
+        $pdo->rollBack();
+        http_response_code(400);
+        echo json_encode([
+            'success' => false,
+            'is_duplicate' => true,
+            'error'   => "⚠️ TICKET ALREADY USED: Scanned previously by another station. Attendee: " . ($ticket['current_attendee_name'] ?? 'Registered Attendee')
+        ]);
+        exit;
+    }
+
+    // Fetch linked event's authoritative academic period
+    $evStmt = $pdo->prepare("SELECT academic_year, semester FROM `events` WHERE `id` = ? LIMIT 1");
+    $evStmt->execute([$ticket['event_id']]);
+    $evInfo = $evStmt->fetch();
+    $logAcadYear = $ticket['academic_year'] ?? ($evInfo['academic_year'] ?? '2026-2027');
+    $logSemester = $ticket['semester'] ?? ($evInfo['semester'] ?? '1st Semester');
+
     // Insert attendance log
     $insertLog = $pdo->prepare("
         INSERT INTO `attendance_logs` (
@@ -218,13 +236,13 @@ try {
             `attendee_type`, `attendee_name`, `first_name`, `middle_name`, `last_name`,
             `student_id`, `outsider_id`, `course`, `year_level`, `section`,
             `contact_number`, `ticket_type`, `area`, `scan_type`, `timestamp`,
-            `verified_by_id`, `verified_by_name`, `status`
+            `verified_by_id`, `verified_by_name`, `status`, `academic_year`, `semester`
         ) VALUES (
             :id, :ticket_id, :ticket_number, :event_id, :event_title,
             :attendee_type, :attendee_name, :first_name, :middle_name, :last_name,
             :student_id, :outsider_id, :course, :year_level, :section,
             :contact_number, :ticket_type, :area, :scan_type, :timestamp,
-            :verified_by_id, :verified_by_name, 'valid'
+            :verified_by_id, :verified_by_name, 'valid', :academic_year, :semester
         )
     ");
     $insertLog->execute([
@@ -250,6 +268,8 @@ try {
         ':timestamp'        => $now,
         ':verified_by_id'   => $staff['id'],
         ':verified_by_name' => $staff['name'],
+        ':academic_year'    => $logAcadYear,
+        ':semester'         => $logSemester,
     ]);
 
     $pdo->commit();

@@ -1,3 +1,8 @@
+# Block direct web access to sensitive setup, migration, and database files
+<FilesMatch "^(setup\.php|database\.sql)$">
+    Require all denied
+</FilesMatch>
+
 <IfModule mod_rewrite.c>
     RewriteEngine On
     

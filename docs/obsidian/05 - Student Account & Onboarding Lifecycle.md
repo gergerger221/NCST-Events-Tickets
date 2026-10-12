@@ -54,21 +54,33 @@ When an enrolled student who does not yet possess a portal login account buys a 
 
 1. **Roster Match**:
    - The cashier enters the Student ID (e.g., `2026-00129`).
-   - The POS validates the ID against the authoritative institutional roster ([`StudentRecord`](file:///c:/xampp/htdocs/Integ%202/src/types/index.ts)).
+   - The POS validates the ID against the authoritative institutional roster ([`StudentRecord`](file:///d:/Downloads/INTEG/src/types/index.ts)).
 2. **Instant Provisioning**:
-   - A `User` record is created with:
+   - A `User` record is created automatically without printing paper slips or activation codes:
      - `role`: `'student'`
-     - `password`: `'ncst123'`
+     - `password`: Hashed verifier of the student's official surname (e.g. `'Hernandez'` or `'De Los Santos'`)
      - `mustChangePassword`: `true`
      - `accountStatus`: `'active'`
 3. **First-Time Sign In**:
-   - The student goes to the portal and signs in with their Student ID and `ncst123`.
+   - The student visits the portal and signs in with their Student ID and official surname as temporary password.
 4. **Mandatory First-Login Password Change**:
    - The portal locks navigation and displays the **First-Time Password Setup Modal**.
-   - The student chooses a permanent secure password.
-   - Once submitted, `mustChangePassword` is set to `false`.
+   - Backend APIs (`/api/state`, `/api/tickets`) gate access and return empty digital passes and logs until password change is complete.
+   - The student must set a permanent secure password (cannot be their surname, `ncst123`, or `password123`).
+   - Once updated, `mustChangePassword` is set to `false`.
 5. **Instant Pass Visibility**:
    - The purchased ticket immediately appears under **My Passes & Attendance** with full digital QR code.
+
+### ⚠️ Security Limitations of Surname-Based Temporary Passwords
+> **Notice on Impersonation Risk**:  
+> Using a student's official surname as a temporary password is a **project-specific onboarding convenience**, not a strong security credential. Surnames and student IDs are semi-public directory information known within academic cohorts.  
+> - **Impersonation Vulnerability**: An attacker who knows a student's ID number and surname could theoretically log in and set the initial password before the legitimate student does.  
+> - **Mitigations Enforced in the System**:
+>   1. **Mandatory Change Barrier**: The surname is strictly temporary and must be changed immediately upon first login.
+>   2. **Data Gating**: Sensitive student records, attendance logs, and digital ticket barcodes are completely withheld by backend API guards until the permanent password is confirmed.
+>   3. **No Password Resets on Repeat Purchases**: Once an account is activated or exists, subsequent cashier ticket purchases **strictly preserve** the student's existing credentials and never reset passwords back to the surname.
+>   4. **Password Disallowance**: Students cannot choose their surname, `ncst123`, or `password123` as their permanent password.
+>   5. **Auditing**: All password change events are permanently recorded in system audit logs with actor ID, timestamp, and IP address.
 
 ---
 

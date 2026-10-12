@@ -54,6 +54,17 @@ if (isset($user['is_active']) && (int)$user['is_active'] === 0) {
 
 $role = strtolower($user['role']);
 
+// Server-enforced protection: Block unactivated student accounts from accessing attendance logs
+if ($role === 'student' && (int)($user['must_change_password'] ?? 0) === 1) {
+    http_response_code(403);
+    echo json_encode([
+        'success' => false,
+        'error' => '403 Forbidden: Mandatory password change required before accessing attendance records.',
+        'mustChangePassword' => true,
+    ]);
+    exit;
+}
+
 // 2. Query Authorization and Role-Based Filtering
 if ($role === 'admin') {
     // ADMIN: Sees ALL attendance (Students + Outsiders)
@@ -81,43 +92,45 @@ if ($role === 'admin') {
 
 if ($role === 'teacher') {
     // TEACHER: Sees ASSIGNED STUDENTS ONLY (Never Outsiders, Never unrelated students)
-    $assignedCourses = json_decode($user['assigned_courses'] ?? '[]', true) ?: ['BSIT'];
-    $assignedYears   = json_decode($user['assigned_year_levels'] ?? '[]', true) ?: ['3rd Year'];
-    $assignedSections = json_decode($user['assigned_sections'] ?? '[]', true) ?: ['A', 'M1', 'A1'];
+    $assignedClasses = [];
+    if (!empty($user['assigned_classes'])) {
+        $assignedClasses = is_string($user['assigned_classes']) ? json_decode($user['assigned_classes'], true) : $user['assigned_classes'];
+    } elseif (!empty($user['assignedClasses'])) {
+        $assignedClasses = $user['assignedClasses'];
+    }
+
+    $teacherDept = $user['department'] ?? '';
 
     $sql = "
-        SELECT * FROM `attendance_logs` 
-        WHERE `attendee_type` = 'STUDENT'
+        SELECT al.*, COALESCE(sr.department, u.department, t.attendee_department) AS department
+        FROM `attendance_logs` al
+        LEFT JOIN `student_records` sr ON al.student_id = sr.student_id
+        LEFT JOIN `users` u ON al.student_id = u.student_id
+        LEFT JOIN `tickets` t ON al.ticket_id = t.id
+        WHERE al.`attendee_type` = 'STUDENT'
     ";
     $params = [];
 
     if (!empty($eventId) && $eventId !== 'all') {
-        $sql .= " AND `event_id` = :event_id";
+        $sql .= " AND al.`event_id` = :event_id";
         $params[':event_id'] = $eventId;
     }
 
-    $sql .= " ORDER BY `timestamp` DESC";
+    $sql .= " ORDER BY al.`timestamp` DESC";
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
     $allStudentLogs = $stmt->fetchAll();
 
-    // Authoritative filter: Match teacher's assigned course, year level, and section
-    $filtered = array_values(array_filter($allStudentLogs, function($log) use ($assignedCourses, $assignedYears, $assignedSections) {
-        $course = $log['course'] ?? '';
-        $year   = $log['year_level'] ?? '';
-        $sec    = strtoupper($log['section'] ?? '');
+    // Authoritative filter: Match teacher's assigned classes strictly by (Department + Course + Year Level + Section)
+    $filtered = array_values(array_filter($allStudentLogs, function($log) use ($assignedClasses, $teacherDept) {
+        if (empty($assignedClasses) || !is_array($assignedClasses)) return false;
 
-        $matchCourse = in_array($course, $assignedCourses);
-        $matchYear   = in_array($year, $assignedYears);
-        $matchSec    = false;
-        foreach ($assignedSections as $as) {
-            $uAs = strtoupper($as);
-            if ($sec === $uAs || strpos($sec, $uAs) !== false || strpos($uAs, $sec) !== false) {
-                $matchSec = true;
-                break;
+        foreach ($assignedClasses as $cls) {
+            if (ncst_match_teacher_class($cls, $log, $teacherDept)) {
+                return true;
             }
         }
-        return $matchCourse && $matchYear && $matchSec;
+        return false;
     }));
 
     echo json_encode([

@@ -96,21 +96,21 @@
       </div>
 
       <div class="p-4 rounded-2xl bg-white dark:bg-[#1e1e1e] border border-slate-200 dark:border-[#333333] shadow-sm flex flex-col justify-between">
-        <div class="flex items-center justify-between text-indigo-600 dark:text-indigo-400">
+        <div class="flex items-center justify-between text-slate-500 dark:text-slate-400">
           <span class="text-[10px] font-bold uppercase tracking-wider">Active Sections</span>
-          <Layers class="w-4 h-4" />
+          <Layers class="w-4 h-4 text-blue-600 dark:text-blue-400" />
         </div>
-        <p class="text-2xl font-black text-indigo-600 dark:text-indigo-400 mt-2">{{ uniqueSectionsCount }}</p>
+        <p class="text-2xl font-bold text-slate-900 dark:text-white mt-2">{{ uniqueSectionsCount }}</p>
         <span class="text-[10px] text-slate-400">Morning, Afternoon & Evening</span>
       </div>
 
       <div class="p-4 rounded-2xl bg-white dark:bg-[#1e1e1e] border border-slate-200 dark:border-[#333333] shadow-sm flex flex-col justify-between">
-        <div class="flex items-center justify-between text-purple-600 dark:text-purple-400">
+        <div class="flex items-center justify-between text-slate-500 dark:text-slate-400">
           <span class="text-[10px] font-bold uppercase tracking-wider">Current Event</span>
-          <Calendar class="w-4 h-4" />
+          <Calendar class="w-4 h-4 text-blue-600 dark:text-blue-400" />
         </div>
-        <p class="text-sm font-bold text-purple-700 dark:text-purple-300 mt-2 truncate">{{ currentEvent?.title || 'No Active Event' }}</p>
-        <span class="text-[10px] text-purple-600/80 font-semibold">{{ currentEvent?.venue || 'Campus Venue' }}</span>
+        <p class="text-sm font-bold text-slate-900 dark:text-white mt-2 truncate">{{ currentEvent?.title || 'No Active Event' }}</p>
+        <span class="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">{{ currentEvent?.venue || 'Campus Venue' }}</span>
       </div>
     </div>
 
@@ -254,29 +254,11 @@
                 type="text"
                 list="excel-view-sections"
                 v-model="defaultSection"
-                placeholder="e.g. M1, A1, E1"
+                placeholder="e.g. 11M1, 21M1, 31A1"
                 class="w-full px-3.5 py-2 bg-slate-50 dark:bg-[#181818] border border-slate-200 dark:border-[#3a3a3a] rounded-xl text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
               />
               <datalist id="excel-view-sections">
-                <optgroup label="Morning Shift">
-                  <option value="M1">M1 (Morning 1)</option>
-                  <option value="M2">M2 (Morning 2)</option>
-                  <option value="M3">M3 (Morning 3)</option>
-                  <option value="M4">M4 (Morning 4)</option>
-                  <option value="M5">M5 (Morning 5)</option>
-                </optgroup>
-                <optgroup label="Afternoon Shift">
-                  <option value="A1">A1 (Afternoon 1)</option>
-                  <option value="A2">A2 (Afternoon 2)</option>
-                  <option value="A3">A3 (Afternoon 3)</option>
-                  <option value="A4">A4 (Afternoon 4)</option>
-                </optgroup>
-                <optgroup label="Evening Shift">
-                  <option value="E1">E1 (Evening 1)</option>
-                  <option value="E2">E2 (Evening 2)</option>
-                  <option value="E3">E3 (Evening 3)</option>
-                  <option value="E4">E4 (Evening 4)</option>
-                </optgroup>
+                <option v-for="sec in availableSections" :key="sec" :value="sec">{{ sec }}</option>
               </datalist>
             </div>
           </div>
@@ -564,7 +546,7 @@
               </td>
               <td class="px-5 py-3.5 text-slate-800 dark:text-slate-200 font-semibold whitespace-nowrap">
                 <span class="px-2 py-0.5 rounded bg-slate-100 dark:bg-[#2a2a2a] border border-slate-200 dark:border-[#3a3a3a]">
-                  {{ student.section || 'M1' }}
+                  {{ student.section || '11M1' }}
                 </span>
               </td>
               <td class="px-5 py-3.5 font-mono text-slate-500 dark:text-slate-400 text-[11px] whitespace-nowrap">

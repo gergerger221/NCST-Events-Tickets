@@ -76,7 +76,8 @@ echo.
 echo [4/4] Starting Vite Development Server...
 echo =====================================================================
 echo   Application URL: https://localhost:5173
-echo   MySQL API URL:   http://localhost/Integ%%202/api/
+echo   MySQL API URL:   http://localhost/INTEG/api/
+echo   Apache Web App:  http://localhost/INTEG/
 echo =====================================================================
 echo.
 echo Press Ctrl+C in this terminal to stop the server at any time.

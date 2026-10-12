@@ -70,7 +70,7 @@ const ticketVariant = computed(() => {
     case 'active':
     case 'issued': return 'success';
     case 'used': return 'info';
-    case 'transferred': return 'purple';
+    case 'transferred': return 'neutral';
     case 'refunded': return 'warning';
     case 'cancelled':
     case 'void': return 'danger';
@@ -97,7 +97,7 @@ const paymentVariant = computed(() => {
   const s = (props.status || '').toLowerCase();
   switch (s) {
     case 'paid': return 'success';
-    case 'free': return 'purple';
+    case 'free': return 'info';
     case 'refunded': return 'warning';
     default: return 'neutral';
   }
@@ -115,7 +115,7 @@ const paymentText = computed(() => {
 const roleVariant = computed(() => {
   const s = (props.status || '').toLowerCase();
   switch (s) {
-    case 'admin': return 'purple';
+    case 'admin': return 'info';
     case 'cashier': return 'warning';
     case 'event_staff': return 'info';
     case 'teacher': return 'info';

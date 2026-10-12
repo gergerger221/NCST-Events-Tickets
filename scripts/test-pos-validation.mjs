@@ -59,7 +59,7 @@ console.log('2. Testing Year Level Validation...');
 // 3. SECTION VALIDATION (ALPHANUMERIC NCST FORMAT)
 console.log('3. Testing Section Validation (Alphanumeric NCST)...');
 {
-  const sections = ['11M1', '21M2', '31M1', 'M1', 'M2', 'A1', 'E1', 'Section A', 'BSIT-3A'];
+  const sections = ['11M1', '11M2', '12M1', '21M1', '21M2', '31M1', '31A1', '41M1', '41M2', '41A1'];
   for (const sec of sections) {
     const res = validateSection(sec);
     assert.strictEqual(res.isValid, true, `Section ${sec} should be valid`);

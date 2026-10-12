@@ -33,6 +33,8 @@ CREATE TABLE IF NOT EXISTS `users` (
   `assigned_year_levels` JSON NULL COMMENT 'List of year levels assigned to teacher',
   `assigned_sections` JSON NULL COMMENT 'List of sections assigned to teacher',
   `account_status` ENUM('active', 'pending_activation', 'deactivated') NOT NULL DEFAULT 'active',
+  `verification_status` ENUM('verified', 'pending') NOT NULL DEFAULT 'verified',
+  `is_verified` TINYINT(1) NOT NULL DEFAULT 1,
   `must_change_password` TINYINT(1) NOT NULL DEFAULT 0,
   `is_active` TINYINT(1) NOT NULL DEFAULT 1,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -89,10 +91,49 @@ CREATE TABLE IF NOT EXISTS `events` (
   `banner_url` TEXT NULL,
   `ticket_design_url` TEXT NULL,
   `organizer` VARCHAR(150) NOT NULL,
+  `academic_year` VARCHAR(20) NOT NULL DEFAULT '2026-2027',
+  `semester` VARCHAR(50) NOT NULL DEFAULT '1st Semester',
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   INDEX `idx_events_status` (`status`),
-  INDEX `idx_events_code` (`code`)
+  INDEX `idx_events_code` (`code`),
+  INDEX `idx_events_academic_period` (`academic_year`, `semester`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+-- 3b. Table structure for table `academic_periods`
+-- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `academic_periods` (
+  `id` VARCHAR(64) NOT NULL,
+  `academic_year` VARCHAR(20) NOT NULL,
+  `semester` VARCHAR(50) NOT NULL,
+  `start_date` DATE NOT NULL,
+  `end_date` DATE NOT NULL,
+  `status` ENUM('inactive', 'active', 'archived') NOT NULL DEFAULT 'inactive',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_acad_year_sem` (`academic_year`, `semester`),
+  INDEX `idx_acad_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+-- 3c. Table structure for table `system_audit_logs`
+-- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `system_audit_logs` (
+  `id` VARCHAR(64) NOT NULL,
+  `action` VARCHAR(100) NOT NULL,
+  `actor_id` VARCHAR(64) NULL,
+  `actor_name` VARCHAR(150) NULL,
+  `actor_role` VARCHAR(50) NULL,
+  `target_type` VARCHAR(50) NULL,
+  `target_id` VARCHAR(64) NULL,
+  `details` JSON NULL,
+  `ip_address` VARCHAR(50) NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX `idx_system_audit_action` (`action`),
+  INDEX `idx_system_audit_actor` (`actor_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -133,16 +174,20 @@ CREATE TABLE IF NOT EXISTS `tickets` (
   `time_in` VARCHAR(30) NULL,
   `time_in_iso` DATETIME NULL,
   `last_scanned_by` VARCHAR(150) NULL,
+  `academic_year` VARCHAR(20) NULL,
+  `semester` VARCHAR(50) NULL,
   `notes` TEXT NULL,
   PRIMARY KEY (`id`),
   FOREIGN KEY (`event_id`) REFERENCES `events`(`id`) ON DELETE CASCADE,
   INDEX `idx_tickets_event` (`event_id`),
+  INDEX `idx_tickets_event_attendance` (`event_id`, `attendance_status`),
   INDEX `idx_tickets_attendee_type` (`attendee_type`),
   INDEX `idx_tickets_ticket_number` (`ticket_number`),
   INDEX `idx_tickets_qr_token` (`qr_token`),
   INDEX `idx_tickets_last_name` (`last_name`),
   INDEX `idx_tickets_attendance_status` (`attendance_status`),
-  INDEX `idx_tickets_attendee_student_id` (`attendee_student_id`)
+  INDEX `idx_tickets_attendee_student_id` (`attendee_student_id`),
+  INDEX `idx_tickets_academic_period` (`academic_year`, `semester`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -174,13 +219,16 @@ CREATE TABLE IF NOT EXISTS `attendance_logs` (
   `verified_by_name` VARCHAR(150) NOT NULL,
   `status` ENUM('valid', 'denied') NOT NULL DEFAULT 'valid',
   `denial_reason` VARCHAR(255) NULL,
+  `academic_year` VARCHAR(20) NULL,
+  `semester` VARCHAR(50) NULL,
   PRIMARY KEY (`id`),
   FOREIGN KEY (`event_id`) REFERENCES `events`(`id`) ON DELETE CASCADE,
   INDEX `idx_attendance_event` (`event_id`),
   INDEX `idx_attendance_attendee_type` (`attendee_type`),
   INDEX `idx_attendance_ticket` (`ticket_id`),
   INDEX `idx_attendance_student_id` (`student_id`),
-  INDEX `idx_attendance_timestamp` (`timestamp`)
+  INDEX `idx_attendance_timestamp` (`timestamp`),
+  INDEX `idx_attendance_academic_period` (`academic_year`, `semester`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -208,11 +256,14 @@ CREATE TABLE IF NOT EXISTS `purchase_transactions` (
   `quantity` INT(11) NOT NULL DEFAULT 1,
   `payment_method` VARCHAR(50) NOT NULL DEFAULT 'Cash',
   `cashier_name` VARCHAR(150) NULL,
+  `academic_year` VARCHAR(20) NULL,
+  `semester` VARCHAR(50) NULL,
   PRIMARY KEY (`id`),
   INDEX `idx_txn_event` (`event_id`),
   INDEX `idx_txn_user` (`user_id`),
   INDEX `idx_txn_student_id` (`student_id`),
-  INDEX `idx_txn_attendee_type` (`attendee_type`)
+  INDEX `idx_txn_attendee_type` (`attendee_type`),
+  INDEX `idx_txn_academic_period` (`academic_year`, `semester`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ==========================================================

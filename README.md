@@ -178,7 +178,7 @@ sequenceDiagram
     Attendee->>Cashier: Presents Student ID or Outsider Info + Cash Payment
     Cashier->>POS: Enters Student ID or Attendee Details
     alt Enrolled Student has NO active account
-        POS->>DB: Auto-creates Student Account (initial password: ncst123)
+        POS->>DB: Auto-creates Student Account (temporary password: official surname)
     end
     POS->>DB: Creates Ticket (Status: ISSUED, QR Status: PENDING)
     POS->>Cashier: Computes Exact Cash Change & Logs Transaction
@@ -189,7 +189,7 @@ sequenceDiagram
     Cashier->>Attendee: Hands Pre-printed Physical Ticket with attached QR Label
 
     Note over Attendee, StudentApp: Student Digital Access
-    Attendee->>StudentApp: Logs in using Student ID + password ncst123
+    Attendee->>StudentApp: Logs in using Student ID + official surname (temp password)
     StudentApp-->>Attendee: Prompts Mandatory First-Login Password Change
     Attendee->>StudentApp: Enters new permanent password
     StudentApp-->>Attendee: Displays Digital Ticket & QR Code in "My Passes & Attendance"
@@ -221,13 +221,16 @@ sequenceDiagram
 
 ### Automated Account Creation Flow
 When an unregistered enrolled student purchases an event ticket at the Cashier POS:
-1. **Roster Match**: The system matches the provided Student ID with the authoritative student roster ([`StudentRecord`](file:///d:/Downloads/Integ%202/src/types/index.ts)).
+1. **Roster Match**: The system matches the provided Student ID with the authoritative student roster ([`StudentRecord`](file:///d:/Downloads/INTEG/src/types/index.ts)).
 2. **Automatic Provisioning**: A student login account is automatically created without printing any paper slips or activation codes.
-3. **Initial Temporary Password**: The account is assigned the standard initial temporary password:
-   $$\mathbf{ncst123}$$
-4. **First-Time Sign In**: The student visits the web portal and enters their Student ID / institutional email and `ncst123`.
-5. **First-Login Password Change**: The portal immediately requires the student to set a permanent password. Once updated, the account becomes fully active.
+3. **Initial Temporary Password**: The account is assigned the student's official surname as an initial temporary password (hashed securely with PHP bcrypt; `mustChangePassword: true`).
+4. **First-Time Sign In**: The student visits the web portal and enters their Student ID and official surname as temporary password.
+5. **First-Login Password Change**: The portal and backend APIs block access to digital tickets and logs until the student sets a permanent custom password (cannot be their surname, `ncst123`, or `password123`).
 6. **Instant Pass Availability**: The purchased event pass automatically appears under **My Passes & Attendance** with its digital QR code and live attendance status.
+
+> [!WARNING]
+> **Security Limitation of Surname-Based Temporary Passwords**  
+> Using official surnames as temporary passwords is a project-specific convenience to streamline in-person cashier onboarding without slowing ticket issuance or generating paper credential slips. Surnames and Student IDs are not confidential secrets. Therefore, surname-based authentication is **not immune to peer impersonation** prior to initial account claim. To mitigate this risk, the backend strictly requires immediate password change before granting access to student data or tickets, rejects weak generic passwords, strictly preserves existing passwords on subsequent ticket purchases, and logs all credential changes.
 
 ### Student Self-Registration Flow (Authoritative StudentRecord Lookup)
 For enrolled students registering their portal account before or outside ticket purchases:
@@ -244,7 +247,7 @@ For enrolled students registering their portal account before or outside ticket 
 | Role | Permitted Workspace Modules & Capabilities | Restricted Actions |
 | :--- | :--- | :--- |
 | **🛡️ Administrator** (`admin`) | • Executive Dashboard & Analytics<br>• Event Management (create, edit, schedule, archive)<br>• Real-Time Active Attendance & Historical Archive<br>• Master Ticket Registry (search, filter, void)<br>• User Management (provision staff, reset passwords)<br>• Attendance Reports & Master Excel Export<br>• Events Calendar | None. |
-| **🎟️ Cashier** (`cashier`) | • Ticket POS Station (Student & Outsider ticket issuance)<br>• Cash payment handling & change calculation<br>• Dynamic QR Label Print Queue & reprint<br>• Automatic Student account onboarding (`ncst123`)<br>• Issued Tickets Registry (read-only verification)<br>• Events Calendar | ❌ Cannot create/edit events<br>❌ Cannot scan or modify attendance<br>❌ Cannot manage user accounts/roles<br>❌ Cannot create Outsider login accounts |
+| **🎟️ Cashier** (`cashier`) | • Ticket POS Station (Student & Outsider ticket issuance)<br>• Cash payment handling & change calculation<br>• Dynamic QR Label Print Queue & reprint<br>• Automatic Student account onboarding (official surname)<br>• Issued Tickets Registry (read-only verification)<br>• Events Calendar | ❌ Cannot create/edit events<br>❌ Cannot scan or modify attendance<br>❌ Cannot manage user accounts/roles<br>❌ Cannot create Outsider login accounts |
 | **👨‍🏫 Teacher** (`teacher`) | • Faculty Attendance Portal (scoped strictly to explicit `assignedClasses` Course + Section pairs)<br>• Active Class Scope selector (`[ BSIT — 11M1 ▾ ]`)<br>• Attendance monitoring (PRESENT / NOT YET ENTERED / Time In)<br>• Alphabetical sorting strictly by Student Last Name (A–Z)<br>• Scoped Attendance Reports & Excel Export<br>• Events Calendar | ❌ Cannot scan QR codes<br>❌ Cannot issue or void tickets<br>❌ Cannot process payments<br>❌ Cannot create/edit events<br>❌ Cannot modify master roster<br>❌ Cannot manage academic incentives or grade sheet calculations |
 | **📱 Event Staff** (`event_staff`) | • Entrance Scanner Station<br>• Optical Camera QR scanning & recovery lookup<br>• Attendance validation & Time-In recording (PHT)<br>• Duplicate scan detection & alert banner<br>• Events Calendar | ❌ Cannot access ticket sales or POS<br>❌ Cannot edit events or manage users<br>❌ Cannot export financial or roster data |
 | **🎓 Student** (`student`) | • Campus Events Calendar (event dates, venue, details)<br>• My Passes & Attendance (view digital QR passes, view Time-In)<br>• Upcoming Event Reminders<br>• Account Profile & First-Login Password Change | ❌ Cannot view other students' passes or logs<br>❌ Cannot issue or transfer tickets<br>❌ Cannot pay through the portal (Cashier POS only)<br>❌ Cannot access administrative or scanning tools |
@@ -288,7 +291,7 @@ To maintain consistency across code, tests, and documentation, the following ter
 | Active Ticket Status | **ISSUED** | ACTIVE, UNUSED |
 | Scanned Ticket Status | **USED** | CONSUMED, CHECKED_IN |
 | Revoked Ticket Status | **VOID** | CANCELLED, REFUNDED |
-| Initial Student Password | **`ncst123`** | Activation Code, random password |
+| Initial Student Password | **Official Surname** | `ncst123`, random password, Activation Code |
 | Account Setup Process | **First-Login Password Change** | Account Activation Slip, Activation Code |
 | Faculty Scope | **Explicit Assigned Classes (`(Course, Section)`)** | Independent assignedCourses / assignedSections arrays |
 | Section Code Convention | **`[Year][Sem][Sched][Sec]` (e.g. `11M1`, `31M1`)** | Arbitrary text, Section A |

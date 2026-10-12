@@ -1,4 +1,31 @@
-import type { EventItem, User, StudentRecord, Ticket, AttendanceLog, PurchaseTransaction } from '../types/index.ts';
+import type { EventItem, User, StudentRecord, Ticket, AttendanceLog, PurchaseTransaction, AcademicPeriod } from '../types/index.ts';
+
+export const INITIAL_ACADEMIC_PERIODS: AcademicPeriod[] = [
+  {
+    id: 'acad-2026-2027-sem1',
+    academicYear: '2026-2027',
+    semester: '1st Semester',
+    startDate: '2026-08-01',
+    endDate: '2026-12-31',
+    status: 'active',
+  },
+  {
+    id: 'acad-2026-2027-sem2',
+    academicYear: '2026-2027',
+    semester: '2nd Semester',
+    startDate: '2027-01-05',
+    endDate: '2027-05-31',
+    status: 'inactive',
+  },
+  {
+    id: 'acad-2025-2026-sem1',
+    academicYear: '2025-2026',
+    semester: '1st Semester',
+    startDate: '2025-08-01',
+    endDate: '2025-12-31',
+    status: 'archived',
+  },
+];
 
 export const INITIAL_STUDENT_RECORDS: StudentRecord[] = [
   {
@@ -9,7 +36,7 @@ export const INITIAL_STUDENT_RECORDS: StudentRecord[] = [
     lastName: 'Dela Cruz',
     course: 'BSIT',
     yearLevel: '3rd Year',
-    section: '31A2',
+    section: '31M1',
     department: 'CSD',
     email: '2024-58566@student.ncst.edu.ph',
     createdAt: '2024-06-15T08:00:00Z',
@@ -323,12 +350,16 @@ export const INITIAL_USERS: User[] = [
   },
 ];
 
-// Local self-contained SVG banner presets for 100% offline air-gapped operation
-const SVG_BANNER_CULTURAL = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400" viewBox="0 0 800 400"><defs><linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%23312e81"/><stop offset="50%" stop-color="%234338ca"/><stop offset="100%" stop-color="%236366f1"/></linearGradient></defs><rect width="800" height="400" fill="url(%23g1)"/><circle cx="700" cy="80" r="120" fill="%23818cf8" opacity="0.2"/><circle cx="100" cy="350" r="160" fill="%234f46e5" opacity="0.3"/><path d="M0,320 Q200,260 400,310 T800,280 L800,400 L0,400 Z" fill="%231e1b4b" opacity="0.5"/><text x="40" y="210" fill="%23ffffff" font-family="system-ui,sans-serif" font-weight="800" font-size="36">CULTURAL &amp; CONCERT</text><text x="40" y="250" fill="%23c7d2fe" font-family="system-ui,sans-serif" font-weight="600" font-size="18">NCST Student Council &amp; Cultural Affairs</text></svg>';
-const SVG_BANNER_TICKET_DESIGN = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="300" viewBox="0 0 600 300"><defs><linearGradient id="tg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%231e1b4b"/><stop offset="100%" stop-color="%23312e81"/></linearGradient></defs><rect width="600" height="300" fill="url(%23tg)" rx="16"/><rect x="12" y="12" width="576" height="276" fill="none" stroke="%23818cf8" stroke-dasharray="6,6" stroke-width="2" rx="12"/><text x="40" y="60" fill="%23a5b4fc" font-family="system-ui,sans-serif" font-weight="bold" font-size="20">OFFICIAL NCST PASS</text><text x="40" y="100" fill="%23ffffff" font-family="system-ui,sans-serif" font-weight="800" font-size="24">CAMPUS EVENT ADMISSION</text><text x="40" y="140" fill="%23cbd5e1" font-family="system-ui,sans-serif" font-size="16">Valid for One Single Entry</text></svg>';
-const SVG_BANNER_INSTITUTIONAL = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400" viewBox="0 0 800 400"><defs><linearGradient id="g2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%23064e3b"/><stop offset="50%" stop-color="%23047857"/><stop offset="100%" stop-color="%2310b981"/></linearGradient></defs><rect width="800" height="400" fill="url(%23g2)"/><circle cx="650" cy="100" r="140" fill="%2334d399" opacity="0.2"/><path d="M0,300 Q250,220 500,290 T800,260 L800,400 L0,400 Z" fill="%23022c22" opacity="0.5"/><text x="40" y="210" fill="%23ffffff" font-family="system-ui,sans-serif" font-weight="800" font-size="36">CAMPUS FOUNDATION</text><text x="40" y="250" fill="%23a7f3d0" font-family="system-ui,sans-serif" font-weight="600" font-size="18">Annual Institutional Celebration &amp; Exhibits</text></svg>';
-const SVG_BANNER_TECH = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400" viewBox="0 0 800 400"><defs><linearGradient id="g3" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%230f172a"/><stop offset="50%" stop-color="%230369a1"/><stop offset="100%" stop-color="%230ea5e9"/></linearGradient></defs><rect width="800" height="400" fill="url(%23g3)"/><circle cx="680" cy="120" r="150" fill="%2338bdf8" opacity="0.15"/><path d="M0,310 Q220,240 450,300 T800,270 L800,400 L0,400 Z" fill="%23082f49" opacity="0.6"/><text x="40" y="210" fill="%23ffffff" font-family="system-ui,sans-serif" font-weight="800" font-size="36">IT SUMMIT &amp; EXPO</text><text x="40" y="250" fill="%23bae6fd" font-family="system-ui,sans-serif" font-weight="600" font-size="18">Integrative Programming &amp; Technologies</text></svg>';
-const SVG_BANNER_SPORTS = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400" viewBox="0 0 800 400"><defs><linearGradient id="g4" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%237c2d12"/><stop offset="50%" stop-color="%23c2410c"/><stop offset="100%" stop-color="%23ea580c"/></linearGradient></defs><rect width="800" height="400" fill="url(%23g4)"/><circle cx="700" cy="90" r="130" fill="%23fb923c" opacity="0.2"/><path d="M0,315 Q260,250 520,305 T800,275 L800,400 L0,400 Z" fill="%23431407" opacity="0.5"/><text x="40" y="210" fill="%23ffffff" font-family="system-ui,sans-serif" font-weight="800" font-size="36">INTRAMURALS &amp; SPORTS</text><text x="40" y="250" fill="%23fed7aa" font-family="system-ui,sans-serif" font-weight="600" font-size="18">Athletic Championship &amp; Cheering Fest</text></svg>';
+// Local self-contained SVG banner presets with official NCST Blue & Yellow branding
+export const SVG_BANNER_INSTITUTIONAL = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400" viewBox="0 0 800 400"><defs><linearGradient id="gInst" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%23061530"/><stop offset="50%" stop-color="%230f3066"/><stop offset="85%" stop-color="%231a4a9c"/><stop offset="100%" stop-color="%23d97706"/></linearGradient><linearGradient id="goldRibbon" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="%23f59e0b"/><stop offset="50%" stop-color="%23fbbf24"/><stop offset="100%" stop-color="%23fde68a"/></linearGradient><linearGradient id="goldGlow" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stop-color="%23d97706" stop-opacity="0.85"/><stop offset="100%" stop-color="%23facc15" stop-opacity="0.15"/></linearGradient></defs><rect width="800" height="400" fill="url(%23gInst)"/><circle cx="710" cy="80" r="160" fill="%23fbbf24" opacity="0.18"/><circle cx="750" cy="130" r="90" fill="%23f59e0b" opacity="0.28"/><circle cx="100" cy="360" r="140" fill="%231d4ed8" opacity="0.25"/><path d="M0,320 Q220,240 460,305 T800,255 L800,400 L0,400 Z" fill="url(%23goldGlow)"/><path d="M0,345 Q260,275 520,325 T800,285 L800,400 L0,400 Z" fill="%23081b3d" opacity="0.88"/><path d="M0,322 Q220,242 460,307 T800,257" fill="none" stroke="url(%23goldRibbon)" stroke-width="4" opacity="0.95"/><rect x="40" y="152" width="136" height="24" rx="6" fill="%23f59e0b" opacity="0.22"/><text x="48" y="169" fill="%23fde047" font-family="system-ui,sans-serif" font-weight="800" font-size="12" letter-spacing="1">NCST OFFICIAL</text><text x="40" y="215" fill="%23ffffff" font-family="system-ui,sans-serif" font-weight="900" font-size="36" letter-spacing="-0.5">CAMPUS FOUNDATION</text><text x="40" y="255" fill="%23fde047" font-family="system-ui,sans-serif" font-weight="700" font-size="17">Annual Institutional Celebration &amp; Exhibits</text></svg>';
+
+export const SVG_BANNER_TECH = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400" viewBox="0 0 800 400"><defs><linearGradient id="gTech" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%2305142e"/><stop offset="50%" stop-color="%230d2d60"/><stop offset="85%" stop-color="%23174694"/><stop offset="100%" stop-color="%23eab308"/></linearGradient><linearGradient id="techGold" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="%23fbbf24"/><stop offset="100%" stop-color="%23f59e0b"/></linearGradient></defs><rect width="800" height="400" fill="url(%23gTech)"/><circle cx="690" cy="90" r="150" fill="%23facc15" opacity="0.16"/><circle cx="120" cy="330" r="130" fill="%232563eb" opacity="0.25"/><path d="M0,315 Q240,245 480,305 T800,265 L800,400 L0,400 Z" fill="%23d97706" opacity="0.45"/><path d="M0,340 Q250,270 500,320 T800,285 L800,400 L0,400 Z" fill="%23061530" opacity="0.88"/><path d="M0,317 Q240,247 480,307 T800,267" fill="none" stroke="url(%23techGold)" stroke-width="4" opacity="0.95"/><rect x="40" y="152" width="136" height="24" rx="6" fill="%23eab308" opacity="0.22"/><text x="48" y="169" fill="%23fde047" font-family="system-ui,sans-serif" font-weight="800" font-size="12" letter-spacing="1">NCST INNOVATION</text><text x="40" y="215" fill="%23ffffff" font-family="system-ui,sans-serif" font-weight="900" font-size="36" letter-spacing="-0.5">IT SUMMIT &amp; EXPO</text><text x="40" y="255" fill="%23fde047" font-family="system-ui,sans-serif" font-weight="700" font-size="17">Integrative Programming &amp; Technologies</text></svg>';
+
+export const SVG_BANNER_CULTURAL = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400" viewBox="0 0 800 400"><defs><linearGradient id="gCult" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%23081938"/><stop offset="50%" stop-color="%2312386e"/><stop offset="85%" stop-color="%231f4e99"/><stop offset="100%" stop-color="%23f59e0b"/></linearGradient><linearGradient id="cultGold" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="%23fbbf24"/><stop offset="100%" stop-color="%23fde68a"/></linearGradient></defs><rect width="800" height="400" fill="url(%23gCult)"/><circle cx="700" cy="80" r="140" fill="%23f59e0b" opacity="0.22"/><circle cx="100" cy="350" r="150" fill="%233b82f6" opacity="0.25"/><path d="M0,320 Q220,250 440,310 T800,270 L800,400 L0,400 Z" fill="%23b45309" opacity="0.5"/><path d="M0,345 Q240,280 480,330 T800,290 L800,400 L0,400 Z" fill="%23071739" opacity="0.88"/><path d="M0,322 Q220,252 440,312 T800,272" fill="none" stroke="url(%23cultGold)" stroke-width="4" opacity="0.95"/><rect x="40" y="152" width="136" height="24" rx="6" fill="%23f59e0b" opacity="0.22"/><text x="48" y="169" fill="%23fde047" font-family="system-ui,sans-serif" font-weight="800" font-size="12" letter-spacing="1">NCST SPECIAL EVENT</text><text x="40" y="215" fill="%23ffffff" font-family="system-ui,sans-serif" font-weight="900" font-size="36" letter-spacing="-0.5">CULTURAL &amp; CONCERT</text><text x="40" y="255" fill="%23fde047" font-family="system-ui,sans-serif" font-weight="700" font-size="17">NCST Student Council &amp; Cultural Affairs</text></svg>';
+
+export const SVG_BANNER_SPORTS = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400" viewBox="0 0 800 400"><defs><linearGradient id="gSports" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%23071738"/><stop offset="50%" stop-color="%2310346a"/><stop offset="85%" stop-color="%231b4b9b"/><stop offset="100%" stop-color="%23d97706"/></linearGradient><linearGradient id="sportsGold" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="%23fbbf24"/><stop offset="100%" stop-color="%23f59e0b"/></linearGradient></defs><rect width="800" height="400" fill="url(%23gSports)"/><circle cx="700" cy="85" r="140" fill="%23fbbf24" opacity="0.2"/><circle cx="120" cy="340" r="140" fill="%232563eb" opacity="0.25"/><path d="M0,315 Q260,245 520,305 T800,265 L800,400 L0,400 Z" fill="%23d97706" opacity="0.45"/><path d="M0,340 Q280,270 540,325 T800,285 L800,400 L0,400 Z" fill="%2308183a" opacity="0.88"/><path d="M0,317 Q260,247 520,307 T800,267" fill="none" stroke="url(%23sportsGold)" stroke-width="4" opacity="0.95"/><rect x="40" y="152" width="136" height="24" rx="6" fill="%23f59e0b" opacity="0.22"/><text x="48" y="169" fill="%23fde047" font-family="system-ui,sans-serif" font-weight="800" font-size="12" letter-spacing="1">NCST ATHLETICS</text><text x="40" y="215" fill="%23ffffff" font-family="system-ui,sans-serif" font-weight="900" font-size="36" letter-spacing="-0.5">INTRAMURALS &amp; SPORTS</text><text x="40" y="255" fill="%23fde047" font-family="system-ui,sans-serif" font-weight="700" font-size="17">Athletic Championship &amp; Cheering Fest</text></svg>';
+
+export const SVG_BANNER_TICKET_DESIGN = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="300" viewBox="0 0 600 300"><defs><linearGradient id="tg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%23081a3a"/><stop offset="60%" stop-color="%2312396f"/><stop offset="100%" stop-color="%231e4e96"/></linearGradient></defs><rect width="600" height="300" fill="url(%23tg)" rx="16"/><rect x="12" y="12" width="576" height="276" fill="none" stroke="%23fbbf24" stroke-dasharray="6,6" stroke-width="2" rx="12"/><text x="40" y="60" fill="%23fde047" font-family="system-ui,sans-serif" font-weight="bold" font-size="20">OFFICIAL NCST PASS</text><text x="40" y="100" fill="%23ffffff" font-family="system-ui,sans-serif" font-weight="800" font-size="24">CAMPUS EVENT ADMISSION</text><text x="40" y="140" fill="%23cbd5e1" font-family="system-ui,sans-serif" font-size="16">Valid for One Single Entry</text></svg>';
 
 export const INITIAL_EVENTS: EventItem[] = [
   {
@@ -347,6 +378,8 @@ export const INITIAL_EVENTS: EventItem[] = [
     bannerUrl: SVG_BANNER_CULTURAL,
     ticketDesignUrl: SVG_BANNER_TICKET_DESIGN,
     organizer: 'University Student Council & Cultural Affairs',
+    academicYear: '2026-2027',
+    semester: '1st Semester',
   },
   {
     id: 'evt-fnd-2026',
@@ -363,6 +396,8 @@ export const INITIAL_EVENTS: EventItem[] = [
     status: 'ongoing',
     bannerUrl: SVG_BANNER_INSTITUTIONAL,
     organizer: 'Office of Student Affairs & Supreme Student Council',
+    academicYear: '2026-2027',
+    semester: '1st Semester',
   },
   {
     id: 'evt-it-2026',
@@ -379,6 +414,8 @@ export const INITIAL_EVENTS: EventItem[] = [
     status: 'upcoming',
     bannerUrl: SVG_BANNER_TECH,
     organizer: 'CCS Faculty & IT Society',
+    academicYear: '2026-2027',
+    semester: '1st Semester',
   },
   {
     id: 'evt-spf-2026',
@@ -395,6 +432,8 @@ export const INITIAL_EVENTS: EventItem[] = [
     status: 'upcoming',
     bannerUrl: SVG_BANNER_SPORTS,
     organizer: 'Athletics & PE Department',
+    academicYear: '2026-2027',
+    semester: '1st Semester',
   },
   {
     id: 'evt-fnd-2025',
@@ -411,6 +450,8 @@ export const INITIAL_EVENTS: EventItem[] = [
     status: 'completed',
     bannerUrl: SVG_BANNER_INSTITUTIONAL,
     organizer: 'Office of Student Affairs & Supreme Student Council',
+    academicYear: '2025-2026',
+    semester: '1st Semester',
   },
 ];
 
@@ -426,6 +467,8 @@ export const INITIAL_TRANSACTIONS: PurchaseTransaction[] = [
     userEmail: 'juan.delacruz@student.edu.ph',
     eventId: 'evt-juans-2026',
     eventTitle: 'The Juans Live Concert & Campus Music Fest',
+    academicYear: '2026-2027',
+    semester: '1st Semester',
     ticketId: 'TIX-00125',
     ticketNumber: 'TIX-00125',
     amount: 250,
@@ -446,6 +489,8 @@ export const INITIAL_TRANSACTIONS: PurchaseTransaction[] = [
     userEmail: 'maria.santos@student.edu.ph',
     eventId: 'evt-juans-2026',
     eventTitle: 'The Juans Live Concert & Campus Music Fest',
+    academicYear: '2026-2027',
+    semester: '1st Semester',
     ticketId: 'TIX-00126',
     ticketNumber: 'TIX-00126',
     amount: 250,
@@ -462,6 +507,8 @@ export const INITIAL_TRANSACTIONS: PurchaseTransaction[] = [
     contactNumber: '0917-555-0199',
     eventId: 'evt-juans-2026',
     eventTitle: 'The Juans Live Concert & Campus Music Fest',
+    academicYear: '2026-2027',
+    semester: '1st Semester',
     ticketId: 'TIX-O-00215',
     ticketNumber: 'TIX-O-00215',
     amount: 250,
@@ -478,6 +525,8 @@ export const INITIAL_TRANSACTIONS: PurchaseTransaction[] = [
     contactNumber: '09156833859',
     eventId: 'evt-juans-2026',
     eventTitle: 'The Juans Live Concert & Campus Music Fest',
+    academicYear: '2026-2027',
+    semester: '1st Semester',
     ticketId: 'TIX-O-10011',
     ticketNumber: 'TIX-O-10011',
     amount: 250,
@@ -498,6 +547,8 @@ export const INITIAL_TRANSACTIONS: PurchaseTransaction[] = [
     userEmail: 'mark.reyes@student.edu.ph',
     eventId: 'evt-juans-2026',
     eventTitle: 'The Juans Live Concert & Campus Music Fest',
+    academicYear: '2026-2027',
+    semester: '1st Semester',
     ticketId: 'TIX-00128',
     ticketNumber: 'TIX-00128',
     amount: 250,
@@ -518,6 +569,8 @@ export const INITIAL_TRANSACTIONS: PurchaseTransaction[] = [
     userEmail: 'alex.rivera@student.edu.ph',
     eventId: 'evt-fnd-2026',
     eventTitle: 'School Foundation Day 2026',
+    academicYear: '2026-2027',
+    semester: '1st Semester',
     ticketId: 'TIX-00130',
     ticketNumber: 'TIX-00130',
     amount: 0,
@@ -535,6 +588,8 @@ export const INITIAL_TICKETS: Ticket[] = [
     qrToken: 'TIX-00125',
     eventId: 'evt-juans-2026',
     eventTitle: 'The Juans Live Concert & Campus Music Fest',
+    academicYear: '2026-2027',
+    semester: '1st Semester',
     ticketType: 'digital',
     attendeeType: 'STUDENT',
     originalOwnerId: 'usr-stud-1',
@@ -566,6 +621,8 @@ export const INITIAL_TICKETS: Ticket[] = [
     qrToken: 'TIX-00126',
     eventId: 'evt-juans-2026',
     eventTitle: 'The Juans Live Concert & Campus Music Fest',
+    academicYear: '2026-2027',
+    semester: '1st Semester',
     ticketType: 'digital',
     attendeeType: 'STUDENT',
     originalOwnerId: 'usr-stud-2',
@@ -595,6 +652,8 @@ export const INITIAL_TICKETS: Ticket[] = [
     qrToken: 'TIX-O-00215',
     eventId: 'evt-juans-2026',
     eventTitle: 'The Juans Live Concert & Campus Music Fest',
+    academicYear: '2026-2027',
+    semester: '1st Semester',
     ticketType: 'physical',
     attendeeType: 'OUTSIDER',
     originalOwnerId: 'usr-guest-215',
@@ -621,6 +680,8 @@ export const INITIAL_TICKETS: Ticket[] = [
     qrToken: 'TIX-O-10011',
     eventId: 'evt-juans-2026',
     eventTitle: 'The Juans Live Concert & Campus Music Fest',
+    academicYear: '2026-2027',
+    semester: '1st Semester',
     ticketType: 'physical',
     attendeeType: 'OUTSIDER',
     originalOwnerId: 'usr-guest-jed',
@@ -645,6 +706,8 @@ export const INITIAL_TICKETS: Ticket[] = [
     qrToken: 'TIX-00128',
     eventId: 'evt-juans-2026',
     eventTitle: 'The Juans Live Concert & Campus Music Fest',
+    academicYear: '2026-2027',
+    semester: '1st Semester',
     ticketType: 'digital',
     attendeeType: 'STUDENT',
     originalOwnerId: 'usr-stud-4',
@@ -674,6 +737,8 @@ export const INITIAL_TICKETS: Ticket[] = [
     qrToken: 'TIX-00130',
     eventId: 'evt-fnd-2026',
     eventTitle: 'School Foundation Day 2026',
+    academicYear: '2026-2027',
+    semester: '1st Semester',
     ticketType: 'digital',
     attendeeType: 'STUDENT',
     originalOwnerId: 'usr-stud-3',
@@ -705,6 +770,8 @@ export const INITIAL_TICKETS: Ticket[] = [
     qrToken: 'TIX-FND25-001',
     eventId: 'evt-fnd-2025',
     eventTitle: 'School Foundation Week 2025',
+    academicYear: '2025-2026',
+    semester: '1st Semester',
     ticketType: 'digital',
     attendeeType: 'STUDENT',
     originalOwnerId: 'usr-stud-1',
@@ -734,6 +801,8 @@ export const INITIAL_TICKETS: Ticket[] = [
     qrToken: 'TIX-FND25-002',
     eventId: 'evt-fnd-2025',
     eventTitle: 'School Foundation Week 2025',
+    academicYear: '2025-2026',
+    semester: '1st Semester',
     ticketType: 'digital',
     attendeeType: 'STUDENT',
     originalOwnerId: 'usr-stud-2',
@@ -763,6 +832,8 @@ export const INITIAL_TICKETS: Ticket[] = [
     qrToken: 'TIX-FND25-O01',
     eventId: 'evt-fnd-2025',
     eventTitle: 'School Foundation Week 2025',
+    academicYear: '2025-2026',
+    semester: '1st Semester',
     ticketType: 'physical',
     attendeeType: 'OUTSIDER',
     originalOwnerId: 'usr-guest-01',
@@ -790,6 +861,8 @@ export const INITIAL_LOGS: AttendanceLog[] = [
     ticketNumber: 'TIX-FND25-001',
     eventId: 'evt-fnd-2025',
     eventTitle: 'School Foundation Week 2025',
+    academicYear: '2025-2026',
+    semester: '1st Semester',
     attendeeType: 'STUDENT',
     attendeeName: 'Juan Dela Cruz',
     studentId: '2026-00125',
@@ -810,6 +883,8 @@ export const INITIAL_LOGS: AttendanceLog[] = [
     ticketNumber: 'TIX-FND25-002',
     eventId: 'evt-fnd-2025',
     eventTitle: 'School Foundation Week 2025',
+    academicYear: '2025-2026',
+    semester: '1st Semester',
     attendeeType: 'STUDENT',
     attendeeName: 'Maria Clara Santos',
     studentId: '2026-00126',
@@ -830,6 +905,8 @@ export const INITIAL_LOGS: AttendanceLog[] = [
     ticketNumber: 'TIX-FND25-O01',
     eventId: 'evt-fnd-2025',
     eventTitle: 'School Foundation Week 2025',
+    academicYear: '2025-2026',
+    semester: '1st Semester',
     attendeeType: 'OUTSIDER',
     attendeeName: 'Roberto Mendoza',
     contactNumber: '0918-123-4567',
@@ -847,6 +924,8 @@ export const INITIAL_LOGS: AttendanceLog[] = [
     ticketNumber: 'TIX-00125',
     eventId: 'evt-juans-2026',
     eventTitle: 'The Juans Live Concert & Campus Music Fest',
+    academicYear: '2026-2027',
+    semester: '1st Semester',
     attendeeType: 'STUDENT',
     attendeeName: 'Juan Dela Cruz',
     studentId: '2026-00125',
@@ -867,6 +946,8 @@ export const INITIAL_LOGS: AttendanceLog[] = [
     ticketNumber: 'TIX-O-00215',
     eventId: 'evt-juans-2026',
     eventTitle: 'The Juans Live Concert & Campus Music Fest',
+    academicYear: '2026-2027',
+    semester: '1st Semester',
     attendeeType: 'OUTSIDER',
     attendeeName: 'Maria Santos',
     contactNumber: '0917-555-0199',
@@ -884,6 +965,8 @@ export const INITIAL_LOGS: AttendanceLog[] = [
     ticketNumber: 'TIX-00130',
     eventId: 'evt-fnd-2026',
     eventTitle: 'School Foundation Day 2026',
+    academicYear: '2026-2027',
+    semester: '1st Semester',
     attendeeType: 'STUDENT',
     attendeeName: 'Alex Rivera',
     studentId: '2026-00127',

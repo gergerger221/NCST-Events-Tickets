@@ -44,34 +44,34 @@
           <p class="text-[10px] text-slate-500 dark:text-[#888888] mt-0.5">Completed event records</p>
         </div>
 
-        <div class="p-4 rounded-2xl bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#2e2e2e] shadow-xs">
-          <span class="text-[10px] font-extrabold uppercase text-slate-400 dark:text-slate-500 tracking-wider block">
+        <div class="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1e1e1e] border border-[#E2E8F0] dark:border-[#2e2e2e] shadow-xs">
+          <span class="text-[11px] font-bold uppercase tracking-wider text-[#0F172A] dark:text-white block">
             Total Attendees Archived
           </span>
-          <p class="text-2xl font-black text-indigo-600 dark:text-indigo-400 mt-1">
+          <p class="text-2xl sm:text-3xl font-black text-[#1E3A5F] dark:text-blue-400 mt-2">
             {{ totalHistoricalPresent }}
           </p>
-          <p class="text-[10px] text-slate-500 dark:text-[#888888] mt-0.5">Historical validated entries</p>
+          <p class="text-xs text-[#64748B] dark:text-slate-400 mt-1">Historical validated entries</p>
         </div>
 
-        <div class="p-4 rounded-2xl bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#2e2e2e] shadow-xs">
-          <span class="text-[10px] font-extrabold uppercase text-slate-400 dark:text-slate-500 tracking-wider block">
+        <div class="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1e1e1e] border border-[#E2E8F0] dark:border-[#2e2e2e] shadow-xs">
+          <span class="text-[11px] font-bold uppercase tracking-wider text-[#0F172A] dark:text-white block">
             Students Recorded
           </span>
-          <p class="text-2xl font-black text-blue-600 dark:text-blue-400 mt-1">
+          <p class="text-2xl sm:text-3xl font-black text-[#1E3A5F] dark:text-blue-400 mt-2">
             {{ totalHistoricalStudents }}
           </p>
-          <p class="text-[10px] text-slate-500 dark:text-[#888888] mt-0.5">{{ isTeacher ? 'Assigned student entries' : 'Verified NCST students' }}</p>
+          <p class="text-xs text-[#64748B] dark:text-slate-400 mt-1">{{ isTeacher ? 'Assigned student entries' : 'Verified NCST students' }}</p>
         </div>
 
-        <div v-if="!isTeacher" class="p-4 rounded-2xl bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#2e2e2e] shadow-xs">
-          <span class="text-[10px] font-extrabold uppercase text-slate-400 dark:text-slate-500 tracking-wider block">
+        <div v-if="!isTeacher" class="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1e1e1e] border border-[#E2E8F0] dark:border-[#2e2e2e] shadow-xs">
+          <span class="text-[11px] font-bold uppercase tracking-wider text-[#0F172A] dark:text-white block">
             Outsiders Recorded
           </span>
-          <p class="text-2xl font-black text-purple-600 dark:text-purple-400 mt-1">
+          <p class="text-2xl sm:text-3xl font-black text-[#1E3A5F] dark:text-blue-400 mt-2">
             {{ totalHistoricalOutsiders }}
           </p>
-          <p class="text-[10px] text-slate-500 dark:text-[#888888] mt-0.5">Guest & outsider visitors</p>
+          <p class="text-xs text-[#64748B] dark:text-slate-400 mt-1">Guest & outsider visitors</p>
         </div>
       </div>
 
@@ -815,7 +815,7 @@ const availableSections = computed(() => {
   currentEventTickets.value.forEach(t => {
     if (t.section) set.add(t.section);
   });
-  if (set.size === 0) return ['A', 'B', 'C', 'M1', 'A1', 'E1'];
+  if (set.size === 0) return ['11M1', '11M2', '12M1', '21M1', '21M2', '31M1', '31A1', '31A2', '41M1', '41A1'];
   return Array.from(set).sort();
 });
 

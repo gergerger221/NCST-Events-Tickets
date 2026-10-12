@@ -1,13 +1,77 @@
+# ----------------------------------------------------------------------
+# NCST Event Attendance & Ticketing System - Apache Configuration
+# ----------------------------------------------------------------------
+
+# 1. Directory Browsing Protection
+Options -Indexes
+
+# 2. Default Index File (Prioritize root index.html)
+<IfModule mod_dir.c>
+    DirectoryIndex index.html dist/index.html index.php
+</IfModule>
+
+# 2.1 Prevent browser caching of index.html so updates are immediately visible
+<FilesMatch "\.(html|htm)$">
+    <IfModule mod_headers.c>
+        Header set Cache-Control "no-cache, no-store, must-revalidate"
+        Header set Pragma "no-cache"
+        Header set Expires "0"
+    </IfModule>
+</FilesMatch>
+
+# 3. Block Sensitive Files
+<FilesMatch "^\.(env|git|htaccess|htpasswd)|(\.(sql|json|lock|md|log|bat|sh|yml|yaml))$|^(setup\.php)$">
+    Require all denied
+</FilesMatch>
+
+# 4. MIME Types for Web Assets
+<IfModule mod_mime.c>
+    AddType application/javascript .js .mjs
+    AddType text/css .css
+    AddType font/woff .woff
+    AddType font/woff2 .woff2
+    AddType image/svg+xml .svg
+    AddType application/json .json
+</IfModule>
+
+# 5. Security Headers
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# 6. Authorization Header Preservation
+<IfModule mod_setenvif.c>
+    SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
+</IfModule>
+
+# 7. URL Rewriting Engine
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
-    # Route API calls to api/index.php
-    RewriteRule ^api/(.*)$ api/index.php [QSA,L]
-    RewriteRule ^api$ api/index.php [QSA,L]
+    # Pass Authorization Header to PHP
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 
-    # Route SPA front-end requests to dist/index.html or index.html if file doesn't exist
+    # Prevent direct access to internal development folders and setup scripts
+    RewriteRule ^(scripts|src|\.git|\.env)(/.*)?$ - [F,L]
+    RewriteRule ^api/setup\.php$ - [F,L]
+
+    # Route all API requests to api/index.php
+    RewriteRule ^api(/.*)?$ api/index.php [QSA,L]
+
+    # Route /assets/* to dist/assets/* if present
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^assets/(.*)$ dist/assets/$1 [L]
+
+    # Route root static assets to dist/ if not found in root
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^(ncst-logo\.png|favicon\.ico|vite\.svg)$ dist/$1 [L]
+
+    # Route SPA front-end requests to index.html (excluding /api)
+    RewriteCond %{REQUEST_URI} !^.*/api(/.*)?$
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
-    RewriteCond %{REQUEST_URI} !^/api
     RewriteRule ^ index.html [L]
 </IfModule>

@@ -76,8 +76,8 @@
             @click="setAttendeeType('student')"
             class="py-3 px-4 rounded-2xl border text-xs font-extrabold transition flex items-center justify-center gap-2 cursor-pointer"
             :class="attendeeType === 'student'
-              ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-500 text-blue-700 dark:text-blue-300 ring-2 ring-blue-500/20'
-              : 'bg-slate-50 dark:bg-[#222222] border-slate-200 dark:border-[#333333] text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-[#444444]'"
+              ? 'bg-slate-100 dark:bg-[#252525] border-[#1E3A5F] dark:border-blue-500 text-[#1E3A5F] dark:text-blue-300 ring-2 ring-[#1E3A5F]/20'
+              : 'bg-slate-50 dark:bg-[#222222] border-slate-200 dark:border-[#333333] text-[#475569] dark:text-slate-400 hover:border-slate-300 dark:hover:border-[#444444]'"
           >
             <GraduationCap class="w-4 h-4" />
             <span>Enrolled Student</span>
@@ -87,8 +87,8 @@
             @click="setAttendeeType('outsider')"
             class="py-3 px-4 rounded-2xl border text-xs font-extrabold transition flex items-center justify-center gap-2 cursor-pointer"
             :class="attendeeType === 'outsider'
-              ? 'bg-purple-50 dark:bg-purple-950/60 border-purple-500 text-purple-700 dark:text-purple-300 ring-2 ring-purple-500/20'
-              : 'bg-slate-50 dark:bg-[#222222] border-slate-200 dark:border-[#333333] text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-[#444444]'"
+              ? 'bg-slate-100 dark:bg-[#252525] border-[#1E3A5F] dark:border-blue-500 text-[#1E3A5F] dark:text-blue-300 ring-2 ring-[#1E3A5F]/20'
+              : 'bg-slate-50 dark:bg-[#222222] border-slate-200 dark:border-[#333333] text-[#475569] dark:text-slate-400 hover:border-slate-300 dark:hover:border-[#444444]'"
           >
             <Users class="w-4 h-4" />
             <span>Outsider / Guest</span>
@@ -125,7 +125,7 @@
               <div>
                 <p class="font-bold text-slate-900 dark:text-white">{{ s.name }}</p>
                 <p class="text-[11px] text-slate-500 dark:text-[#b3b3b3]">
-                  {{ s.course || 'BSIT' }} • {{ s.yearLevel || '3rd Year' }} • {{ s.section || 'M1' }}
+                  {{ s.course || 'BSIT' }} • {{ s.yearLevel || '3rd Year' }} • {{ s.section || '11M1' }}
                 </p>
               </div>
               <span class="font-mono text-xs font-bold text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30">
@@ -320,7 +320,7 @@
                   @blur="touchField('section')"
                   @input="touchField('section')"
                   :readonly="isAuthoritativeStudentMatch"
-                  placeholder="e.g. A1, A2, B1, B2..."
+                  placeholder="e.g. 11M1, 21M1, 31A1..."
                   class="w-full px-2.5 py-2 bg-white dark:bg-[#1a1a1a] border rounded-xl text-xs font-semibold text-slate-900 dark:text-white focus:outline-none uppercase placeholder:normal-case transition-colors"
                   :class="[
                     isAuthoritativeStudentMatch ? 'bg-slate-50 dark:bg-[#202020] text-slate-700 dark:text-slate-300 cursor-not-allowed' : '',
@@ -333,16 +333,9 @@
                   required
                 />
                 <datalist id="cashier-section-presets">
-                  <option value="A1">Section A1</option>
-                  <option value="A2">Section A2</option>
-                  <option value="B1">Section B1</option>
-                  <option value="B2">Section B2</option>
-                  <option value="C1">Section C1</option>
-                  <option value="C2">Section C2</option>
-                  <option value="D1">Section D1</option>
-                  <option value="D2">Section D2</option>
-                  <option value="M1">Section M1 (Morning)</option>
-                  <option value="M2">Section M2 (Morning)</option>
+                  <option v-for="sec in (availableSections || ['11M1', '11M2', '12M1', '21M1', '21M2', '31M1', '31A1', '41M1'])" :key="sec" :value="sec">
+                    Section {{ sec }}
+                  </option>
                 </datalist>
 
                 <!-- Section Feedback -->
@@ -451,14 +444,14 @@
             </label>
             <select
               v-model="selectedEventId"
-              :disabled="!events || events.length === 0"
+              :disabled="!eligibleEvents || eligibleEvents.length === 0"
               class="w-full px-3 py-2.5 bg-slate-50 dark:bg-[#222222] border border-slate-200 dark:border-[#333333] rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
             >
-              <option v-if="!events || events.length === 0" value="" disabled selected>
-                No Events Available
+              <option v-if="!eligibleEvents || eligibleEvents.length === 0" value="" disabled selected>
+                No Active / Eligible Events Available
               </option>
-              <option v-for="ev in events" :key="ev.id" :value="ev.id">
-                {{ ev.title }} ({{ ev.code }})
+              <option v-for="ev in eligibleEvents" :key="ev.id" :value="ev.id">
+                {{ ev.title }} ({{ ev.code }}) • A.Y. {{ ev.academicYear || '2026-2027' }} {{ ev.semester || '1st Sem' }}
               </option>
             </select>
           </div>
@@ -469,12 +462,12 @@
               Admission Fee / Rule *
             </label>
             <div class="px-3 py-2.5 bg-slate-50 dark:bg-[#222222] border border-slate-200 dark:border-[#333333] rounded-xl text-xs font-bold flex items-center justify-between">
-              <span :class="isEventPaid ? 'text-emerald-700 dark:text-emerald-400 font-black' : 'text-purple-700 dark:text-purple-400 font-black'">
+              <span :class="isEventPaid ? 'text-[#15803D] dark:text-emerald-400 font-bold' : 'text-[#475569] dark:text-slate-300 font-bold'">
                 {{ isEventPaid ? `PAID ADMISSION — ₱${(selectedEvent?.ticketPrice || 0)}.00` : 'FREE ADMISSION (Official Pass)' }}
               </span>
               <span
-                class="text-[10px] uppercase px-2 py-0.5 rounded font-black"
-                :class="isEventPaid ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300' : 'bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300'"
+                class="text-[10px] uppercase px-2 py-0.5 rounded font-bold"
+                :class="isEventPaid ? 'bg-emerald-100 dark:bg-emerald-950 text-[#15803D] dark:text-emerald-300' : 'bg-slate-100 dark:bg-[#252525] text-[#475569] dark:text-slate-300 border border-slate-200 dark:border-[#383838]'"
               >
                 {{ isEventPaid ? 'CASHIER POS' : 'COMPLIMENTARY' }}
               </span>
@@ -490,7 +483,7 @@
             <div>
               <p class="font-bold text-slate-900 dark:text-white text-sm">{{ selectedEvent.title }}</p>
               <p class="text-slate-500 dark:text-[#a0a0a0] text-[11px] font-medium mt-0.5">
-                {{ selectedEvent.date }} • {{ selectedEvent.venue }}
+                {{ selectedEvent.date }} • {{ selectedEvent.venue }} • <span class="font-bold text-blue-600 dark:text-blue-400">A.Y. {{ selectedEvent.academicYear || '2026-2027' }} {{ selectedEvent.semester || '1st Semester' }}</span>
               </p>
             </div>
             <div class="text-right">
@@ -753,7 +746,20 @@ const emit = defineEmits<{
   (e: 'navigate', tabId: string): void;
 }>();
 
-const { currentUser, events, currentEvent, users, studentRecords, transactions, pendingQrTickets, purchaseTicket, registerStudent } = useAppStore();
+const {
+  currentUser,
+  events,
+  currentEvent,
+  users,
+  studentRecords,
+  transactions,
+  pendingQrTickets,
+  purchaseTicket,
+  registerStudent,
+  availableSections,
+  academicPeriods,
+  activeAcademicPeriod
+} = useAppStore();
 
 const attendeeType = ref<'student' | 'outsider'>('student');
 const searchQuery = ref('');
@@ -762,13 +768,29 @@ const isSearching = ref(false);
 const formStudentId = ref('');
 const formName = ref('');
 const formCourse = ref('BSIT');
-const formYearLevel = ref('3rd Year');
-const formSection = ref('M1');
+const formYearLevel = ref('1st Year');
+const formSection = ref('11M1');
 const formGuestPhone = ref('');
 const formGuestEmail = ref('');
 const formCashReceived = ref('');
 
-const selectedEventId = ref(currentEvent.value?.id || events.value[0]?.id || '');
+// Authoritative Eligible Events (exclude archived periods and cancelled/completed events)
+const eligibleEvents = computed<EventItem[]>(() => {
+  return events.value.filter(ev => {
+    if (ev.status === 'cancelled' || ev.status === 'completed') return false;
+    if (ev.academicYear && ev.semester) {
+      const period = academicPeriods.value.find(p => p.academicYear === ev.academicYear && p.semester === ev.semester);
+      if (period && period.status === 'archived') {
+        return false;
+      }
+    }
+    return true;
+  });
+});
+
+const selectedEventId = ref(
+  (eligibleEvents.value.some(e => e.id === currentEvent.value?.id) ? currentEvent.value?.id : eligibleEvents.value[0]?.id) || ''
+);
 const lastIssuedTicket = ref<Ticket | null>(null);
 const isSubmitting = ref(false);
 
@@ -789,7 +811,7 @@ const touchField = (field: keyof typeof touched) => {
 };
 
 const selectedEvent = computed<EventItem | null>(() => {
-  return events.value.find(e => e.id === selectedEventId.value) || events.value[0] || null;
+  return eligibleEvents.value.find(e => e.id === selectedEventId.value) || eligibleEvents.value[0] || null;
 });
 
 const isEventPaid = computed(() => (selectedEvent.value?.ticketPrice ?? 0) > 0);
@@ -821,8 +843,8 @@ watch(matchedStudentRecord, rec => {
   if (rec && attendeeType.value === 'student') {
     formName.value = rec.name;
     formCourse.value = rec.course || 'BSIT';
-    formYearLevel.value = rec.yearLevel || '3rd Year';
-    formSection.value = rec.section || 'M1';
+    formYearLevel.value = rec.yearLevel || '1st Year';
+    formSection.value = rec.section || '11M1';
   }
 });
 
@@ -893,8 +915,8 @@ const setAttendeeType = (type: 'student' | 'outsider') => {
   attendeeType.value = type;
   if (type === 'student') {
     formCourse.value = 'BSIT';
-    formYearLevel.value = '3rd Year';
-    formSection.value = 'M1';
+    formYearLevel.value = '1st Year';
+    formSection.value = '11M1';
     if (formStudentId.value.startsWith('GUEST-')) formStudentId.value = '';
   } else {
     formStudentId.value = generateUniqueGuestReference();
@@ -926,7 +948,7 @@ const handleResetForm = () => {
     formStudentId.value = generateUniqueGuestReference();
   } else {
     formStudentId.value = '';
-    formSection.value = 'M1';
+    formSection.value = '11M1';
   }
 };
 
@@ -952,8 +974,8 @@ const suggestedStudents = computed(() => {
           name: r.name,
           studentId: r.studentId,
           course: r.course || 'BSIT',
-          yearLevel: r.yearLevel || '3rd Year',
-          section: r.section || 'M1',
+          yearLevel: r.yearLevel || '1st Year',
+          section: r.section || '11M1',
         });
       }
     }
@@ -970,8 +992,8 @@ const suggestedStudents = computed(() => {
           name: u.name,
           studentId: u.studentId,
           course: u.course || 'BSIT',
-          yearLevel: u.yearLevel || '3rd Year',
-          section: u.section || 'M1',
+          yearLevel: u.yearLevel || '1st Year',
+          section: u.section || '11M1',
         });
       }
     }
@@ -989,8 +1011,8 @@ const handleSearchInput = () => {
       name: exactRec.name,
       studentId: exactRec.studentId,
       course: exactRec.course || 'BSIT',
-      yearLevel: exactRec.yearLevel || '3rd Year',
-      section: exactRec.section || 'M1',
+      yearLevel: exactRec.yearLevel || '1st Year',
+      section: exactRec.section || '11M1',
     });
     return;
   }
@@ -1000,8 +1022,8 @@ const handleSearchInput = () => {
       name: exact.name,
       studentId: exact.studentId || '',
       course: exact.course || 'BSIT',
-      yearLevel: exact.yearLevel || '3rd Year',
-      section: exact.section || 'M1',
+      yearLevel: exact.yearLevel || '1st Year',
+      section: exact.section || '11M1',
     });
   }
 };
@@ -1010,8 +1032,8 @@ const selectStudent = (student: { name: string; studentId: string; course: strin
   formStudentId.value = student.studentId || '';
   formName.value = student.name || '';
   formCourse.value = student.course || 'BSIT';
-  formYearLevel.value = student.yearLevel || '3rd Year';
-  formSection.value = student.section || 'M1';
+  formYearLevel.value = student.yearLevel || '1st Year';
+  formSection.value = student.section || '11M1';
   searchQuery.value = `${student.name} (${student.studentId || ''})`;
   isSearching.value = false;
   
@@ -1040,8 +1062,8 @@ const handleGenerateTicket = async () => {
         name: formName.value.trim(),
         studentId: finalId,
         course: finalCourse || 'BSIT',
-        yearLevel: finalYear || '3rd Year',
-        section: finalSection || 'M1',
+        yearLevel: finalYear || '1st Year',
+        section: finalSection || '11M1',
       });
     }
 

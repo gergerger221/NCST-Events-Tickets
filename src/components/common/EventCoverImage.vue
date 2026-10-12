@@ -30,12 +30,12 @@
       
       <!-- Center Icon -->
       <div class="relative z-10 w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white mb-1.5 shadow-sm">
-        <component :is="categoryIcon" class="w-5 h-5 sm:w-5 sm:h-5 text-blue-200" />
+        <component :is="categoryIcon" class="w-5 h-5 sm:w-5 sm:h-5 text-amber-300" />
       </div>
 
       <!-- Category Label & Event Code -->
       <div class="relative z-10 space-y-0.5">
-        <span class="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-blue-200/90 block font-mono">
+        <span class="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-amber-300/90 block font-mono">
           {{ category || 'NCST EVENT' }}
         </span>
         <span v-if="code" class="text-[8px] text-white/60 font-mono block">
@@ -117,25 +117,25 @@ const computedAlt = computed(() => {
   return 'NCST event cover placeholder';
 });
 
-// Category-based cohesive gradients
+// Category-based cohesive gradients incorporating NCST official Navy Blue and Gold/Yellow signature
 const categoryGradient = computed(() => {
   const cat = (props.category || '').toLowerCase();
-  if (cat.includes('foundation') || cat.includes('anniversary')) {
-    return 'from-blue-900 via-indigo-950 to-slate-900 border border-blue-800/40 text-blue-100';
+  if (cat.includes('foundation') || cat.includes('anniversary') || cat.includes('institution')) {
+    return 'from-[#061530] via-[#0f3066] to-[#1a4a9c] border border-amber-500/40 text-amber-200';
   }
   if (cat.includes('concert') || cat.includes('music') || cat.includes('battle') || cat.includes('band')) {
-    return 'from-purple-900 via-indigo-950 to-slate-950 border border-purple-800/40 text-purple-100';
+    return 'from-[#081938] via-[#12386e] to-[#2563eb] border border-amber-500/30 text-amber-200';
   }
   if (cat.includes('sport') || cat.includes('intra')) {
-    return 'from-emerald-900 via-teal-950 to-slate-950 border border-emerald-800/40 text-emerald-100';
+    return 'from-[#071738] via-[#10346a] to-[#1e4e96] border border-amber-500/30 text-amber-200';
   }
   if (cat.includes('tech') || cat.includes('hack') || cat.includes('it')) {
-    return 'from-cyan-950 via-blue-950 to-slate-950 border border-cyan-800/40 text-cyan-100';
+    return 'from-[#05142e] via-[#0d2d60] to-[#174694] border border-amber-500/30 text-amber-200';
   }
   if (cat.includes('acad') || cat.includes('seminar') || cat.includes('summit')) {
-    return 'from-slate-900 via-blue-950 to-indigo-950 border border-blue-800/40 text-blue-100';
+    return 'from-[#061530] via-[#0f3066] to-[#184285] border border-amber-500/30 text-amber-200';
   }
-  return 'from-slate-900 via-slate-950 to-blue-950 border border-slate-800 text-slate-200';
+  return 'from-[#061530] via-[#0e2759] to-[#18396f] border border-amber-500/30 text-amber-300';
 });
 
 // Category Icon

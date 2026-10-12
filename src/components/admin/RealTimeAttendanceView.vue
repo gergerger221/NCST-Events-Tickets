@@ -29,18 +29,18 @@
         <!-- Tab 2: Attendance Archive -->
         <button
           @click="setSubTab('archive')"
-          class="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer select-none"
+          class="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer select-none"
           :class="[
             activeSubTab === 'archive'
               ? 'bg-white dark:bg-[#282828] text-slate-900 dark:text-white shadow-sm shadow-black/5 dark:shadow-black/20'
               : 'text-slate-600 dark:text-[#a0a0a0] hover:text-slate-900 dark:hover:text-white hover:bg-white/40 dark:hover:bg-[#222222]'
           ]"
         >
-          <Archive class="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
+          <Archive class="w-4 h-4 text-slate-500 dark:text-slate-400" />
           <span>Attendance Archive</span>
           <span
-            class="px-1.5 py-0.5 rounded-md text-[10px] font-extrabold"
-            :class="activeSubTab === 'archive' ? 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300' : 'bg-slate-300/60 dark:bg-[#333] text-slate-600 dark:text-slate-400'"
+            class="px-1.5 py-0.5 rounded-md text-[10px] font-bold"
+            :class="activeSubTab === 'archive' ? 'bg-slate-200 dark:bg-[#383838] text-slate-900 dark:text-white' : 'bg-slate-300/60 dark:bg-[#333] text-slate-600 dark:text-slate-400'"
           >
             {{ archivedEvents.length }}
           </span>
@@ -128,10 +128,10 @@
             <button
               v-if="currentEvent"
               @click="handleArchiveCurrentEvent"
-              class="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/80 rounded-xl text-xs font-bold shadow-xs transition cursor-pointer"
+              class="flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-[#252525] dark:hover:bg-[#2c2c2c] text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#333333] rounded-xl text-xs font-semibold shadow-xs transition cursor-pointer"
               title="Mark event as completed and move records to Attendance Archive"
             >
-              <Archive class="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              <Archive class="w-4 h-4 text-slate-500 dark:text-slate-400" />
               <span class="hidden sm:inline">Archive Event</span>
             </button>
           </div>
@@ -140,11 +140,11 @@
 
       <!-- Empty State when no active events remain -->
       <div v-if="activeEvents.length === 0" class="p-8 sm:p-12 text-center rounded-3xl bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#2e2e2e] shadow-xs space-y-4">
-        <div class="w-16 h-16 rounded-3xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mx-auto shadow-sm">
+        <div class="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-[#252525] border border-slate-200 dark:border-[#333] text-slate-600 dark:text-slate-400 flex items-center justify-center mx-auto shadow-sm">
           <Archive class="w-8 h-8" />
         </div>
         <div class="space-y-1.5 max-w-md mx-auto">
-          <h3 class="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+          <h3 class="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
             All Campus Events Are Completed
           </h3>
           <p class="text-xs text-slate-500 dark:text-[#a0a0a0]">
@@ -153,7 +153,7 @@
         </div>
         <button
           @click="setSubTab('archive')"
-          class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black shadow-md shadow-indigo-600/20 transition cursor-pointer inline-flex items-center gap-2"
+          class="btn-primary inline-flex items-center gap-2"
         >
           <Archive class="w-4 h-4" />
           <span>View Attendance Archive</span>
@@ -165,87 +165,102 @@
     <!-- ==================== 2. REAL-TIME ATTENDANCE STATISTICS ==================== -->
     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
       <!-- 1. Total Attendance -->
-      <div class="p-4 rounded-2xl bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#2e2e2e] shadow-xs">
-        <span class="text-[10px] font-extrabold uppercase text-slate-400 dark:text-slate-500 tracking-wider block">
-          Total Attendance
-        </span>
-        <div class="flex items-baseline justify-between mt-1">
-          <p class="text-2xl font-black text-slate-900 dark:text-white">
-            {{ presentCount }}
-          </p>
-          <span class="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
-            {{ attendanceRate }}%
+      <div class="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1e1e1e] border border-[#E2E8F0] dark:border-[#2e2e2e] shadow-xs flex flex-col justify-between transition-colors">
+        <div>
+          <span class="text-[11px] font-bold uppercase tracking-wider text-[#0F172A] dark:text-white block">
+            Total Attendance
           </span>
+          <div class="flex items-baseline justify-between mt-2">
+            <div class="flex items-baseline gap-2">
+              <p class="text-2xl sm:text-3xl font-black text-[#1E3A5F] dark:text-blue-400">
+                {{ presentCount }}
+              </p>
+              <span class="text-xs font-bold text-[#64748B] dark:text-slate-400">
+                {{ attendanceRate }}%
+              </span>
+            </div>
+            <UserCheck class="w-4 h-4 text-[#1E3A5F] dark:text-blue-400 shrink-0" />
+          </div>
         </div>
-        <p class="text-[10px] text-slate-500 dark:text-[#888888] mt-0.5">
+        <p class="text-xs text-[#64748B] dark:text-slate-400 mt-2 truncate">
           Validated entry passes
         </p>
       </div>
 
       <!-- 2. Students Present -->
-      <div class="p-4 rounded-2xl bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#2e2e2e] shadow-xs">
-        <span class="text-[10px] font-extrabold uppercase text-slate-400 dark:text-slate-500 tracking-wider block">
-          Students Present
-        </span>
-        <div class="flex items-baseline justify-between mt-1">
-          <p class="text-2xl font-black text-blue-600 dark:text-blue-400">
-            {{ studentsPresentCount }}
-          </p>
-          <GraduationCap class="w-4 h-4 text-blue-600 dark:text-blue-400" />
+      <div class="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1e1e1e] border border-[#E2E8F0] dark:border-[#2e2e2e] shadow-xs flex flex-col justify-between transition-colors">
+        <div>
+          <span class="text-[11px] font-bold uppercase tracking-wider text-[#0F172A] dark:text-white block">
+            Students Present
+          </span>
+          <div class="flex items-baseline justify-between mt-2">
+            <p class="text-2xl sm:text-3xl font-black text-[#1E3A5F] dark:text-blue-400">
+              {{ studentsPresentCount }}
+            </p>
+            <GraduationCap class="w-4 h-4 text-[#1E3A5F] dark:text-blue-400 shrink-0" />
+          </div>
         </div>
-        <p class="text-[10px] text-slate-500 dark:text-[#888888] mt-0.5">
+        <p class="text-xs text-[#64748B] dark:text-slate-400 mt-2 truncate">
           Enrolled NCST students
         </p>
       </div>
 
       <!-- 3. Outsiders Present -->
-      <div class="p-4 rounded-2xl bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#2e2e2e] shadow-xs">
-        <span class="text-[10px] font-extrabold uppercase text-slate-400 dark:text-slate-500 tracking-wider block">
-          Outsiders Present
-        </span>
-        <div class="flex items-baseline justify-between mt-1">
-          <p class="text-2xl font-black text-purple-600 dark:text-purple-400">
-            {{ outsidersPresentCount }}
-          </p>
-          <Users class="w-4 h-4 text-purple-600 dark:text-purple-400" />
+      <div class="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1e1e1e] border border-[#E2E8F0] dark:border-[#2e2e2e] shadow-xs flex flex-col justify-between transition-colors">
+        <div>
+          <span class="text-[11px] font-bold uppercase tracking-wider text-[#0F172A] dark:text-white block">
+            Outsiders Present
+          </span>
+          <div class="flex items-baseline justify-between mt-2">
+            <p class="text-2xl sm:text-3xl font-black text-[#1E3A5F] dark:text-blue-400">
+              {{ outsidersPresentCount }}
+            </p>
+            <Users class="w-4 h-4 text-[#1E3A5F] dark:text-blue-400 shrink-0" />
+          </div>
         </div>
-        <p class="text-[10px] text-slate-500 dark:text-[#888888] mt-0.5">
+        <p class="text-xs text-[#64748B] dark:text-slate-400 mt-2 truncate">
           Guest & visitor check-ins
         </p>
       </div>
 
       <!-- 4. Not Yet Recorded -->
-      <div class="p-4 rounded-2xl bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#2e2e2e] shadow-xs">
-        <span class="text-[10px] font-extrabold uppercase text-slate-400 dark:text-slate-500 tracking-wider block">
-          Not Yet Recorded
-        </span>
-        <div class="flex items-baseline justify-between mt-1">
-          <p class="text-2xl font-black text-amber-600 dark:text-amber-400">
-            {{ notEnteredCount }}
-          </p>
-          <Clock class="w-4 h-4 text-amber-600 dark:text-amber-400" />
+      <div class="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1e1e1e] border border-[#E2E8F0] dark:border-[#2e2e2e] shadow-xs flex flex-col justify-between transition-colors">
+        <div>
+          <span class="text-[11px] font-bold uppercase tracking-wider text-[#0F172A] dark:text-white block">
+            Not Yet Recorded
+          </span>
+          <div class="flex items-baseline justify-between mt-2">
+            <p class="text-2xl sm:text-3xl font-black text-[#1E3A5F] dark:text-blue-400">
+              {{ notEnteredCount }}
+            </p>
+            <Clock class="w-4 h-4 text-[#1E3A5F] dark:text-blue-400 shrink-0" />
+          </div>
         </div>
-        <p class="text-[10px] text-slate-500 dark:text-[#888888] mt-0.5">
+        <p class="text-xs text-[#64748B] dark:text-slate-400 mt-2 truncate">
           Issued tickets pending entry
         </p>
       </div>
 
       <!-- 5. Invalid Scans / Blocked (Clickable) -->
       <button
+        type="button"
         @click="showInvalidModal = true"
-        class="p-4 rounded-2xl bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#2e2e2e] hover:border-rose-300 dark:hover:border-rose-800 shadow-xs text-left transition cursor-pointer group"
+        class="w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1e1e1e] border border-[#E2E8F0] dark:border-[#2e2e2e] hover:border-slate-300 dark:hover:border-slate-700 shadow-xs flex flex-col justify-between transition cursor-pointer group"
       >
-        <div class="flex items-center justify-between">
-          <span class="text-[10px] font-extrabold uppercase text-rose-600 dark:text-rose-400 tracking-wider block">
+        <div class="w-full">
+          <span class="text-[11px] font-bold uppercase tracking-wider text-[#0F172A] dark:text-white block">
             Invalid / Blocked
           </span>
-          <AlertTriangle class="w-4 h-4 text-rose-600 dark:text-rose-400 group-hover:scale-110 transition-transform" />
+          <div class="flex items-baseline justify-between mt-2">
+            <p class="text-2xl sm:text-3xl font-black text-[#1E3A5F] dark:text-blue-400">
+              {{ invalidAttemptsCount + duplicateAttemptsCount }}
+            </p>
+            <AlertTriangle class="w-4 h-4 text-[#1E3A5F] dark:text-blue-400 shrink-0 group-hover:scale-110 transition-transform" />
+          </div>
         </div>
-        <p class="text-2xl font-black text-rose-600 dark:text-rose-400 mt-1">
-          {{ invalidAttemptsCount + duplicateAttemptsCount }}
-        </p>
-        <p class="text-[10px] text-slate-500 dark:text-[#888888] mt-0.5 group-hover:text-rose-500 transition-colors">
-          Click to inspect audit logs →
+        <p class="text-xs text-[#64748B] dark:text-slate-400 mt-2 group-hover:text-[#1E3A5F] dark:group-hover:text-blue-400 transition-colors inline-flex items-center gap-1 truncate">
+          <span>Click to inspect audit logs</span>
+          <span aria-hidden="true">→</span>
         </p>
       </button>
     </div>
@@ -403,8 +418,8 @@
                 <span
                   class="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider inline-block"
                   :class="item.attendeeType === 'OUTSIDER'
-                    ? 'bg-purple-100 dark:bg-purple-950/70 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800'
-                    : 'bg-blue-100 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-800'"
+                    ? 'bg-slate-100 dark:bg-[#252525] text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-[#3a3a3a]'
+                    : 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60'"
                 >
                   {{ item.attendeeType }}
                 </span>
@@ -486,8 +501,8 @@
               <span
                 class="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider inline-block mt-1"
                 :class="selectedAttendee.attendeeType === 'OUTSIDER'
-                  ? 'bg-purple-100 dark:bg-purple-950/70 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800'
-                  : 'bg-blue-100 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-800'"
+                  ? 'bg-slate-100 dark:bg-[#252525] text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-[#3a3a3a]'
+                  : 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60'"
               >
                 {{ selectedAttendee.attendeeType }}
               </span>
@@ -675,7 +690,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue';
 import {
-  MapPin, CalendarDays, FileSpreadsheet, GraduationCap, Users,
+  MapPin, CalendarDays, FileSpreadsheet, GraduationCap, Users, UserCheck,
   Search, RotateCcw, AlertTriangle, Filter, ChevronDown, Eye, Clock,
   Archive, Activity
 } from 'lucide-vue-next';
@@ -721,7 +736,7 @@ const setSubTab = (tab: 'active' | 'archive') => {
   emit('switch-tab', tab === 'archive' ? 'attendance_archive' : 'attendance');
 };
 
-const { currentEvent, setCurrentEvent, events, activeEvents, archivedEvents, tickets, logs, archiveEvent } = useAppStore();
+const { currentEvent, setCurrentEvent, events, activeEvents, archivedEvents, tickets, logs, archiveEvent, studentRecords, users } = useAppStore();
 
 // Auto-select first active event if currentEvent is completed/archived or undefined
 onMounted(() => {
@@ -763,20 +778,20 @@ const activePresentCount = computed(() => {
 
 // Derived metrics
 const eventTickets = computed(() => tickets.value.filter(t => t.eventId === currentEvent.value?.id));
-const presentCount = computed(() => eventTickets.value.filter(t => t.attendanceStatus === 'present').length);
-const notEnteredCount = computed(() => eventTickets.value.filter(t => t.attendanceStatus === 'not_entered').length);
+const presentCount = computed(() => liveAttendanceRoster.value.filter(i => i.status === 'PRESENT').length);
+const notEnteredCount = computed(() => liveAttendanceRoster.value.filter(i => i.status === 'NOT YET ENTERED').length);
 
 const studentsPresentCount = computed(() => {
-  return eventTickets.value.filter(t => t.attendanceStatus === 'present' && (t.attendeeType || 'STUDENT') === 'STUDENT').length;
+  return liveAttendanceRoster.value.filter(i => i.status === 'PRESENT' && (i.attendeeType || 'STUDENT') === 'STUDENT').length;
 });
 
 const outsidersPresentCount = computed(() => {
-  return eventTickets.value.filter(t => t.attendanceStatus === 'present' && t.attendeeType === 'OUTSIDER').length;
+  return liveAttendanceRoster.value.filter(i => i.status === 'PRESENT' && i.attendeeType === 'OUTSIDER').length;
 });
 
 const attendanceRate = computed(() => {
-  if (eventTickets.value.length === 0) return 0;
-  return Math.round((presentCount.value / eventTickets.value.length) * 100);
+  if (liveAttendanceRoster.value.length === 0) return 0;
+  return Math.round((presentCount.value / liveAttendanceRoster.value.length) * 100);
 });
 
 const eventLogs = computed(() => logs.value.filter(l => l.eventId === currentEvent.value?.id || l.eventId === 'unknown'));
@@ -787,7 +802,7 @@ const invalidAttemptsCount = computed(() => eventLogs.value.filter(l => l.status
 // Dynamic Options
 const availableCourses = computed(() => {
   const set = new Set<string>();
-  eventTickets.value.forEach(t => {
+  liveAttendanceRoster.value.forEach(t => {
     if (t.course) set.add(t.course);
   });
   if (set.size === 0) return ['BSIT', 'BSCS', 'BSCpE', 'BSBA', 'BSED', 'BSHM'];
@@ -796,10 +811,10 @@ const availableCourses = computed(() => {
 
 const availableSections = computed(() => {
   const set = new Set<string>();
-  eventTickets.value.forEach(t => {
+  liveAttendanceRoster.value.forEach(t => {
     if (t.section) set.add(t.section);
   });
-  if (set.size === 0) return ['A', 'B', 'C', 'M1', 'A1', 'E1'];
+  if (set.size === 0) return ['11M1', '11M2', '12M1', '21M1', '21M2', '31M1', '31A1', '31A2', '41M1', '41A1'];
   return Array.from(set).sort();
 });
 
@@ -859,10 +874,45 @@ const getAttendanceBadgeStatus = (status: LiveAttendanceStatus): string => {
   }
 };
 
-const filteredLiveAttendance = computed(() => {
-  const list: UnifiedLiveAttendanceItem[] = [];
+// Deduplicated authoritative live attendance roster for current event
+const liveAttendanceRoster = computed<UnifiedLiveAttendanceItem[]>(() => {
+  const attendeeMap = new Map<string, UnifiedLiveAttendanceItem>();
 
-  // 1. Add scan logs (chronological check-ins and denials)
+  // 1. Seed attendee records from event tickets (base roster)
+  eventTickets.value.forEach(t => {
+    const rawStudentId = (t.attendeeStudentId || '').trim();
+    const type: AttendeeType = t.attendeeType || (rawStudentId ? 'STUDENT' : 'OUTSIDER');
+    const studentInfo = type === 'STUDENT' && rawStudentId
+      ? (studentRecords.value?.find(s => s.studentId?.toLowerCase().trim() === rawStudentId.toLowerCase()) ||
+         users.value?.find(u => u.studentId?.toLowerCase().trim() === rawStudentId.toLowerCase()))
+      : null;
+    const isPresent = t.attendanceStatus === 'present';
+
+    // Unique key per attendee: student ID for students, ticket number/id for outsiders
+    const key = (type === 'STUDENT' && rawStudentId)
+      ? `student:${rawStudentId.toLowerCase()}`
+      : `ticket:${(t.ticketNumber || t.id).toLowerCase().trim()}`;
+
+    attendeeMap.set(key, {
+      id: `tix-${t.id}`,
+      timeFormatted: isPresent && t.timeIn
+        ? new Date(t.timeIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        : '---',
+      name: t.currentAttendeeName || t.originalOwnerName || studentInfo?.name || 'Attendee',
+      studentId: type === 'STUDENT' ? (rawStudentId || undefined) : undefined,
+      ticketNumber: t.ticketNumber || t.id,
+      ticketId: t.id,
+      attendeeType: type,
+      course: type === 'STUDENT' ? (t.course || studentInfo?.course) : undefined,
+      yearLevel: type === 'STUDENT' ? (t.yearLevel || studentInfo?.yearLevel) : undefined,
+      section: type === 'STUDENT' ? (t.section || studentInfo?.section) : undefined,
+      status: isPresent ? 'PRESENT' : 'NOT YET ENTERED',
+      timestamp: t.timeIn || t.purchaseDate,
+      scannedBy: t.lastScannedBy || 'Event Staff Scanner',
+    });
+  });
+
+  // 2. Overlay live check-in scan logs (chronological check-ins and denials) without duplicating rows
   eventLogs.value.forEach(l => {
     let statusText: LiveAttendanceStatus = 'PRESENT';
     if (l.status === 'denied') {
@@ -873,51 +923,62 @@ const filteredLiveAttendance = computed(() => {
       }
     }
 
-    const type: AttendeeType = l.attendeeType || (l.studentId ? 'STUDENT' : 'OUTSIDER');
+    const rawStudentId = (l.studentId || '').trim();
+    const type: AttendeeType = l.attendeeType || (rawStudentId ? 'STUDENT' : 'OUTSIDER');
+    const studentInfo = type === 'STUDENT' && rawStudentId
+      ? (studentRecords.value?.find(s => s.studentId?.toLowerCase().trim() === rawStudentId.toLowerCase()) ||
+         users.value?.find(u => u.studentId?.toLowerCase().trim() === rawStudentId.toLowerCase()))
+      : null;
 
-    list.push({
+    const key = (type === 'STUDENT' && rawStudentId)
+      ? `student:${rawStudentId.toLowerCase()}`
+      : `ticket:${(l.ticketNumber || l.ticketId || l.id).toLowerCase().trim()}`;
+
+    const existing = attendeeMap.get(key);
+
+    const logFormattedTime = l.timeIn || (l.timestamp ? new Date(l.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '---');
+
+    const logItem: UnifiedLiveAttendanceItem = {
       id: l.id,
-      timeFormatted: l.timeIn || (l.timestamp ? new Date(l.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '---'),
-      name: l.attendeeName || 'Guest / Attendee',
-      studentId: type === 'STUDENT' ? l.studentId : undefined,
-      ticketNumber: l.ticketNumber || l.ticketId,
-      ticketId: l.ticketId,
+      timeFormatted: logFormattedTime,
+      name: l.attendeeName || studentInfo?.name || existing?.name || 'Guest / Attendee',
+      studentId: type === 'STUDENT' ? (rawStudentId || existing?.studentId) : undefined,
+      ticketNumber: l.ticketNumber || l.ticketId || existing?.ticketNumber,
+      ticketId: l.ticketId || existing?.ticketId || l.id,
       attendeeType: type,
-      course: type === 'STUDENT' ? l.course : undefined,
-      yearLevel: type === 'STUDENT' ? l.yearLevel : undefined,
-      section: type === 'STUDENT' ? l.section : undefined,
+      course: type === 'STUDENT' ? (l.course || studentInfo?.course || existing?.course) : undefined,
+      yearLevel: type === 'STUDENT' ? (l.yearLevel || studentInfo?.yearLevel || existing?.yearLevel) : undefined,
+      section: type === 'STUDENT' ? (l.section || studentInfo?.section || existing?.section) : undefined,
       status: statusText,
       timestamp: l.timestamp,
-      scannedBy: 'Event Staff Scanner',
-    });
-  });
+      scannedBy: l.verifiedByName || 'Event Staff Scanner',
+    };
 
-  // 2. Add remaining tickets (both present and not yet entered)
-  eventTickets.value.forEach(t => {
-    const alreadyInList = list.some(i => i.ticketNumber === t.ticketNumber || i.ticketId === t.id);
-    if (!alreadyInList) {
-      const type: AttendeeType = t.attendeeType || (t.attendeeStudentId ? 'STUDENT' : 'OUTSIDER');
-      const isPresent = t.attendanceStatus === 'present';
-      list.push({
-        id: `tix-${t.id}`,
-        timeFormatted: isPresent && t.timeIn ? new Date(t.timeIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '---',
-        name: t.currentAttendeeName || t.originalOwnerName || 'Attendee',
-        studentId: type === 'STUDENT' ? t.attendeeStudentId : undefined,
-        ticketNumber: t.ticketNumber || t.id,
-        ticketId: t.id,
-        attendeeType: type,
-        course: type === 'STUDENT' ? t.course : undefined,
-        yearLevel: type === 'STUDENT' ? t.yearLevel : undefined,
-        section: type === 'STUDENT' ? t.section : undefined,
-        status: isPresent ? 'PRESENT' : 'NOT YET ENTERED',
-        timestamp: t.timeIn || t.purchaseDate,
-        scannedBy: 'Event Staff Scanner',
-      });
+    if (!existing) {
+      attendeeMap.set(key, logItem);
+    } else {
+      // Prioritize PRESENT status over NOT YET ENTERED / denials
+      if (statusText === 'PRESENT') {
+        attendeeMap.set(key, {
+          ...existing,
+          ...logItem,
+          status: 'PRESENT',
+          timeFormatted: logFormattedTime !== '---' ? logFormattedTime : existing.timeFormatted,
+        });
+      } else if (existing.status !== 'PRESENT') {
+        attendeeMap.set(key, {
+          ...existing,
+          ...logItem,
+        });
+      }
     }
   });
 
-  // Apply filters
-  return list.filter(item => {
+  return Array.from(attendeeMap.values());
+});
+
+const filteredLiveAttendance = computed(() => {
+  return liveAttendanceRoster.value.filter(item => {
     if (filterType.value !== 'all' && item.attendeeType !== filterType.value) return false;
     if (filterCourse.value !== 'all' && (item.attendeeType !== 'STUDENT' || item.course !== filterCourse.value)) return false;
     if (filterYearLevel.value !== 'all' && (item.attendeeType !== 'STUDENT' || item.yearLevel !== filterYearLevel.value)) return false;

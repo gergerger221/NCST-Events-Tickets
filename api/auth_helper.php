@@ -139,6 +139,65 @@ function ncst_verify_password(string $password, ?string $storedPassword, ?string
     return false;
 }
 
+/**
+ * Authoritative Student Surname Extractor
+ * Supports:
+ * - Direct last_name / lastName fields from student_records or user objects
+ * - "Last, First Middle" format (e.g. "Dela Cruz, Juan M.")
+ * - Multi-part Filipino and international surname prefixes ("Dela Cruz", "De Los Santos", "San Juan", "Del Rosario", "Van Buren", "McIntyre", etc.)
+ */
+function ncst_extract_surname(mixed $input): string {
+    if (is_array($input)) {
+        if (!empty($input['last_name']) && is_string($input['last_name'])) {
+            return trim($input['last_name']);
+        }
+        if (!empty($input['lastName']) && is_string($input['lastName'])) {
+            return trim($input['lastName']);
+        }
+        $name = $input['name'] ?? '';
+    } else {
+        $name = is_string($input) ? $input : '';
+    }
+
+    $clean = trim(preg_replace('/\s+/', ' ', $name));
+    if ($clean === '') {
+        return '';
+    }
+
+    // Comma format: "Dela Cruz, Juan" -> "Dela Cruz"
+    if (strpos($clean, ',') !== false) {
+        $parts = explode(',', $clean);
+        return trim($parts[0]);
+    }
+
+    $prefixes = [
+        'dela', 'de la', 'de los', 'delos', 'del', 'de', 'san', 'santa',
+        'sto.', 'sta.', 'van', 'von', 'mc', 'mac', 'al', 'el', 'st.'
+    ];
+
+    $parts = explode(' ', $clean);
+    if (count($parts) === 1) {
+        return $parts[0];
+    }
+    if (count($parts) === 2) {
+        return $parts[1];
+    }
+
+    for ($i = 1; $i < count($parts) - 1; $i++) {
+        $twoWordPrefix = strtolower($parts[$i] . ' ' . $parts[$i + 1]);
+        $oneWordPrefix = strtolower($parts[$i]);
+        if (in_array($twoWordPrefix, $prefixes, true) || in_array($oneWordPrefix, $prefixes, true)) {
+            return trim(implode(' ', array_slice($parts, $i)));
+        }
+    }
+
+    if (count($parts) === 3) {
+        return $parts[2];
+    }
+
+    return $parts[count($parts) - 1];
+}
+
 // Helper: URL-Safe Base64
 function ncst_base64url_encode(string $data): string {
     return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
@@ -246,6 +305,8 @@ function ncst_get_auth_user(PDO $pdo): ?array {
         }
         $user['mustChangePassword'] = (bool)($user['must_change_password'] ?? 0);
         $user['isActive'] = (bool)($user['is_active'] ?? 1);
+        $user['verificationStatus'] = $user['verification_status'] ?? 'verified';
+        $user['isVerified'] = (bool)($user['is_verified'] ?? 1);
         $user['studentId'] = $user['student_id'] ?? null;
         $user['employeeId'] = $user['employee_id'] ?? null;
         $user['yearLevel'] = $user['year_level'] ?? null;
@@ -305,3 +366,53 @@ function sys_get_temp_limit_dir(): string {
     }
     return $dir;
 }
+
+// 7. Authoritative Academic & Teacher Class Scoping Helpers
+function ncst_normalize_department(?string $dept): string {
+    if (!$dept) return '';
+    $clean = trim(strtoupper($dept));
+    if ($clean === 'CSD' || str_contains($clean, 'COMPUTER') || str_contains($clean, 'INFORMAT')) return 'CSD';
+    if ($clean === 'ENG' || str_contains($clean, 'ENGINEER') || str_contains($clean, 'ARCHITECT')) return 'ENG';
+    if ($clean === 'CBA' || str_contains($clean, 'BUSINESS') || str_contains($clean, 'ACCOUNT')) return 'CBA';
+    if ($clean === 'GENED' || str_contains($clean, 'GENERAL EDUCATION')) return 'GENED';
+    if ($clean === 'EDUC' || str_contains($clean, 'EDUCATION')) return 'EDUC';
+    if ($clean === 'CCJ' || str_contains($clean, 'CRIMINOL') || str_contains($clean, 'JUSTICE')) return 'CCJ';
+    if ($clean === 'CHTM' || str_contains($clean, 'HOSPITALITY') || str_contains($clean, 'TOURISM')) return 'CHTM';
+    return $clean;
+}
+
+function ncst_match_teacher_class(array $assignment, array $target, string $teacherDefaultDept = ''): bool {
+    // 1. Department Match (Department + Course + Year Level + Section)
+    $assignDept = !empty($assignment['department']) ? $assignment['department'] : $teacherDefaultDept;
+    $targetDept = !empty($target['department']) ? $target['department'] : (!empty($target['attendee_department']) ? $target['attendee_department'] : '');
+
+    if (!empty($assignDept) && !empty($targetDept)) {
+        if (ncst_normalize_department($assignDept) !== ncst_normalize_department($targetDept)) {
+            return false;
+        }
+    }
+
+    // 2. Course Match
+    $assignCourse = strtoupper(trim($assignment['course'] ?? ''));
+    $targetCourse = strtoupper(trim($target['course'] ?? ''));
+    if (!empty($assignCourse) && !empty($targetCourse) && $assignCourse !== $targetCourse) {
+        return false;
+    }
+
+    // 3. Section Match
+    $assignSec = strtoupper(trim($assignment['section'] ?? ''));
+    $targetSec = strtoupper(trim($target['section'] ?? ''));
+    if (!empty($assignSec) && !empty($targetSec) && $assignSec !== $targetSec) {
+        return false;
+    }
+
+    // 4. Year Level Match
+    $assignYear = strtolower(trim($assignment['yearLevel'] ?? ($assignment['year_level'] ?? '')));
+    $targetYear = strtolower(trim($target['yearLevel'] ?? ($target['year_level'] ?? '')));
+    if (!empty($assignYear) && !empty($targetYear) && $assignYear !== $targetYear) {
+        return false;
+    }
+
+    return true;
+}
+

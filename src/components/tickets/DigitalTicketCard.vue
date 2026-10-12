@@ -32,8 +32,8 @@
           <span class="text-[11px] font-extrabold tracking-wider uppercase px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20">
             {{ safeEvent.category || 'Campus' }} Event
           </span>
-          <span class="text-[9.5px] font-black tracking-widest uppercase px-2 py-0.5 rounded bg-amber-400 text-slate-950 shadow-xs">
-            LIVE @ NCST
+          <span class="text-[9.5px] font-bold tracking-wider px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+            A.Y. {{ ticket.academicYear || safeEvent.academicYear || '2026-2027' }} • {{ ticket.semester || safeEvent.semester || '1st Sem' }}
           </span>
         </div>
         <div class="flex items-center gap-1.5">

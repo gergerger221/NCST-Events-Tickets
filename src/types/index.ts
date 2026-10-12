@@ -25,7 +25,7 @@ export interface User {
   employeeId?: string; // For Admin / Event Staff / Cashier / Teacher
   course?: string; // e.g. "BSIT", "BSCS", "BSCpE", "BSBA"
   yearLevel?: string; // e.g. "1st Year", "2nd Year", "3rd Year", "4th Year"
-  section?: string; // e.g. "Section A", "Section B", "Section 1", "M1", "A1", "31M1"
+  section?: string; // Combined NCST section code (e.g. "11M1", "21M1", "31A1", "41M1")
   department?: string;
   photoUrl?: string;
   createdAt: string;
@@ -80,6 +80,22 @@ export type EventCategory =
   | 'Battle of the bands'
   | string;
 
+export type AcademicPeriodStatus = 'inactive' | 'active' | 'archived';
+
+export interface AcademicPeriod {
+  id: string; // e.g. "acad-2026-2027-sem1"
+  academicYear: string; // e.g. "2026-2027"
+  academic_year?: string;
+  semester: string; // "1st Semester" | "2nd Semester"
+  startDate: string; // YYYY-MM-DD
+  start_date?: string;
+  endDate: string; // YYYY-MM-DD
+  end_date?: string;
+  status: AcademicPeriodStatus;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface EventItem {
   id: string;
   title: string;
@@ -97,6 +113,9 @@ export interface EventItem {
   ticketDesignUrl?: string; // Custom uploaded ticket background / artwork design (Image files only)
   ticketDesignOffsetY?: number; // Vertical alignment focal point (0 = top, 50 = center, 100 = bottom, default 20)
   organizer: string;
+  academicYear?: string;
+  academic_year?: string;
+  semester?: string;
 }
 
 export type TicketType = 'digital' | 'physical';
@@ -127,6 +146,9 @@ export interface PurchaseTransaction {
   quantity: number;
   paymentMethod?: string;
   cashierName?: string;
+  academicYear?: string;
+  academic_year?: string;
+  semester?: string;
 }
 
 export interface TransferRecord {
@@ -195,6 +217,11 @@ export interface Ticket {
   // Physical metadata
   ocrVerified?: boolean;
   notes?: string;
+
+  // Strict Academic Period
+  academicYear?: string;
+  academic_year?: string;
+  semester?: string;
 }
 
 export interface AttendanceLog {
@@ -223,6 +250,11 @@ export interface AttendanceLog {
   status: 'valid' | 'denied';
   denialReason?: string;
   isOfflineSync?: boolean;
+
+  // Strict Academic Period
+  academicYear?: string;
+  academic_year?: string;
+  semester?: string;
 }
 
 export interface QueuedScan {

@@ -57,7 +57,7 @@
         <button
           type="button"
           @click="showQRScanner = true"
-          class="w-full sm:max-w-md mx-auto py-5 px-8 rounded-2xl bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white shadow-xl shadow-blue-500/25 hover:shadow-2xl hover:shadow-blue-500/30 transition-all cursor-pointer flex items-center justify-center gap-3.5 font-black text-base sm:text-lg tracking-wide group"
+          class="w-full sm:max-w-md mx-auto py-5 px-8 rounded-2xl bg-[#1E3A5F] hover:bg-[#152A45] active:scale-[0.98] text-white shadow-sm transition-all cursor-pointer flex items-center justify-center gap-3.5 font-bold text-base sm:text-lg tracking-wide group"
         >
           <Camera class="w-6 h-6 group-hover:scale-110 transition-transform" />
           <span>SCAN QR CODE</span>

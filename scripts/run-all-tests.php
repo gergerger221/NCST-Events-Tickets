@@ -7,6 +7,12 @@
 $testFiles = [
     'test-phase1-security.php' => 'Phase 1 Security & Credentials Hardening',
     'test-phase4-sync.php'     => 'Phase 4 Delta Sync & State Caching',
+    'test-mysql-api.php'       => 'Phase 9 MySQL Database Integration & Transactions',
+    'test-followup-audit.php'  => 'Follow-up Audit: Teacher 4D Scoping, Student Verification, Sections, DB Security',
+    'test-cashier-account-provisioning.php' => 'Bug Fix: Cashier Account Provisioning & Password Integrity',
+    'test-final-auth.php'      => 'Final Authentication, Guest Lookup & Cashier Provisioning (16 Scenarios)',
+    'test-academic-year-management.php' => 'Strict Academic Year & Semester Scoping and Transitions',
+    'test-surname-password-onboarding.php' => 'Automatic Student Account Creation with Temporary Surname Password',
 ];
 
 $totalTests = count($testFiles);
@@ -27,8 +33,8 @@ foreach ($testFiles as $file => $description) {
 
     echo "Running: $description ($file)...\n";
     $output = [];
-    $returnVar = 0;
-    exec("php " . escapeshellarg($fullPath) . " 2>&1", $output, $returnVar);
+    $phpBin = defined('PHP_BINARY') && PHP_BINARY ? PHP_BINARY : 'php';
+    exec(escapeshellcmd($phpBin) . " " . escapeshellarg($fullPath) . " 2>&1", $output, $returnVar);
 
     if ($returnVar === 0) {
         echo "  --> PASSED\n\n";

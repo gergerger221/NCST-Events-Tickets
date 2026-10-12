@@ -1,5 +1,104 @@
 <template>
-  <div class="space-y-6 sm:space-y-8">
+  <!-- 1. EXCLUSIVE MANDATORY FIRST-LOGIN SETUP VIEW (Active until password is saved) -->
+  <div v-if="currentUser?.mustChangePassword" class="max-w-xl mx-auto py-6 sm:py-10 px-2 sm:px-4">
+    <div class="bg-white dark:bg-[#1e1e1e] border border-amber-200/90 dark:border-amber-800/80 rounded-3xl p-6 sm:p-8 shadow-xl space-y-6">
+      <div class="flex items-center gap-4">
+        <div class="p-3 bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 rounded-2xl shadow-xs">
+          <KeyRound class="w-7 h-7" />
+        </div>
+        <div>
+          <span class="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+            First-Login Activation Required
+          </span>
+          <h2 class="text-xl font-extrabold text-slate-900 dark:text-white mt-1">
+            Set Your Permanent Password
+          </h2>
+          <p class="text-xs text-slate-500 dark:text-slate-400">
+            Welcome, <strong>{{ currentUser.name }}</strong> (Student ID: {{ currentUser.studentId }})
+          </p>
+        </div>
+      </div>
+
+      <div class="p-4 bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-2xl text-xs text-amber-800 dark:text-amber-300 space-y-1.5 leading-relaxed">
+        <p class="font-bold flex items-center gap-1.5 text-amber-900 dark:text-amber-200">
+          <KeyRound class="w-4 h-4 text-amber-600 dark:text-amber-400" />
+          Mandatory Password Change
+        </p>
+        <p class="text-[11px] text-amber-700 dark:text-amber-300">
+          Your account was automatically created during ticket purchase using your <strong>official surname</strong> as your initial temporary password.
+        </p>
+        <p class="text-[11px] text-amber-700 dark:text-amber-300">
+          To protect your digital passes and attendance records, you must create a secure permanent password before accessing portal features.
+        </p>
+      </div>
+
+      <div v-if="passError" class="p-3 bg-rose-50 dark:bg-rose-950/70 border border-rose-200 dark:border-rose-800 rounded-xl text-rose-700 dark:text-rose-300 text-xs">
+        {{ passError }}
+      </div>
+      <div v-if="passSuccess" class="p-3 bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-800 rounded-xl text-emerald-700 dark:text-emerald-300 text-xs font-bold">
+        {{ passSuccess }}
+      </div>
+
+      <form @submit.prevent="handleChangePassword" class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">New Permanent Password *</label>
+          <div class="relative">
+            <input
+              v-model="newPassword"
+              :type="showNewPassword ? 'text' : 'password'"
+              required
+              minlength="4"
+              placeholder="Enter new permanent password"
+              class="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 dark:bg-[#181818] border border-slate-300 dark:border-[#3a3a3a] rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 transition"
+            />
+            <button
+              type="button"
+              @click="showNewPassword = !showNewPassword"
+              class="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition cursor-pointer"
+              aria-label="Toggle password visibility"
+            >
+              <EyeOff v-if="showNewPassword" class="w-4 h-4" />
+              <Eye v-else class="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Confirm New Password *</label>
+          <div class="relative">
+            <input
+              v-model="confirmNewPassword"
+              :type="showConfirmPassword ? 'text' : 'password'"
+              required
+              minlength="4"
+              placeholder="Confirm new permanent password"
+              class="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 dark:bg-[#181818] border border-slate-300 dark:border-[#3a3a3a] rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 transition"
+            />
+            <button
+              type="button"
+              @click="showConfirmPassword = !showConfirmPassword"
+              class="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition cursor-pointer"
+              aria-label="Toggle password visibility"
+            >
+              <EyeOff v-if="showConfirmPassword" class="w-4 h-4" />
+              <Eye v-else class="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          :disabled="!newPassword.trim() || !confirmNewPassword.trim()"
+          class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer shadow-md disabled:opacity-50"
+        >
+          Save Password & Activate Portal Access
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 2. FULL STUDENT DASHBOARD (Rendered once account is activated) -->
+  <div v-else class="space-y-6 sm:space-y-8">
     <!-- Student Header Banner -->
     <div class="relative overflow-hidden rounded-3xl bg-slate-50/80 dark:bg-[#1e1e1e] border border-slate-200/70 dark:border-[#333333] p-5 sm:p-6 shadow-xs dark:shadow-md transition-colors">
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-5">
@@ -22,7 +121,7 @@
               <span>•</span>
               <span>{{ currentUser?.yearLevel || '3rd Year' }}</span>
               <span>•</span>
-              <span>Section {{ currentUser?.section || 'M1' }}</span>
+              <span>Section {{ currentUser?.section || '11M1' }}</span>
               <span>•</span>
               <span class="font-mono text-slate-500 dark:text-[#888888]">{{ currentUser?.email }}</span>
             </p>
@@ -37,11 +136,11 @@
         <div class="flex items-center gap-2.5 flex-wrap">
           <div class="p-3 bg-white dark:bg-[#242424] border border-slate-200/70 dark:border-[#333333] rounded-2xl text-center min-w-[105px] shadow-xs">
             <span class="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 block tracking-wider">Issued Passes</span>
-            <span class="text-xl font-black text-blue-600 dark:text-blue-400">{{ myTickets.length }}</span>
+            <span class="text-xl font-bold text-[#1E3A5F] dark:text-blue-400">{{ myTickets.length }}</span>
           </div>
           <div class="p-3 bg-white dark:bg-[#242424] border border-slate-200/70 dark:border-[#333333] rounded-2xl text-center min-w-[105px] shadow-xs">
             <span class="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 block tracking-wider">Attended</span>
-            <span class="text-xl font-black text-emerald-600 dark:text-emerald-400">{{ attendedTickets.length }}</span>
+            <span class="text-xl font-bold text-[#15803D] dark:text-emerald-400">{{ attendedTickets.length }}</span>
           </div>
         </div>
       </div>
@@ -80,7 +179,7 @@
           @click="activeSubTab = tab.id"
           class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap"
           :class="activeSubTab === tab.id 
-            ? 'bg-blue-600 text-white shadow-xs font-extrabold' 
+            ? 'bg-[#1E3A5F] text-white shadow-xs font-bold' 
             : 'bg-white dark:bg-[#1e1e1e] text-slate-600 dark:text-[#b3b3b3] hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-[#333333]'"
         >
           <component :is="tab.icon" class="w-4 h-4" />
@@ -283,7 +382,7 @@
             Mandatory First-Login Password Setup
           </p>
           <p class="text-[11px] text-amber-700 dark:text-amber-400 leading-relaxed">
-            Your account was initialized with the default temporary password (<strong>ncst123</strong>). Please create your secure permanent password to access your digital passes and attendance records.
+            Your account was initialized using your official surname as your temporary password. Please create your secure permanent password to access your digital passes and attendance records.
           </p>
         </div>
 
@@ -403,8 +502,13 @@ const handleChangePassword = () => {
   passSuccess.value = '';
   if (!currentUser.value) return;
 
-  if (newPassword.value === 'ncst123') {
-    passError.value = 'New password cannot be the initial default password (ncst123). Please choose a new secure password.';
+  const userSurname = (currentUser.value.lastName || (currentUser.value.name ? currentUser.value.name.trim().split(/\s+/).pop() : '') || '').toLowerCase();
+  if (userSurname && newPassword.value.trim().toLowerCase() === userSurname) {
+    passError.value = 'New password cannot be your surname. Please choose a secure custom password.';
+    return;
+  }
+  if (newPassword.value === 'ncst123' || newPassword.value === 'password123') {
+    passError.value = 'New password cannot be a generic default password. Please choose a new secure password.';
     return;
   }
   if (newPassword.value !== confirmNewPassword.value) {

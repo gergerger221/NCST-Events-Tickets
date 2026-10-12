@@ -1,10 +1,23 @@
 <?php
 /**
  * NCST Events & Tickets — Authoritative MySQL Database Setup & Migration Script
- * Run via CLI: C:\xampp\php\php.exe api/setup.php
- * Or via Web: http://localhost/Integ%202/api/setup.php
+ * Restricted strictly to server-side CLI maintenance. Direct Web/HTTP access is prohibited.
+ * Usage via CLI: php api/setup.php
  */
 header('Content-Type: application/json; charset=utf-8');
+
+// CRITICAL SECURITY ENFORCEMENT:
+// Database initialization and migration scripts are strictly forbidden from being executed over web HTTP.
+// Only authorized server administrators executing via PHP CLI (Command Line Interface) are permitted.
+if (php_sapi_name() !== 'cli') {
+    http_response_code(403);
+    echo json_encode([
+        'success' => false,
+        'error' => '403 Forbidden: Database initialization and reset operations are restricted to secure server CLI maintenance only. Web HTTP execution is strictly prohibited.'
+    ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
 require_once __DIR__ . '/db.php';
 
 try {
@@ -48,6 +61,8 @@ try {
         "employee_id" => "VARCHAR(50) NULL",
         "assigned_classes" => "JSON NULL",
         "account_status" => "ENUM('active', 'pending_activation', 'deactivated') NOT NULL DEFAULT 'active'",
+        "verification_status" => "ENUM('verified', 'pending') NOT NULL DEFAULT 'verified'",
+        "is_verified" => "TINYINT(1) NOT NULL DEFAULT 1",
         "must_change_password" => "TINYINT(1) NOT NULL DEFAULT 0",
     ];
     foreach ($userCols as $col => $type) {
@@ -56,6 +71,13 @@ try {
         if (!$stmt->fetch()) {
             $pdo->exec("ALTER TABLE `users` ADD COLUMN `$col` $type");
         }
+    }
+
+    // Safe composite index migration for tickets(event_id, attendance_status)
+    $stmtIdx = $pdo->prepare("SELECT INDEX_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tickets' AND INDEX_NAME = 'idx_tickets_event_attendance'");
+    $stmtIdx->execute();
+    if (!$stmtIdx->fetch()) {
+        $pdo->exec("ALTER TABLE `tickets` ADD INDEX `idx_tickets_event_attendance` (`event_id`, `attendance_status`)");
     }
 
     $pdo->exec("
@@ -241,6 +263,119 @@ try {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ");
 
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS `academic_periods` (
+            `id` VARCHAR(64) NOT NULL,
+            `academic_year` VARCHAR(20) NOT NULL,
+            `semester` VARCHAR(50) NOT NULL,
+            `start_date` DATE NOT NULL,
+            `end_date` DATE NOT NULL,
+            `status` ENUM('inactive', 'active', 'archived') NOT NULL DEFAULT 'inactive',
+            `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (`id`),
+            UNIQUE KEY `uq_acad_year_sem` (`academic_year`, `semester`),
+            INDEX `idx_acad_status` (`status`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ");
+
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS `system_audit_logs` (
+            `id` VARCHAR(64) NOT NULL,
+            `action` VARCHAR(100) NOT NULL,
+            `actor_id` VARCHAR(64) NULL,
+            `actor_name` VARCHAR(150) NULL,
+            `actor_role` VARCHAR(50) NULL,
+            `target_type` VARCHAR(50) NULL,
+            `target_id` VARCHAR(64) NULL,
+            `details` JSON NULL,
+            `ip_address` VARCHAR(50) NULL,
+            `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (`id`),
+            INDEX `idx_system_audit_action` (`action`),
+            INDEX `idx_system_audit_actor` (`actor_id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ");
+
+    // Safe Column Migrations for Academic Year and Semester Scoping
+    $acadMigrations = [
+        'events' => [
+            'academic_year' => "VARCHAR(20) NOT NULL DEFAULT '2026-2027'",
+            'semester' => "VARCHAR(50) NOT NULL DEFAULT '1st Semester'"
+        ],
+        'tickets' => [
+            'academic_year' => "VARCHAR(20) NULL",
+            'semester' => "VARCHAR(50) NULL"
+        ],
+        'attendance_logs' => [
+            'academic_year' => "VARCHAR(20) NULL",
+            'semester' => "VARCHAR(50) NULL"
+        ],
+        'purchase_transactions' => [
+            'academic_year' => "VARCHAR(20) NULL",
+            'semester' => "VARCHAR(50) NULL"
+        ]
+    ];
+
+    foreach ($acadMigrations as $tbl => $cols) {
+        foreach ($cols as $colName => $colDef) {
+            $checkStmt = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?");
+            $checkStmt->execute([$tbl, $colName]);
+            if (!$checkStmt->fetch()) {
+                $pdo->exec("ALTER TABLE `$tbl` ADD COLUMN `$colName` $colDef");
+            }
+        }
+    }
+
+    // Seed authoritative academic periods (Only 1st Semester of 2026-2027 is active)
+    $seedAcademicPeriods = [
+        [
+            'id' => 'acad-2026-2027-sem1',
+            'academic_year' => '2026-2027',
+            'semester' => '1st Semester',
+            'start_date' => '2026-08-01',
+            'end_date' => '2026-12-31',
+            'status' => 'active'
+        ],
+        [
+            'id' => 'acad-2026-2027-sem2',
+            'academic_year' => '2026-2027',
+            'semester' => '2nd Semester',
+            'start_date' => '2027-01-05',
+            'end_date' => '2027-05-31',
+            'status' => 'inactive'
+        ],
+        [
+            'id' => 'acad-2025-2026-sem1',
+            'academic_year' => '2025-2026',
+            'semester' => '1st Semester',
+            'start_date' => '2025-08-01',
+            'end_date' => '2025-12-31',
+            'status' => 'archived'
+        ]
+    ];
+
+    foreach ($seedAcademicPeriods as $ap) {
+        $apStmt = $pdo->prepare("
+            INSERT INTO `academic_periods` (id, academic_year, semester, start_date, end_date, status)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+                start_date = VALUES(start_date),
+                end_date = VALUES(end_date),
+                status = VALUES(status)
+        ");
+        $apStmt->execute([$ap['id'], $ap['academic_year'], $ap['semester'], $ap['start_date'], $ap['end_date'], $ap['status']]);
+    }
+
+    // Backfill historical/current events with academic periods
+    $pdo->exec("UPDATE `events` SET `academic_year` = '2025-2026', `semester` = '1st Semester' WHERE YEAR(`date`) = 2025 AND (`academic_year` IS NULL OR `academic_year` = '')");
+    $pdo->exec("UPDATE `events` SET `academic_year` = '2026-2027', `semester` = '1st Semester' WHERE YEAR(`date`) >= 2026 AND (`academic_year` IS NULL OR `academic_year` = '')");
+
+    // Backfill tickets, transactions, and logs to derive semester from linked event
+    $pdo->exec("UPDATE `tickets` t JOIN `events` e ON t.event_id = e.id SET t.academic_year = e.academic_year, t.semester = e.semester WHERE t.academic_year IS NULL OR t.academic_year = ''");
+    $pdo->exec("UPDATE `purchase_transactions` pt JOIN `events` e ON pt.event_id = e.id SET pt.academic_year = e.academic_year, pt.semester = e.semester WHERE pt.academic_year IS NULL OR pt.academic_year = ''");
+    $pdo->exec("UPDATE `attendance_logs` al JOIN `events` e ON al.event_id = e.id SET al.academic_year = e.academic_year, al.semester = e.semester WHERE al.academic_year IS NULL OR al.academic_year = ''");
+
     // 2. Insert Default Demo Seed Accounts (Bcrypt Hashed)
     $defaultHashedPassword = ncst_hash_password('password123');
 
@@ -323,6 +458,85 @@ try {
             'course' => 'BSIT',
             'year_level' => '3rd Year',
             'section' => '31M1',
+            'account_status' => 'active',
+            'is_active' => 1
+        ],
+        [
+            'id' => 'usr-admin-1',
+            'name' => 'Engr. Mark Santos',
+            'first_name' => 'Mark',
+            'middle_name' => '',
+            'last_name' => 'Santos',
+            'email' => 'admin.santos@school.edu.ph',
+            'role' => 'admin',
+            'password' => $defaultHashedPassword,
+            'employee_id' => 'EMP-00101',
+            'department' => 'Office of Student Affairs & IT Center',
+            'account_status' => 'active',
+            'is_active' => 1
+        ],
+        [
+            'id' => 'usr-cashier-1',
+            'name' => 'Carla Gomez',
+            'first_name' => 'Carla',
+            'middle_name' => '',
+            'last_name' => 'Gomez',
+            'email' => 'cashier.gomez@school.edu.ph',
+            'role' => 'cashier',
+            'password' => $defaultHashedPassword,
+            'employee_id' => 'EMP-00102',
+            'department' => 'University Finance & Ticket Booth Desk',
+            'account_status' => 'active',
+            'is_active' => 1
+        ],
+        [
+            'id' => 'usr-staff-1',
+            'name' => 'Alex Rivera',
+            'first_name' => 'Alex',
+            'middle_name' => '',
+            'last_name' => 'Rivera',
+            'email' => 'staff.alex@school.edu.ph',
+            'role' => 'event_staff',
+            'password' => $defaultHashedPassword,
+            'employee_id' => 'EMP-00103',
+            'department' => 'Event Operations & Scanner Team',
+            'assigned_event_ids' => json_encode(['evt-juans-2026', 'evt-fnd-2026', 'evt-it-2026', 'evt-spf-2026']),
+            'account_status' => 'active',
+            'is_active' => 1
+        ],
+        [
+            'id' => 'usr-teach-1',
+            'name' => 'Prof. Ramon Reyes',
+            'first_name' => 'Ramon',
+            'middle_name' => '',
+            'last_name' => 'Reyes',
+            'email' => 'ramon.reyes@school.edu.ph',
+            'role' => 'teacher',
+            'password' => $defaultHashedPassword,
+            'employee_id' => 'EMP-00125',
+            'department' => 'CSD',
+            'assigned_classes' => json_encode([
+                ['department' => 'CSD', 'course' => 'BSIT', 'yearLevel' => '3rd Year', 'section' => '31A1'],
+                ['department' => 'CSD', 'course' => 'BSIT', 'yearLevel' => '3rd Year', 'section' => '31A2'],
+                ['department' => 'CSD', 'course' => 'BSIT', 'yearLevel' => '1st Year', 'section' => '11A1']
+            ]),
+            'account_status' => 'active',
+            'is_active' => 1
+        ],
+        [
+            'id' => 'usr-stud-1',
+            'name' => 'Juan Dela Cruz',
+            'first_name' => 'Juan',
+            'middle_name' => '',
+            'last_name' => 'Dela Cruz',
+            'email' => 'juan.delacruz@student.edu.ph',
+            'role' => 'student',
+            'password' => $defaultHashedPassword,
+            'student_id' => '2026-00125',
+            'department' => 'CSD',
+            'course' => 'BSIT',
+            'year_level' => '3rd Year',
+            'section' => '31A1',
             'account_status' => 'active',
             'is_active' => 1
         ]

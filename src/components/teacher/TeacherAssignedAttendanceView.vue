@@ -44,15 +44,24 @@
         </div>
         <div>
           <label class="block text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider">
-            Event for Attendance Monitoring
+            Academic Period & Event Monitoring
           </label>
-          <div class="flex items-center gap-2 mt-0.5">
+          <div class="flex items-center gap-2 mt-0.5 flex-wrap">
+            <select
+              v-model="selectedPeriodId"
+              class="px-2.5 py-1 bg-white dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 cursor-pointer"
+            >
+              <option value="all">All Academic Periods</option>
+              <option v-for="p in academicPeriods" :key="p.id" :value="p.id">
+                A.Y. {{ p.academicYear }} • {{ p.semester }} ({{ p.status }})
+              </option>
+            </select>
             <select
               :value="currentEvent?.id || ''"
               @change="onEventChange"
               class="px-2.5 py-1 bg-white dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 cursor-pointer"
             >
-              <option v-for="ev in events" :key="ev.id" :value="ev.id">
+              <option v-for="ev in filteredEventsForTeacher" :key="ev.id" :value="ev.id">
                 {{ ev.title }} ({{ ev.date }})
               </option>
             </select>
@@ -108,7 +117,7 @@
           </label>
           <select
             v-model="selectedClassKey"
-            class="px-3.5 py-2 bg-slate-50 dark:bg-[#252525] border border-slate-300 dark:border-[#3a3a3a] rounded-xl text-xs font-black text-purple-700 dark:text-purple-300 focus:outline-none focus:border-purple-500 cursor-pointer min-w-[180px]"
+            class="px-3.5 py-2 bg-slate-50 dark:bg-[#252525] border border-slate-300 dark:border-[#3a3a3a] rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 cursor-pointer min-w-[180px]"
           >
             <option
               v-for="cls in teacherAssignedClasses"
@@ -273,7 +282,37 @@ defineEmits<{
   (e: 'navigate', tabId: string): void;
 }>();
 
-const { currentUser, currentEvent, setCurrentEvent, events, tickets, users, studentRecords } = useAppStore();
+const {
+  currentUser,
+  currentEvent,
+  setCurrentEvent,
+  events,
+  tickets,
+  users,
+  studentRecords,
+  academicPeriods,
+  activeAcademicPeriod
+} = useAppStore();
+
+const selectedPeriodId = ref<string>(activeAcademicPeriod.value?.id || 'all');
+
+const selectedPeriod = computed(() => {
+  if (selectedPeriodId.value === 'all') return null;
+  return academicPeriods.value.find(p => p.id === selectedPeriodId.value) || null;
+});
+
+const filteredEventsForTeacher = computed(() => {
+  if (!selectedPeriod.value) return events.value;
+  return events.value.filter(e => e.academicYear === selectedPeriod.value?.academicYear && e.semester === selectedPeriod.value?.semester);
+});
+
+watch(filteredEventsForTeacher, (newEvents) => {
+  if (newEvents.length > 0) {
+    if (!currentEvent.value || !newEvents.some(e => e.id === currentEvent.value?.id)) {
+      setCurrentEvent(newEvents[0]);
+    }
+  }
+});
 
 const isImportModalOpen = ref(false);
 const filterStatus = ref('all');
@@ -321,7 +360,7 @@ const teacherAssignedClasses = computed<TeacherClassAssignment[]>(() => {
   return currentUser.value?.assignedClasses || [];
 });
 
-// Active Selected Class Key (Defaults to first assigned class e.g. "BSIT:::A1:::3rd Year:::CSD" or "ALL")
+// Active Selected Class Key (Defaults to first assigned class e.g. "BSIT:::31M1:::3rd Year:::CSD" or "ALL")
 const selectedClassKey = ref<string>('ALL');
 
 watch(

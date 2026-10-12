@@ -258,12 +258,16 @@ export function validateUserForm(
     errors.name = 'Full Name cannot exceed 100 characters.';
   }
 
-  // 2. Email Validation
+  // 2. Email Validation (Required for Personnel/Staff/Admin; Not required for Student onboarding)
   const cleanEmail = normalizeEmail(data.email);
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!cleanEmail) {
-    errors.email = 'Institutional Email is required.';
-  } else if (!emailRegex.test(cleanEmail)) {
+  if (data.role !== 'student') {
+    if (!cleanEmail) {
+      errors.email = 'Institutional Email is required.';
+    } else if (!emailRegex.test(cleanEmail)) {
+      errors.email = 'Please provide a valid institutional email address.';
+    }
+  } else if (cleanEmail && !emailRegex.test(cleanEmail)) {
     errors.email = 'Please provide a valid institutional email address.';
   }
 

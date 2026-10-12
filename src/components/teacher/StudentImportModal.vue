@@ -111,29 +111,11 @@
               type="text"
               list="excel-import-section-options"
               v-model="defaultSection"
-              placeholder="e.g. M1, A1, E1"
+              placeholder="e.g. 11M1, 21M1, 31A1"
               class="w-full px-3 py-1.5 bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#3a3a3a] rounded-xl text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
             />
             <datalist id="excel-import-section-options">
-              <optgroup label="Morning Shift">
-                <option value="M1">M1 (Morning 1)</option>
-                <option value="M2">M2 (Morning 2)</option>
-                <option value="M3">M3 (Morning 3)</option>
-                <option value="M4">M4 (Morning 4)</option>
-                <option value="M5">M5 (Morning 5)</option>
-              </optgroup>
-              <optgroup label="Afternoon Shift">
-                <option value="A1">A1 (Afternoon 1)</option>
-                <option value="A2">A2 (Afternoon 2)</option>
-                <option value="A3">A3 (Afternoon 3)</option>
-                <option value="A4">A4 (Afternoon 4)</option>
-              </optgroup>
-              <optgroup label="Evening Shift">
-                <option value="E1">E1 (Evening 1)</option>
-                <option value="E2">E2 (Evening 2)</option>
-                <option value="E3">E3 (Evening 3)</option>
-                <option value="E4">E4 (Evening 4)</option>
-              </optgroup>
+              <option v-for="sec in availableSections" :key="sec" :value="sec">{{ sec }}</option>
             </datalist>
           </div>
         </div>
@@ -259,7 +241,7 @@ const emit = defineEmits<{
   (e: 'imported', data: { total: number; added: number; updated: number; message: string; importedClasses: any[] }): void;
 }>();
 
-const { importStudents } = useAppStore();
+const { importStudents, availableSections } = useAppStore();
 
 const defaultCourse = ref('BSIT');
 const defaultYearLevel = ref('3rd Year');

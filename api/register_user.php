@@ -164,15 +164,44 @@ try {
         exit;
     }
 
-    // 5. INSERT USER WITH TRANSACTION
+    // 5. Authoritative Student Record Verification for Student Registration
+    $isAuthoritative = false;
+    $verificationStatus = 'verified';
+    $isVerified = 1;
+    $accountStatus = 'active';
+
+    if ($role === 'student' && !empty($studentId)) {
+        $recStmt = $pdo->prepare("SELECT * FROM student_records WHERE LOWER(REPLACE(student_id, ' ', '')) = LOWER(REPLACE(?, ' ', '')) LIMIT 1");
+        $recStmt->execute([$studentId]);
+        $matchedStudentRecord = $recStmt->fetch();
+
+        if ($matchedStudentRecord) {
+            $isAuthoritative = true;
+            $verificationStatus = 'verified';
+            $isVerified = 1;
+            $accountStatus = 'active';
+            $name = $matchedStudentRecord['name'];
+            $department = $matchedStudentRecord['department'] ?: $department;
+            $course = $matchedStudentRecord['course'] ?: $course;
+            $yearLevel = $matchedStudentRecord['year_level'] ?: $yearLevel;
+            $section = $matchedStudentRecord['section'] ?: $section;
+        } else {
+            $isAuthoritative = false;
+            $verificationStatus = 'pending';
+            $isVerified = 0;
+            $accountStatus = 'pending_verification';
+        }
+    }
+
+    // 6. INSERT USER WITH TRANSACTION
     $userId = 'usr-' . $role . '-' . substr(uniqid(), -6);
-    $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+    $hashedPassword = ncst_hash_password($password);
 
     $insertStmt = $pdo->prepare("
         INSERT INTO users (
             id, name, email, role, password, student_id, employee_id, 
-            course, year_level, section, department, is_active, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW())
+            course, year_level, section, department, account_status, verification_status, is_verified, is_active, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW())
     ");
 
     $insertStmt->execute([
@@ -186,8 +215,16 @@ try {
         $course,
         $yearLevel,
         $section,
-        $department
+        $department,
+        $accountStatus,
+        $verificationStatus,
+        $isVerified
     ]);
+
+    if ($isAuthoritative && !empty($matchedStudentRecord['id'])) {
+        $pdo->prepare("UPDATE student_records SET user_id = ?, email = ? WHERE id = ?")
+            ->execute([$userId, $email, $matchedStudentRecord['id']]);
+    }
 
     $pdo->commit();
 

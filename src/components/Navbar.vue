@@ -21,7 +21,7 @@
             <div>
               <div class="flex items-center gap-2">
                 <span class="font-black text-base sm:text-lg tracking-tight text-slate-900 dark:text-white">
-                  NCST <span class="text-blue-600 dark:text-blue-400">Events & Tickets</span>
+                  NCST <span class="text-[#1E3A5F] dark:text-blue-400">Events & Tickets</span>
                 </span>
               </div>
               <p class="text-[10px] text-slate-500 dark:text-[#b3b3b3] -mt-0.5 hidden sm:block font-medium">
@@ -36,7 +36,7 @@
           v-if="showEventDropdown"
           class="hidden lg:flex items-center gap-2 bg-slate-100 dark:bg-[#242424] border border-slate-200 dark:border-[#333333] rounded-xl px-3 py-1.5 max-w-sm"
         >
-          <Calendar class="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+          <Calendar class="w-4 h-4 text-[#1E3A5F] dark:text-blue-400 flex-shrink-0" />
           <select
             :value="currentEvent?.id || ''"
             @change="handleEventSelect"
@@ -63,9 +63,29 @@
           </select>
         </div>
 
+        <!-- Academic Period Quick Switcher / Indicator (Admin Navigation) -->
+        <button
+          v-if="currentUser?.role === 'admin' && activeAcademicPeriod"
+          @click="showAcademicPeriodModal = true"
+          class="hidden sm:flex items-center gap-2 bg-slate-100/90 dark:bg-[#242424]/90 hover:bg-blue-50/90 dark:hover:bg-blue-950/40 border border-slate-200/80 dark:border-[#333333] hover:border-blue-400 dark:hover:border-blue-500 rounded-xl px-3 py-1.5 transition-all cursor-pointer text-xs group"
+          title="Authoritative Academic Period: Click to manage and switch active semester"
+        >
+          <GraduationCap class="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform shrink-0" />
+          <div class="flex flex-col items-start leading-tight text-left">
+            <span class="text-[8.5px] uppercase font-black text-slate-400 dark:text-slate-500 tracking-wider">Academic Period</span>
+            <span class="font-bold text-slate-800 dark:text-slate-200 truncate max-w-[140px]">
+              {{ activeAcademicPeriod.academicYear }} • {{ activeAcademicPeriod.semester }}
+            </span>
+          </div>
+          <span class="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-blue-600 text-white group-hover:bg-blue-700 transition-colors shadow-2xs">
+            Manage
+            <SlidersHorizontal class="w-2.5 h-2.5" />
+          </span>
+        </button>
+
         <!-- Live Clock Navbar Indicator (PHT) -->
         <div class="hidden md:flex items-center gap-1.5 bg-slate-100/90 dark:bg-[#242424]/90 border border-slate-200/80 dark:border-[#333333] rounded-xl px-3 py-1 text-xs">
-          <Clock class="w-3.5 h-3.5 text-blue-500 shrink-0" />
+          <Clock class="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
           <span class="font-mono font-bold text-slate-800 dark:text-slate-200">{{ timeString }}</span>
           <span class="text-[10px] font-bold text-slate-400 uppercase">PHT</span>
         </div>
@@ -79,22 +99,13 @@
           <div v-if="canScan" class="flex items-center gap-1.5">
             <button
               @click="showQRScanner = true"
-              class="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition-all transform hover:scale-[1.02] cursor-pointer"
+              class="flex items-center gap-2 px-3 py-2 bg-[#1E3A5F] hover:bg-[#152A45] text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer"
               title="Scan Attendee QR Ticket"
             >
               <QrCode class="w-4 h-4 text-white flex-shrink-0" />
               <span class="font-bold">Scan <span class="hidden sm:inline">Ticket</span></span>
             </button>
           </div>
-
-          <!-- Reset Demo State -->
-          <button
-            @click="handleReset"
-            class="p-2 text-slate-500 hover:text-slate-800 dark:text-[#b3b3b3] dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#242424] rounded-xl border border-slate-200 dark:border-[#333333] transition cursor-pointer"
-            title="Reset System Seed Data"
-          >
-            <RotateCcw class="w-4 h-4" />
-          </button>
 
           <!-- Profile Chip & Menu -->
           <button
@@ -128,61 +139,55 @@
   <!-- User Profile & Sign Out Modal -->
   <UserProfileModal :is-open="showProfileModal" @close="showProfileModal = false" />
 
-  <!-- Reset Database Confirmation Modal -->
-  <ConfirmModal
-    :is-open="showResetModal"
-    title="Reset System Database"
-    message="Are you sure you want to reset all events, tickets, users, and attendance logs back to initial seed data? This cannot be undone."
-    confirm-text="Reset All Data"
-    variant="danger"
-    :icon="RotateCcw"
-    @confirm="confirmReset"
-    @cancel="showResetModal = false"
+  <!-- Academic Period Management Modal (Admin Navigation) -->
+  <AcademicPeriodModal
+    :is-open="showAcademicPeriodModal"
+    @close="showAcademicPeriodModal = false"
   />
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { Calendar, FileText, RotateCcw, Menu, QrCode, Smartphone, Clock } from 'lucide-vue-next';
+import {
+  Calendar,
+  FileText,
+  Menu,
+  QrCode,
+  Smartphone,
+  Clock,
+  GraduationCap,
+  SlidersHorizontal
+} from 'lucide-vue-next';
 import { useAppStore } from '../composables/useAppStore';
 import { usePhilippineClock } from '../utils/philippineTime';
 import StatusBadge from './common/StatusBadge.vue';
 import UserAvatar from './common/UserAvatar.vue';
-import ConfirmModal from './common/ConfirmModal.vue';
 import ThemeToggle from './common/ThemeToggle.vue';
 import QRScannerModal from './scanner/QRScannerModal.vue';
 import OCRScannerModal from './scanner/OCRScannerModal.vue';
 import MobileConnectModal from './common/MobileConnectModal.vue';
 import UserProfileModal from './UserProfileModal.vue';
+import AcademicPeriodModal from './admin/AcademicPeriodModal.vue';
 
 defineEmits<{
   (e: 'toggle-sidebar'): void;
 }>();
 
-const { currentUser, events, currentEvent, setCurrentEvent, resetAllData } = useAppStore();
+const { currentUser, events, currentEvent, setCurrentEvent, activeAcademicPeriod } = useAppStore();
 const { timeString } = usePhilippineClock();
 
 const showQRScanner = ref(false);
 const showOCRScanner = ref(false);
 const showMobileConnectModal = ref(false);
 const showProfileModal = ref(false);
-const showResetModal = ref(false);
+const showAcademicPeriodModal = ref(false);
 
 const canScan = computed(() => currentUser.value && currentUser.value.role === 'event_staff');
-const showEventDropdown = computed(() => currentUser.value && currentUser.value.role !== 'student');
+const showEventDropdown = computed(() => currentUser.value && currentUser.value.role !== 'student' && currentUser.value.role !== 'cashier');
 
 const handleEventSelect = (e: Event) => {
   const target = e.target as HTMLSelectElement;
   const ev = events.value.find(item => item.id === target.value);
   if (ev) setCurrentEvent(ev);
-};
-
-const handleReset = () => {
-  showResetModal.value = true;
-};
-
-const confirmReset = () => {
-  showResetModal.value = false;
-  resetAllData();
 };
 </script>

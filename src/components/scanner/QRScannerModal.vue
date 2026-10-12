@@ -8,7 +8,7 @@
       max-width="xl"
     >
       <div class="space-y-3.5">
-        <!-- 1. Top Utility Header: Network Resilience & Audio/Haptic Controls -->
+        <!-- 1. Top Utility Header: Network Resilience & Scanner Controls -->
         <div class="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#333] rounded-2xl text-xs">
           <!-- Network Status & Offline Queue Pill -->
           <div class="flex items-center gap-2">
@@ -56,19 +56,6 @@
               <span>{{ continuousScanMode ? 'Rapid Scan' : 'Standard' }}</span>
             </button>
 
-            <!-- Sound Toggle -->
-            <button
-              type="button"
-              @click="toggleSound"
-              class="p-1.5 rounded-lg text-[11px] font-bold border transition cursor-pointer"
-              :class="sounds.soundEnabled.value
-                ? 'bg-white dark:bg-[#252525] text-blue-600 dark:text-blue-400 border-slate-300 dark:border-[#3a3a3a] hover:bg-slate-100'
-                : 'bg-slate-100 dark:bg-[#202020] text-slate-400 border-slate-200 dark:border-[#333] hover:text-slate-600'"
-              :title="sounds.soundEnabled.value ? 'Mute Scan Sounds' : 'Unmute Scan Sounds'"
-            >
-              <Volume2 v-if="sounds.soundEnabled.value" class="w-3.5 h-3.5" />
-              <VolumeX v-else class="w-3.5 h-3.5" />
-            </button>
 
             <!-- Haptic Vibration Toggle -->
             <button
@@ -335,8 +322,6 @@ import {
   Wifi,
   WifiOff,
   Zap,
-  Volume2,
-  VolumeX,
   Vibrate,
   Smartphone,
   Flashlight,
@@ -389,9 +374,6 @@ const showResultModal = ref(false);
 
 let html5QrCode: Html5Qrcode | null = null;
 
-const toggleSound = () => {
-  sounds.toggleSound();
-};
 
 const toggleHaptics = () => {
   sounds.toggleHaptics();

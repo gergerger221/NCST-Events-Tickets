@@ -1,59 +1,71 @@
 <template>
-  <div class="space-y-8 max-w-5xl mx-auto py-4">
-    <!-- ==================== 1. EVENT HEADER ==================== -->
-    <div class="rounded-2xl bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#2e2e2e] p-6 sm:p-8 shadow-xs transition-colors">
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-        <!-- Event Name, Date, Venue -->
+  <div class="space-y-6 max-w-5xl mx-auto py-2 sm:py-4">
+    <!-- ==================== 1. EVENT CONTEXT HEADER ==================== -->
+    <div class="surface-card">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+        <!-- Event Name, Status, Date, Venue -->
         <div class="space-y-1.5 min-w-0">
-          <div class="flex items-center gap-2.5">
-            <h1 class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight truncate">
+          <div class="flex items-center gap-2.5 flex-wrap">
+            <h1 class="page-title truncate">
               {{ currentEvent?.title || 'No Active Event Selected' }}
             </h1>
             <span
               v-if="currentEvent"
-              class="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60"
+              class="px-2.5 py-0.5 rounded-full text-xs font-semibold badge-success"
             >
-              Active
+              Active Event
             </span>
           </div>
-          <p class="text-sm font-medium text-slate-500 dark:text-slate-400">
-            {{ currentEvent?.date ? formatPhilippineDate(currentEvent.date) : 'No date set' }}
-            <span v-if="currentEvent?.venue" class="mx-2">•</span>
-            {{ currentEvent?.venue || 'NCST Gymnasium' }}
+          <p class="page-subtitle flex items-center gap-2 flex-wrap">
+            <span v-if="currentEvent?.date" class="flex items-center gap-1">
+              <Calendar class="w-3.5 h-3.5 text-slate-400" />
+              <span>{{ formatPhilippineDate(currentEvent.date) }}</span>
+            </span>
+            <span v-if="currentEvent?.venue" class="flex items-center gap-1">
+              <span>•</span>
+              <MapPin class="w-3.5 h-3.5 text-slate-400" />
+              <span>{{ currentEvent.venue }}</span>
+            </span>
+            <span v-if="!currentEvent">Please select or configure a campus event</span>
           </p>
         </div>
 
-        <!-- Actions -->
-        <div class="flex flex-wrap items-center gap-3 shrink-0">
+        <!-- Cohesive Action Controls -->
+        <div class="flex flex-wrap items-center gap-2.5 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-[#2a2a2a]">
           <!-- Primary CTA: View Real-Time Attendance -->
           <button
+            type="button"
             @click="$emit('navigate', 'attendance')"
-            class="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs transition cursor-pointer"
+            class="btn-primary"
+            title="Open Live Attendance Monitor"
           >
             <span>View Attendance</span>
             <ArrowRight class="w-4 h-4" />
           </button>
 
-          <!-- Subordinate Secondary Actions -->
-          <div class="flex items-center gap-1.5 pl-2 border-l border-slate-200 dark:border-[#2e2e2e]">
+          <!-- Subordinate Secondary Navigation -->
+          <div class="flex items-center gap-1 pl-1 sm:border-l sm:border-slate-200 sm:dark:border-[#2e2e2e]">
             <button
+              type="button"
               @click="$emit('navigate', 'events')"
-              class="px-3 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#252525] rounded-xl text-xs font-semibold transition cursor-pointer"
-              title="Open Events"
+              class="btn-ghost"
+              title="Open Campus Events Manager"
             >
               Events
             </button>
             <button
+              type="button"
               @click="$emit('navigate', 'tickets')"
-              class="px-3 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#252525] rounded-xl text-xs font-semibold transition cursor-pointer"
+              class="btn-ghost"
               title="Open Issued Tickets Registry"
             >
               Tickets
             </button>
             <button
+              type="button"
               @click="$emit('navigate', 'reports')"
-              class="px-3 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#252525] rounded-xl text-xs font-semibold transition cursor-pointer"
-              title="Open Reports"
+              class="btn-ghost"
+              title="Open Official Reports Center"
             >
               Reports
             </button>
@@ -63,43 +75,59 @@
     </div>
 
     <!-- ==================== 2. TWO PRIMARY SUMMARY METRICS ==================== -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
       <!-- CARD 1 — TOTAL ATTENDANCE -->
-      <div class="rounded-2xl bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#2e2e2e] p-6 sm:p-7 shadow-xs space-y-2 transition-colors">
-        <span class="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block">
-          TOTAL ATTENDANCE
-        </span>
-        <p class="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tight">
+      <div class="surface-card space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="kpi-label">
+            Total Attendance
+          </span>
+          <div class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-[#282828] text-[#1E3A5F] dark:text-blue-400 flex items-center justify-center">
+            <UserCheck class="w-4 h-4" />
+          </div>
+        </div>
+        <p class="kpi-number text-[#1E3A5F] dark:text-blue-400">
           {{ presentCount }}
         </p>
-        <p class="text-sm font-medium text-slate-500 dark:text-slate-400">
+        <p class="kpi-subtext text-[#475569] dark:text-slate-400">
           {{ studentsPresentCount }} Students • {{ outsidersPresentCount }} Outsiders
         </p>
       </div>
 
       <!-- CARD 2 — TICKETS ISSUED -->
-      <div class="rounded-2xl bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#2e2e2e] p-6 sm:p-7 shadow-xs space-y-2 transition-colors">
-        <span class="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block">
-          TICKETS ISSUED
-        </span>
-        <p class="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tight">
+      <div class="surface-card space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="kpi-label">
+            Tickets Issued
+          </span>
+          <div class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-[#282828] text-[#1E3A5F] dark:text-blue-400 flex items-center justify-center">
+            <Ticket class="w-4 h-4" />
+          </div>
+        </div>
+        <p class="kpi-number text-[#1E3A5F] dark:text-blue-400">
           {{ totalTicketsCount }}
         </p>
-        <p class="text-sm font-medium text-slate-500 dark:text-slate-400">
-          Issued for this event
+        <p class="kpi-subtext text-[#475569] dark:text-slate-400">
+          Total registrations recorded for this event
         </p>
       </div>
     </div>
 
-    <!-- ==================== 3. RECENT ATTENDANCE (SMALL PREVIEW ONLY) ==================== -->
-    <div class="rounded-2xl bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#2e2e2e] p-6 sm:p-7 shadow-xs space-y-5 transition-colors">
-      <div class="flex items-center justify-between">
-        <h2 class="text-base font-bold text-slate-900 dark:text-white tracking-tight">
-          RECENT ATTENDANCE
-        </h2>
+    <!-- ==================== 3. RECENT ATTENDANCE (PREVIEW LIST) ==================== -->
+    <div class="surface-card space-y-4">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-[#262626]">
+        <div>
+          <h2 class="section-heading">
+            Recent Attendance
+          </h2>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            Latest entrance check-in activity for this event
+          </p>
+        </div>
         <button
+          type="button"
           @click="$emit('navigate', 'attendance')"
-          class="text-xs sm:text-sm font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 inline-flex items-center gap-1.5 transition cursor-pointer"
+          class="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 inline-flex items-center gap-1 transition cursor-pointer"
         >
           <span>View Real-Time Attendance</span>
           <ArrowRight class="w-3.5 h-3.5" />
@@ -111,34 +139,36 @@
         <div
           v-for="item in recentAttendanceList"
           :key="item.id"
-          class="py-3 sm:py-3.5 flex items-center justify-between gap-4 first:pt-0 last:pb-0"
+          class="py-3 flex items-center justify-between gap-4 first:pt-0 last:pb-0"
         >
           <div class="flex items-center gap-3 sm:gap-4 min-w-0">
-            <span class="text-xs font-mono font-medium text-slate-400 dark:text-slate-500 w-20 sm:w-24 shrink-0">
+            <span class="text-xs font-mono font-medium text-slate-500 dark:text-slate-400 w-20 sm:w-24 shrink-0">
               {{ item.timeFormatted }}
             </span>
-            <span class="text-sm font-semibold text-slate-900 dark:text-white truncate">
+            <span class="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white truncate">
               {{ item.name }}
             </span>
           </div>
-          <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 shrink-0">
+          <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold badge-success shrink-0">
             PRESENT
           </span>
         </div>
       </div>
 
       <!-- Empty State -->
-      <div v-else class="py-8 text-center text-slate-400 dark:text-slate-500">
-        <p class="text-sm font-medium">No check-ins recorded yet for this event.</p>
+      <div v-else class="py-8 text-center text-slate-500 dark:text-slate-400 space-y-2">
+        <Clock class="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto" />
+        <p class="text-xs sm:text-sm font-medium">No check-ins recorded yet for this event.</p>
       </div>
 
       <!-- Bottom action link -->
       <div class="pt-3 border-t border-slate-100 dark:border-[#262626] flex justify-end">
         <button
+          type="button"
           @click="$emit('navigate', 'attendance')"
           class="text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 inline-flex items-center gap-1 transition cursor-pointer"
         >
-          <span>View Real-Time Attendance &rarr;</span>
+          <span>Open Full Attendance Monitor &rarr;</span>
         </button>
       </div>
     </div>
@@ -147,7 +177,14 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { ArrowRight } from 'lucide-vue-next';
+import {
+  ArrowRight,
+  UserCheck,
+  Ticket,
+  Calendar,
+  MapPin,
+  Clock,
+} from 'lucide-vue-next';
 import { useAppStore } from '../../composables/useAppStore';
 import { formatPhilippineDate } from '../../utils/philippineTime';
 

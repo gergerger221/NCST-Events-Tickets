@@ -29,35 +29,33 @@ const props = withDefaults(
 const variantClass = computed(() => {
   switch (props.variant) {
     case 'success':
-      return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-400 dark:border-emerald-500/30';
+      return 'bg-emerald-50 text-[#15803D] border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/50';
     case 'danger':
-      return 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-500/15 dark:text-rose-400 dark:border-rose-500/30';
+      return 'bg-red-50 text-[#B91C1C] border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800/50';
     case 'warning':
-      return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/15 dark:text-amber-400 dark:border-amber-500/30';
+      return 'bg-amber-50 text-[#B45309] border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/50';
     case 'info':
-      return 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-500/15 dark:text-blue-400 dark:border-blue-500/30';
+      return 'bg-slate-100 text-[#1E3A5F] border-slate-200 dark:bg-slate-800/60 dark:text-blue-400 dark:border-slate-700/60';
     case 'purple':
-      return 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-500/15 dark:text-indigo-400 dark:border-indigo-500/30';
     case 'neutral':
     default:
-      return 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800/60 dark:text-slate-300 dark:border-slate-700/60';
+      return 'bg-slate-100 text-[#475569] border-slate-200 dark:bg-slate-800/60 dark:text-slate-300 dark:border-slate-700/60';
   }
 });
 
 const dotClass = computed(() => {
   switch (props.variant) {
     case 'success':
-      return 'bg-emerald-500 dark:bg-emerald-400';
+      return 'bg-[#15803D] dark:bg-emerald-400';
     case 'danger':
-      return 'bg-rose-500 dark:bg-rose-400';
+      return 'bg-[#B91C1C] dark:bg-red-400';
     case 'warning':
-      return 'bg-amber-500 dark:bg-amber-400';
+      return 'bg-[#B45309] dark:bg-amber-400';
     case 'info':
-      return 'bg-blue-500 dark:bg-blue-400';
+      return 'bg-[#1E3A5F] dark:bg-blue-400';
     case 'purple':
-      return 'bg-indigo-500 dark:bg-indigo-400';
     default:
-      return 'bg-slate-500 dark:bg-slate-400';
+      return 'bg-[#64748B] dark:bg-slate-400';
   }
 });
 

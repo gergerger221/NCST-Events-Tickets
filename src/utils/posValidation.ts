@@ -76,7 +76,7 @@ export function validateYearLevel(yearLevel: string): PosValidationResult {
 
 /**
  * 3. SECTION VALIDATION
- * NCST sections are alphanumeric (e.g. 11M1, 21M2, 31M1, M1, A1, E1, Section A)
+ * NCST sections follow the combined format (e.g. 11M1, 21M2, 31M1, 31A1, 41E1)
  * Must NOT be restricted to numbers-only.
  */
 export function validateSection(section: string): PosValidationResult {
@@ -89,7 +89,7 @@ export function validateSection(section: string): PosValidationResult {
   if (!/^[0-9A-Z\s-]{2,10}$/.test(normalized)) {
     return {
       isValid: false,
-      error: 'Section must be 2-10 alphanumeric characters (e.g. 11M1, 21M2, M1).',
+      error: 'Section must be 2-10 alphanumeric characters (e.g. 11M1, 21M2, 31M1).',
     };
   }
 

@@ -96,7 +96,7 @@
 
     <!-- Centered Upcoming Event Reminder for Students -->
     <UpcomingEventReminderModal
-      v-if="currentUser?.role === 'student'"
+      v-if="currentUser?.role === 'student' && !currentUser?.mustChangePassword"
       @view-event="handleReminderViewEvent"
     />
 
@@ -178,7 +178,7 @@ const defaultTab = computed(() => {
     case 'event_staff': return 'staff_dashboard';
     case 'cashier': return 'cashier_pos';
     case 'teacher': return 'teacher_dashboard';
-    case 'student': return 'calendar';
+    case 'student': return currentUser.value.mustChangePassword ? 'student_dashboard' : 'calendar';
     default: return 'dashboard';
   }
 });
@@ -202,7 +202,10 @@ const roleAllowedTabs: Record<string, string[]> = {
 
 const enforceRouteGuards = () => {
   const role = currentUser.value?.role || 'student';
-  const allowed = roleAllowedTabs[role] || ['student_dashboard', 'calendar'];
+  let allowed = roleAllowedTabs[role] || ['student_dashboard', 'calendar'];
+  if (role === 'student' && currentUser.value?.mustChangePassword) {
+    allowed = ['student_dashboard'];
+  }
 
   if (!allowed.includes(activeTab.value)) {
     activeTab.value = defaultTab.value;
@@ -210,10 +213,11 @@ const enforceRouteGuards = () => {
 };
 
 watch(
-  () => [activeTab.value, currentUser.value?.role],
+  () => [activeTab.value, currentUser.value?.role, currentUser.value?.mustChangePassword],
   () => {
     enforceRouteGuards();
-  }
+  },
+  { immediate: true }
 );
 
 window.addEventListener('hashchange', enforceRouteGuards);

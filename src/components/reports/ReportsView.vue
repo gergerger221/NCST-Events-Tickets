@@ -14,34 +14,64 @@
       <div class="flex flex-wrap items-center gap-2">
         <button
           @click="handlePrint"
-          class="flex items-center gap-2 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-[#242424] dark:hover:bg-[#2c2c2c] text-slate-800 dark:text-white rounded-xl text-xs font-bold border border-slate-300 dark:border-[#3a3a3a] shadow-sm transition cursor-pointer"
+          class="flex items-center gap-2 px-3.5 py-2.5 bg-white dark:bg-[#202020] hover:bg-slate-50 dark:hover:bg-[#282828] text-slate-700 dark:text-slate-200 rounded-xl text-xs font-semibold border border-slate-200 dark:border-[#3a3a3a] shadow-xs transition cursor-pointer"
         >
-          <Printer class="w-4 h-4 text-blue-600 dark:text-blue-400" />
-          <span>Print Official Report</span>
+          <Printer class="w-4 h-4 text-slate-500 dark:text-slate-400" />
+          <span>Print Report</span>
         </button>
         <button
           @click="handleExportStudentExcel"
-          class="flex items-center gap-1.5 px-3.5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md transition cursor-pointer"
+          class="flex items-center gap-1.5 px-3.5 py-2.5 bg-white dark:bg-[#202020] hover:bg-slate-50 dark:hover:bg-[#282828] text-slate-700 dark:text-slate-200 rounded-xl text-xs font-semibold border border-slate-200 dark:border-[#3a3a3a] shadow-xs transition cursor-pointer"
         >
-          <FileSpreadsheet class="w-4 h-4" />
+          <FileSpreadsheet class="w-4 h-4 text-slate-500 dark:text-slate-400" />
           <span>{{ isTeacher ? 'Export My Students (.xlsx)' : 'Export Students (.xlsx)' }}</span>
         </button>
         <button
           v-if="!isTeacher"
           @click="handleExportOutsiderExcel"
-          class="flex items-center gap-1.5 px-3.5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-md transition cursor-pointer"
+          class="flex items-center gap-1.5 px-3.5 py-2.5 bg-white dark:bg-[#202020] hover:bg-slate-50 dark:hover:bg-[#282828] text-slate-700 dark:text-slate-200 rounded-xl text-xs font-semibold border border-slate-200 dark:border-[#3a3a3a] shadow-xs transition cursor-pointer"
         >
-          <FileSpreadsheet class="w-4 h-4" />
+          <FileSpreadsheet class="w-4 h-4 text-slate-500 dark:text-slate-400" />
           <span>Export Outsiders (.xlsx)</span>
         </button>
         <button
           v-if="!isTeacher"
           @click="handleExportExcel"
-          class="flex items-center gap-1.5 px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md transition cursor-pointer"
+          class="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white rounded-xl text-xs font-bold shadow-sm transition cursor-pointer"
         >
-          <FileSpreadsheet class="w-4 h-4" />
-          <span>Export Master Workbook</span>
+          <FileSpreadsheet class="w-4 h-4 text-white" />
+          <span>Export Master Workbook (.xlsx)</span>
         </button>
+      </div>
+    </div>
+
+    <!-- Academic Period and Event Filters (Authoritative Scoping) -->
+    <div class="no-print flex flex-wrap items-center gap-3 bg-white dark:bg-[#1e1e1e] border border-slate-200 dark:border-[#333333] p-4 rounded-2xl shadow-xs">
+      <div class="flex items-center gap-2">
+        <GraduationCap class="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+        <label class="text-xs font-bold text-slate-700 dark:text-slate-300">Academic Period:</label>
+        <select
+          v-model="selectedPeriodId"
+          class="px-3 py-1.5 bg-slate-50 dark:bg-[#252525] border border-slate-200 dark:border-[#383838] rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-500 cursor-pointer"
+        >
+          <option value="all">All Academic Periods</option>
+          <option v-for="p in academicPeriods" :key="p.id" :value="p.id">
+            A.Y. {{ p.academicYear }} — {{ p.semester }} ({{ p.status }})
+          </option>
+        </select>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <label class="text-xs font-bold text-slate-700 dark:text-slate-300">Event Scope:</label>
+        <select
+          v-model="selectedEventId"
+          class="px-3 py-1.5 bg-slate-50 dark:bg-[#252525] border border-slate-200 dark:border-[#383838] rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-500 cursor-pointer"
+        >
+          <option value="all">All Events in Scope</option>
+          <option v-for="ev in periodScopedEvents" :key="ev.id" :value="ev.id">
+            {{ ev.title }} ({{ ev.code }})
+          </option>
+        </select>
       </div>
     </div>
 
@@ -70,9 +100,9 @@
           Official Event Attendance & Security Audit Report
         </h1>
         <p class="text-xs text-slate-600 dark:text-[#b3b3b3]">
-          Event: <strong class="text-slate-900 dark:text-white">{{ currentEvent?.title || 'No Events' }}</strong>
-          <span v-if="currentEvent?.code"> ({{ currentEvent.code }})</span>
-          <span v-if="currentEvent?.venue"> • Venue: {{ currentEvent.venue }}</span>
+          Academic Period: <strong class="text-slate-900 dark:text-white">{{ displayAcademicPeriodText }}</strong> •
+          Event: <strong class="text-slate-900 dark:text-white">{{ displayEventText }}</strong>
+          <span v-if="displayEventVenue"> • Venue: {{ displayEventVenue }}</span>
         </p>
         <p class="text-[11px] text-slate-400 dark:text-slate-500 font-mono">
           Report Generated on: {{ formatPhilippineFull(new Date()) }} • Report Category: {{ reportType.toUpperCase() }}
@@ -121,7 +151,7 @@
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 dark:divide-[#2c2c2c]">
-            <tr v-for="(l, idx) in logs" :key="l.id" class="hover:bg-slate-50 dark:hover:bg-[#242424]">
+            <tr v-for="(l, idx) in scopedLogs" :key="l.id" class="hover:bg-slate-50 dark:hover:bg-[#242424]">
               <td class="p-2.5 text-slate-400 border border-slate-200 dark:border-[#333333]">{{ idx + 1 }}</td>
               <td class="p-2.5 font-mono font-bold text-blue-600 dark:text-blue-400 border border-slate-200 dark:border-[#333333]">{{ l.ticketNumber || l.ticketId }}</td>
               <td class="p-2.5 border border-slate-200 dark:border-[#333333]">
@@ -143,7 +173,7 @@
               <td class="p-2.5 font-mono text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-[#333333]">{{ new Date(l.timestamp).toLocaleString() }}</td>
               <td class="p-2.5 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-[#333333]">{{ l.verifiedByName }}</td>
             </tr>
-            <tr v-if="logs.length === 0">
+            <tr v-if="scopedLogs.length === 0">
               <td colspan="9" class="p-6 text-center text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-[#333333]">No scan activity logged yet.</td>
             </tr>
           </tbody>
@@ -263,7 +293,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { Printer, FileSpreadsheet, Building2 } from 'lucide-vue-next';
+import { Printer, FileSpreadsheet, Building2, GraduationCap } from 'lucide-vue-next';
 import { useAppStore } from '../../composables/useAppStore';
 import {
   exportTicketsToExcel,
@@ -274,22 +304,94 @@ import {
 } from '../../utils/excelExport';
 import { formatPhilippineFull, formatPhilippineTime, formatPhilippineDate } from '../../utils/philippineTime';
 
-const { currentUser, tickets, events, currentEvent, logs, transactions, users } = useAppStore();
+const {
+  currentUser,
+  tickets,
+  events,
+  currentEvent,
+  logs,
+  transactions,
+  users,
+  academicPeriods,
+  activeAcademicPeriod
+} = useAppStore();
 
 const isTeacher = computed(() => currentUser.value?.role === 'teacher');
+
+// Scoping state
+const selectedPeriodId = ref<string>(activeAcademicPeriod.value?.id || 'all');
+const selectedEventId = ref<string>('all');
+
+const currentPeriod = computed(() => {
+  if (selectedPeriodId.value === 'all') return null;
+  return academicPeriods.value.find(p => p.id === selectedPeriodId.value) || null;
+});
+
+const periodScopedEvents = computed(() => {
+  if (!currentPeriod.value) return events.value;
+  return events.value.filter(e => e.academicYear === currentPeriod.value?.academicYear && e.semester === currentPeriod.value?.semester);
+});
+
+const selectedEvent = computed(() => {
+  if (selectedEventId.value !== 'all') {
+    return events.value.find(e => e.id === selectedEventId.value) || null;
+  }
+  return null;
+});
+
+const displayAcademicPeriodText = computed(() => {
+  if (currentPeriod.value) {
+    return `A.Y. ${currentPeriod.value.academicYear} • ${currentPeriod.value.semester}`;
+  }
+  if (selectedEvent.value) {
+    return `A.Y. ${selectedEvent.value.academicYear || '2026-2027'} • ${selectedEvent.value.semester || '1st Semester'}`;
+  }
+  return 'All Academic Periods';
+});
+
+const displayEventText = computed(() => {
+  if (selectedEvent.value) {
+    return `${selectedEvent.value.title} (${selectedEvent.value.code})`;
+  }
+  if (currentPeriod.value) {
+    return `All Events in A.Y. ${currentPeriod.value.academicYear} ${currentPeriod.value.semester}`;
+  }
+  return currentEvent.value?.title || 'All Events Across All Periods';
+});
+
+const displayEventVenue = computed(() => {
+  if (selectedEvent.value) return selectedEvent.value.venue;
+  return currentEvent.value?.venue || '';
+});
 
 // Teacher Assigned Classes
 const teacherAssignedClasses = computed(() => {
   return currentUser.value?.assignedClasses || [];
 });
 
-// Authorized tickets pool based on role
+// Authorized tickets pool based on role and academic scoping
 const authorizedTickets = computed(() => {
-  const eventTix = tickets.value.filter(t => t.eventId === currentEvent.value?.id && t.ticketStatus !== 'CANCELLED');
-  if (!isTeacher.value) return eventTix;
+  let pool = tickets.value.filter(t => t.ticketStatus !== 'CANCELLED');
+
+  // Strict Academic Period Scoping
+  if (currentPeriod.value) {
+    pool = pool.filter(t => {
+      const ev = events.value.find(e => e.id === t.eventId);
+      const ayr = t.academicYear || ev?.academicYear;
+      const sem = t.semester || ev?.semester;
+      return ayr === currentPeriod.value?.academicYear && sem === currentPeriod.value?.semester;
+    });
+  }
+
+  // Event Scoping
+  if (selectedEventId.value !== 'all') {
+    pool = pool.filter(t => t.eventId === selectedEventId.value);
+  }
+
+  if (!isTeacher.value) return pool;
 
   // Strict Teacher Scope: Students in assigned classes only, never Outsiders
-  return eventTix.filter(t => {
+  return pool.filter(t => {
     if (t.attendeeType === 'OUTSIDER') return false;
     const tCourse = (t.course || '').trim().toLowerCase();
     const tSection = (t.section || '').trim().toUpperCase();
@@ -321,7 +423,41 @@ const reportData = computed(() => {
 
 const eventTransactions = computed(() => {
   if (isTeacher.value) return [];
-  return transactions.value.filter(t => !currentEvent.value || t.eventId === currentEvent.value.id);
+  let pool = transactions.value;
+
+  if (currentPeriod.value) {
+    pool = pool.filter(tx => {
+      const ev = events.value.find(e => e.id === tx.eventId);
+      const ayr = tx.academicYear || ev?.academicYear;
+      const sem = tx.semester || ev?.semester;
+      return ayr === currentPeriod.value?.academicYear && sem === currentPeriod.value?.semester;
+    });
+  }
+
+  if (selectedEventId.value !== 'all') {
+    pool = pool.filter(tx => tx.eventId === selectedEventId.value);
+  }
+
+  return pool;
+});
+
+const scopedLogs = computed(() => {
+  let pool = logs.value;
+
+  if (currentPeriod.value) {
+    pool = pool.filter(l => {
+      const ev = events.value.find(e => e.id === l.eventId);
+      const ayr = l.academicYear || ev?.academicYear;
+      const sem = l.semester || ev?.semester;
+      return ayr === currentPeriod.value?.academicYear && sem === currentPeriod.value?.semester;
+    });
+  }
+
+  if (selectedEventId.value !== 'all') {
+    pool = pool.filter(l => l.eventId === selectedEventId.value);
+  }
+
+  return pool;
 });
 
 const totalCount = computed(() => authorizedTickets.value.length);
@@ -351,42 +487,45 @@ const reportTabs = computed(() => {
     { id: 'present', label: 'Present Attendees', count: presentCount.value },
     { id: 'absent', label: 'Unentered / Absent', count: Math.max(0, totalCount.value - presentCount.value) },
     { id: 'transactions', label: 'Purchase Transactions', count: eventTransactions.value.length },
-    { id: 'audit_logs', label: 'Scan Audit Logs', count: logs.value.length },
+    { id: 'audit_logs', label: 'Scan Audit Logs', count: scopedLogs.value.length },
   ];
 });
 
 const handleExportExcel = () => {
+  const periodTag = currentPeriod.value ? `${currentPeriod.value.academicYear}_${currentPeriod.value.semester.replace(/\s+/g, '_')}` : 'All_Periods';
   if (reportType.value === 'audit_logs') {
-    exportAttendanceLogsToExcel(logs.value, `${currentEvent.value?.code || 'EVENT'}_Scan_Audit_Logs.xlsx`);
+    exportAttendanceLogsToExcel(scopedLogs.value, `${periodTag}_Scan_Audit_Logs.xlsx`);
   } else if (reportType.value === 'transactions') {
-    exportTransactionsToExcel(eventTransactions.value, `${currentEvent.value?.code || 'EVENT'}_Purchase_Transactions.xlsx`);
+    exportTransactionsToExcel(eventTransactions.value, `${periodTag}_Purchase_Transactions.xlsx`);
   } else if (reportType.value === 'students' || isTeacher.value) {
-    exportStudentAttendanceOnlyToExcel(reportData.value, events.value, `${currentEvent.value?.code || 'EVENT'}_${currentUser.value?.name || 'Teacher'}_Student_Attendance.xlsx`);
+    exportStudentAttendanceOnlyToExcel(reportData.value, events.value, `${periodTag}_${currentUser.value?.name || 'Teacher'}_Student_Attendance.xlsx`);
   } else if (reportType.value === 'outsiders') {
-    exportOutsiderAttendanceOnlyToExcel(reportData.value, events.value, `${currentEvent.value?.code || 'EVENT'}_Outsider_Attendance.xlsx`);
+    exportOutsiderAttendanceOnlyToExcel(reportData.value, events.value, `${periodTag}_Outsider_Attendance.xlsx`);
   } else {
     exportTicketsToExcel(
       reportData.value,
       events.value,
-      `${currentEvent.value?.code || 'EVENT'}_Master_Report.xlsx`
+      `${periodTag}_Master_Report.xlsx`
     );
   }
 };
 
 const handleExportStudentExcel = () => {
+  const periodTag = currentPeriod.value ? `${currentPeriod.value.academicYear}_${currentPeriod.value.semester.replace(/\s+/g, '_')}` : 'All_Periods';
   exportStudentAttendanceOnlyToExcel(
     authorizedTickets.value.filter(t => (t.attendeeType || 'STUDENT') === 'STUDENT'),
     events.value,
-    `${currentEvent.value?.code || 'EVENT'}_${currentUser.value?.name || 'Faculty'}_Student_Attendance.xlsx`
+    `${periodTag}_${currentUser.value?.name || 'Faculty'}_Student_Attendance.xlsx`
   );
 };
 
 const handleExportOutsiderExcel = () => {
   if (isTeacher.value) return;
+  const periodTag = currentPeriod.value ? `${currentPeriod.value.academicYear}_${currentPeriod.value.semester.replace(/\s+/g, '_')}` : 'All_Periods';
   exportOutsiderAttendanceOnlyToExcel(
-    tickets.value.filter(t => t.eventId === currentEvent.value?.id && t.attendeeType === 'OUTSIDER'),
+    authorizedTickets.value.filter(t => t.attendeeType === 'OUTSIDER'),
     events.value,
-    `${currentEvent.value?.code || 'EVENT'}_Outsider_Attendance.xlsx`
+    `${periodTag}_Outsider_Attendance.xlsx`
   );
 };
 

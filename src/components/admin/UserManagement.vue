@@ -110,7 +110,7 @@
                   <span v-else-if="u.employeeId" class="font-mono font-bold text-purple-600 dark:text-purple-400 block text-xs">
                     {{ u.employeeId }}
                   </span>
-                  <span class="text-slate-500 dark:text-slate-400 font-mono text-[11px] block truncate max-w-[200px]">
+                  <span v-if="u.role !== 'student'" class="text-slate-500 dark:text-slate-400 font-mono text-[11px] block truncate max-w-[200px]">
                     {{ u.email }}
                   </span>
                 </div>
@@ -157,15 +157,6 @@
                       : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/60'"
                   >
                     {{ u.isActive !== false ? 'ACTIVE' : 'INACTIVE' }}
-                  </span>
-                  <span
-                    v-if="u.role === 'student'"
-                    class="px-2 py-0.5 rounded text-[9px] font-bold uppercase inline-block"
-                    :class="(u.verificationStatus === 'verified' || u.isVerified === true)
-                      ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40'
-                      : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/40'"
-                  >
-                    {{ (u.verificationStatus === 'verified' || u.isVerified === true) ? 'Verified' : 'Pending Verification' }}
                   </span>
                 </div>
               </td>
@@ -265,8 +256,8 @@
 
         <!-- Role-Specific Parameters -->
         <div class="space-y-3">
-          <!-- Common: Email -->
-          <div class="p-3 rounded-xl bg-slate-50/50 dark:bg-[#1a1a1a] border border-slate-100 dark:border-[#262626] flex justify-between">
+          <!-- Common: Email (Displayed for Non-Student Personnel) -->
+          <div v-if="selectedUserForDrawer.role !== 'student'" class="p-3 rounded-xl bg-slate-50/50 dark:bg-[#1a1a1a] border border-slate-100 dark:border-[#262626] flex justify-between">
             <span class="text-slate-500 dark:text-slate-400 font-medium">Institutional Email</span>
             <span class="font-mono text-slate-900 dark:text-white font-bold truncate max-w-[200px]">
               {{ selectedUserForDrawer.email }}
@@ -290,26 +281,6 @@
 
           <!-- Student Specific Fields -->
           <template v-if="selectedUserForDrawer.role === 'student'">
-            <div class="p-3 rounded-xl bg-slate-50/50 dark:bg-[#1a1a1a] border border-slate-100 dark:border-[#262626] flex items-center justify-between">
-              <span class="text-slate-500 dark:text-slate-400 font-medium">Verification Status</span>
-              <div class="flex items-center gap-2">
-                <span
-                  class="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase inline-block"
-                  :class="(selectedUserForDrawer.verificationStatus === 'verified' || selectedUserForDrawer.isVerified === true)
-                    ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40'
-                    : 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/40'"
-                >
-                  {{ (selectedUserForDrawer.verificationStatus === 'verified' || selectedUserForDrawer.isVerified === true) ? 'Verified Record' : 'Pending Verification' }}
-                </span>
-                <button
-                  v-if="selectedUserForDrawer.verificationStatus === 'pending' || selectedUserForDrawer.isVerified === false"
-                  @click="handleAdminVerifyStudent(selectedUserForDrawer)"
-                  class="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold cursor-pointer transition shadow-xs"
-                >
-                  Verify Now
-                </button>
-              </div>
-            </div>
             <div class="p-3 rounded-xl bg-slate-50/50 dark:bg-[#1a1a1a] border border-slate-100 dark:border-[#262626] flex justify-between">
               <span class="text-slate-500 dark:text-slate-400 font-medium">Course & Academic Year</span>
               <span class="font-semibold text-slate-900 dark:text-white">
@@ -319,7 +290,7 @@
             <div class="p-3 rounded-xl bg-slate-50/50 dark:bg-[#1a1a1a] border border-slate-100 dark:border-[#262626] flex justify-between">
               <span class="text-slate-500 dark:text-slate-400 font-medium">Class Section</span>
               <span class="font-semibold text-slate-900 dark:text-white">
-                Section {{ selectedUserForDrawer.section || 'A1' }}
+                Section {{ selectedUserForDrawer.section || '11M1' }}
               </span>
             </div>
           </template>
@@ -514,8 +485,8 @@
           />
         </div>
 
-        <!-- 4. Email Address -->
-        <div>
+        <!-- 4. Email Address (For Personnel Roles only; not required for Students) -->
+        <div v-if="role !== 'student'">
           <div class="flex items-center justify-between mb-1">
             <label class="text-xs font-semibold text-slate-700 dark:text-slate-300">
               Institutional Email * (Secondary Unique Key)
@@ -532,7 +503,7 @@
             :class="addConflict.hasConflict && (addConflict.conflictType === 'email')
               ? 'border-rose-500 ring-1 ring-rose-500/30'
               : 'border-slate-300 dark:border-[#3a3a3a] focus:border-blue-500'"
-            required
+            :required="role !== 'student'"
           />
         </div>
 
@@ -563,7 +534,7 @@
                 <div>
                   <p class="font-bold text-slate-900 dark:text-white">{{ addConflict.existingUser.name }}</p>
                   <p class="text-[10px] font-mono text-slate-500 dark:text-slate-400">
-                    ID: {{ addConflict.existingUser.studentId || addConflict.existingUser.employeeId || addConflict.existingUser.id }} • {{ addConflict.existingUser.email }}
+                    ID: {{ addConflict.existingUser.studentId || addConflict.existingUser.employeeId || addConflict.existingUser.id }}<span v-if="addConflict.existingUser.role !== 'student'"> • {{ addConflict.existingUser.email }}</span>
                   </p>
                 </div>
                 <div class="flex items-center gap-1.5 flex-shrink-0">
@@ -674,13 +645,13 @@
 
         <!-- 6. Dynamic Role Fields: Teacher (Faculty Department & Explicit Class Assignments) -->
         <template v-if="role === 'teacher'">
-          <div class="p-3.5 bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800/40 rounded-xl space-y-3">
+          <div class="p-3.5 bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800/40 rounded-xl space-y-3">
             <div class="flex items-center justify-between">
-              <p class="text-xs font-bold text-purple-900 dark:text-purple-300 flex items-center gap-1.5">
-                <BookOpen class="w-4 h-4 text-purple-600" />
+              <p class="text-xs font-bold text-blue-900 dark:text-blue-300 flex items-center gap-1.5">
+                <BookOpen class="w-4 h-4 text-blue-600" />
                 <span>Teacher Academic Assignment</span>
               </p>
-              <span class="text-[10px] text-purple-700 dark:text-purple-400 font-semibold">Admin Provisioned</span>
+              <span class="text-[10px] text-blue-700 dark:text-blue-400 font-semibold">Admin Provisioned</span>
             </div>
 
             <!-- Controlled Department Selection -->
@@ -691,7 +662,7 @@
               <select
                 v-model="teacherDepartment"
                 @change="onTeacherDeptChangeAdd"
-                class="w-full bg-white dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-purple-500 cursor-pointer"
+                class="w-full bg-white dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 cursor-pointer"
               >
                 <option v-for="d in NCST_DEPARTMENTS" :key="d.code" :value="d.code">
                   {{ d.code }} — {{ d.name }}
@@ -713,7 +684,7 @@
                 <div class="flex items-center gap-2">
                   <select
                     v-model="newClassCourse"
-                    class="w-44 bg-white dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-lg px-2.5 py-2 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-purple-500 shrink-0"
+                    class="w-44 bg-white dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-lg px-2.5 py-2 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 shrink-0"
                   >
                     <option v-for="c in getCoursesForDepartment(teacherDepartment)" :key="c.code" :value="c.code">
                       {{ c.code }} ({{ c.name }})
@@ -729,7 +700,7 @@
                       placeholder="Select or type Section (e.g. 11M1)"
                       class="w-full bg-white dark:bg-[#1e1e1e] border rounded-lg px-3 py-2 text-xs font-mono font-bold text-slate-900 dark:text-white focus:outline-none transition uppercase"
                       :class="!newClassSection.trim()
-                        ? 'border-slate-300 dark:border-[#3a3a3a] focus:border-purple-500'
+                        ? 'border-slate-300 dark:border-[#3a3a3a] focus:border-blue-500'
                         : (addClassSectionValidation.isValid && !isAddClassDuplicate ? 'border-emerald-500 ring-1 ring-emerald-500/20' : 'border-rose-400 ring-1 ring-rose-400/20')"
                       @keyup.enter.prevent="addTeacherClassToAddModal"
                     />
@@ -745,7 +716,7 @@
                     @click="addTeacherClassToAddModal"
                     :disabled="!canAddClassInAddModal"
                     class="px-4 py-2 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
-                    :class="canAddClassInAddModal ? 'bg-purple-600 hover:bg-purple-700 shadow-xs' : 'bg-slate-400 dark:bg-slate-700'"
+                    :class="canAddClassInAddModal ? 'bg-blue-600 hover:bg-blue-700 shadow-xs' : 'bg-slate-400 dark:bg-slate-700'"
                   >
                     <Plus class="w-3.5 h-3.5" />
                     <span>Add Class</span>
@@ -756,14 +727,14 @@
                 <div class="flex items-center gap-1.5 overflow-x-auto pb-0.5 custom-scrollbar">
                   <span class="text-[10px] text-slate-400 font-semibold shrink-0">Quick presets:</span>
                   <button
-                    v-for="s in ['M1', 'M2', 'M3', 'M4', 'M5', 'A1', 'A2', 'A3', 'A4', 'A5', 'E1', 'E2', 'E3', 'E4', 'E5']"
+                    v-for="s in ['11M1', '11M2', '12M1', '21M1', '21M2', '31M1', '31A1', '31A2', '41M1', '41M2', '41A1']"
                     :key="s"
                     type="button"
                     @click="newClassSection = s"
                     class="px-2 py-0.5 rounded text-[10px] font-mono font-bold border transition cursor-pointer shrink-0"
                     :class="newClassSection.toUpperCase() === s
-                      ? 'bg-purple-600 text-white border-purple-600'
-                      : 'bg-white dark:bg-[#222222] border-slate-200 dark:border-[#3a3a3a] text-slate-700 dark:text-slate-300 hover:border-purple-400'"
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white dark:bg-[#222222] border-slate-200 dark:border-[#3a3a3a] text-slate-700 dark:text-slate-300 hover:border-blue-400'"
                   >
                     {{ s }}
                   </button>
@@ -794,19 +765,19 @@
               </div>
 
               <!-- List of Added Classes -->
-              <div class="min-h-[48px] p-2 bg-white/70 dark:bg-black/30 border border-purple-200 dark:border-purple-900/40 rounded-xl">
+              <div class="min-h-[48px] p-2 bg-white/70 dark:bg-black/30 border border-blue-200 dark:border-blue-900/40 rounded-xl">
                 <div v-if="teacherAssignedClasses.length > 0" class="flex flex-wrap gap-1.5">
                   <span
                     v-for="(cls, idx) in teacherAssignedClasses"
                     :key="idx"
-                    class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-100 dark:bg-purple-900/50 text-purple-900 dark:text-purple-200 text-xs font-bold font-mono border border-purple-300 dark:border-purple-700 shadow-xs"
+                    class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/40 text-blue-900 dark:text-blue-200 text-xs font-bold font-mono border border-blue-200 dark:border-blue-800 shadow-xs"
                   >
                     <span>{{ cls.course }} — {{ cls.section }}</span>
-                    <span v-if="cls.yearLevel" class="text-[10px] text-purple-600 dark:text-purple-300 font-sans font-normal">({{ cls.yearLevel }})</span>
+                    <span v-if="cls.yearLevel" class="text-[10px] text-blue-600 dark:text-blue-300 font-sans font-normal">({{ cls.yearLevel }})</span>
                     <button
                       type="button"
                       @click="removeTeacherClassFromAddModal(idx)"
-                      class="text-purple-500 hover:text-rose-600 transition ml-0.5"
+                      class="text-blue-500 hover:text-rose-600 transition ml-0.5"
                     >
                       <X class="w-3.5 h-3.5" />
                     </button>
@@ -913,13 +884,13 @@
           />
         </div>
 
-        <div>
+        <div v-if="editRole !== 'student'">
           <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Institutional Email *</label>
           <input
             type="email"
             v-model="editEmail"
             class="w-full bg-slate-50 dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
-            required
+            :required="editRole !== 'student'"
           />
         </div>
 
@@ -977,7 +948,7 @@
 
         <!-- Teacher Role: Controlled Department + Assigned Classes Builder -->
         <template v-if="editRole === 'teacher'">
-          <div class="p-3.5 bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800/40 rounded-xl space-y-3">
+          <div class="p-3.5 bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800/40 rounded-xl space-y-3">
             <div>
               <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
                 Department / Faculty Division *
@@ -985,7 +956,7 @@
               <select
                 v-model="editDepartment"
                 @change="onTeacherDeptChangeEdit"
-                class="w-full bg-white dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-purple-500 cursor-pointer"
+                class="w-full bg-white dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 cursor-pointer"
               >
                 <option v-for="d in NCST_DEPARTMENTS" :key="d.code" :value="d.code">
                   {{ d.code }} — {{ d.name }}
@@ -1003,7 +974,7 @@
                 <div class="flex items-center gap-2">
                   <select
                     v-model="editNewClassCourse"
-                    class="w-44 bg-white dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-lg px-2.5 py-2 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-purple-500 shrink-0"
+                    class="w-44 bg-white dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-lg px-2.5 py-2 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 shrink-0"
                   >
                     <option v-for="c in getCoursesForDepartment(editDepartment)" :key="c.code" :value="c.code">
                       {{ c.code }} ({{ c.name }})
@@ -1019,7 +990,7 @@
                       placeholder="Select or type Section (e.g. 11M1)"
                       class="w-full bg-white dark:bg-[#1e1e1e] border rounded-lg px-3 py-2 text-xs font-mono font-bold text-slate-900 dark:text-white focus:outline-none transition uppercase"
                       :class="!editNewClassSection.trim()
-                        ? 'border-slate-300 dark:border-[#3a3a3a] focus:border-purple-500'
+                        ? 'border-slate-300 dark:border-[#3a3a3a] focus:border-blue-500'
                         : (editClassSectionValidation.isValid && !isEditClassDuplicate ? 'border-emerald-500 ring-1 ring-emerald-500/20' : 'border-rose-400 ring-1 ring-rose-400/20')"
                       @keyup.enter.prevent="addTeacherClassToEditModal"
                     />
@@ -1035,7 +1006,7 @@
                     @click="addTeacherClassToEditModal"
                     :disabled="!canAddClassInEditModal"
                     class="px-4 py-2 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
-                    :class="canAddClassInEditModal ? 'bg-purple-600 hover:bg-purple-700 shadow-xs' : 'bg-slate-400 dark:bg-slate-700'"
+                    :class="canAddClassInEditModal ? 'bg-blue-600 hover:bg-blue-700 shadow-xs' : 'bg-slate-400 dark:bg-slate-700'"
                   >
                     <Plus class="w-3.5 h-3.5" />
                     <span>Add Class</span>
@@ -1046,14 +1017,14 @@
                 <div class="flex items-center gap-1.5 overflow-x-auto pb-0.5 custom-scrollbar">
                   <span class="text-[10px] text-slate-400 font-semibold shrink-0">Quick presets:</span>
                   <button
-                    v-for="s in ['M1', 'M2', 'M3', 'M4', 'M5', 'A1', 'A2', 'A3', 'A4', 'A5', 'E1', 'E2', 'E3', 'E4', 'E5']"
+                    v-for="s in ['11M1', '11M2', '12M1', '21M1', '21M2', '31M1', '31A1', '31A2', '41M1', '41M2', '41A1']"
                     :key="s"
                     type="button"
                     @click="editNewClassSection = s"
                     class="px-2 py-0.5 rounded text-[10px] font-mono font-bold border transition cursor-pointer shrink-0"
                     :class="editNewClassSection.toUpperCase() === s
-                      ? 'bg-purple-600 text-white border-purple-600'
-                      : 'bg-white dark:bg-[#222222] border-slate-200 dark:border-[#3a3a3a] text-slate-700 dark:text-slate-300 hover:border-purple-400'"
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white dark:bg-[#222222] border-slate-200 dark:border-[#3a3a3a] text-slate-700 dark:text-slate-300 hover:border-blue-400'"
                   >
                     {{ s }}
                   </button>
@@ -1084,19 +1055,19 @@
               </div>
 
               <!-- List of Added Classes -->
-              <div class="min-h-[48px] p-2 bg-white/70 dark:bg-black/30 border border-purple-200 dark:border-purple-900/40 rounded-xl">
+              <div class="min-h-[48px] p-2 bg-white/70 dark:bg-black/30 border border-blue-200 dark:border-blue-900/40 rounded-xl">
                 <div v-if="editTeacherAssignedClasses.length > 0" class="flex flex-wrap gap-1.5">
                   <span
                     v-for="(cls, idx) in editTeacherAssignedClasses"
                     :key="idx"
-                    class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-100 dark:bg-purple-900/50 text-purple-900 dark:text-purple-200 text-xs font-bold font-mono border border-purple-300 dark:border-purple-700 shadow-xs"
+                    class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/40 text-blue-900 dark:text-blue-200 text-xs font-bold font-mono border border-blue-200 dark:border-blue-800 shadow-xs"
                   >
                     <span>{{ cls.course }} — {{ cls.section }}</span>
-                    <span v-if="cls.yearLevel" class="text-[10px] text-purple-600 dark:text-purple-300 font-sans font-normal">({{ cls.yearLevel }})</span>
+                    <span v-if="cls.yearLevel" class="text-[10px] text-blue-600 dark:text-blue-300 font-sans font-normal">({{ cls.yearLevel }})</span>
                     <button
                       type="button"
                       @click="removeTeacherClassFromEditModal(idx)"
-                      class="text-purple-500 hover:text-rose-600 transition ml-0.5"
+                      class="text-blue-500 hover:text-rose-600 transition ml-0.5"
                     >
                       <X class="w-3.5 h-3.5" />
                     </button>
@@ -1201,7 +1172,7 @@
     <ConfirmModal
       :is-open="!!userToDelete"
       title="Delete User Account"
-      :message="`Are you sure you want to delete the account for ${userToDelete?.name} (${userToDelete?.email})? This action cannot be undone.`"
+      :message="`Are you sure you want to delete the account for ${userToDelete?.name} (${userToDelete?.studentId || userToDelete?.employeeId || userToDelete?.email})? This action cannot be undone.`"
       confirm-text="Delete Account"
       variant="danger"
       @confirm="confirmDeleteUser"
@@ -1409,7 +1380,7 @@ const addConflict = computed(() => {
   return checkUserIdentityConflict(
     {
       name: name.value,
-      email: email.value,
+      email: role.value === 'student' ? undefined : email.value,
       role: role.value,
       studentId: role.value === 'student' ? studentId.value : undefined,
       employeeId: role.value !== 'student' ? (employeeId.value || studentId.value) : undefined,
@@ -1437,7 +1408,7 @@ const editConflict = computed(() => {
     {
       id: editingUser.value.id,
       name: editName.value,
-      email: editEmail.value,
+      email: editRole.value === 'student' ? undefined : editEmail.value,
       role: editRole.value,
       studentId: editRole.value === 'student' ? editStudentId.value : undefined,
       employeeId: editRole.value !== 'student' ? editEmployeeId.value : undefined,
@@ -1520,21 +1491,6 @@ const openDetailsDrawer = (u: User) => {
   isDrawerOpen.value = true;
 };
 
-const handleAdminVerifyStudent = (u: User) => {
-  if (!u || u.role !== 'student') return;
-  updateUser(u.id, {
-    verificationStatus: 'verified',
-    isVerified: true,
-  });
-  if (selectedUserForDrawer.value && selectedUserForDrawer.value.id === u.id) {
-    selectedUserForDrawer.value = {
-      ...selectedUserForDrawer.value,
-      verificationStatus: 'verified',
-      isVerified: true,
-    };
-  }
-};
-
 // Add Modal Handlers
 const openAddModal = () => {
   name.value = '';
@@ -1544,22 +1500,29 @@ const openAddModal = () => {
   employeeId.value = '';
   course.value = 'BSIT';
   yearLevel.value = '1st Year';
-  section.value = 'M1';
+  section.value = '11M1';
   department.value = 'CSD';
   assignedEventIds.value = [];
   teacherDepartment.value = 'CSD';
   teacherAssignedClasses.value = [];
   newClassCourse.value = 'BSIT';
-  newClassSection.value = 'M1';
+  newClassSection.value = '11M1';
   isAddUserModalOpen.value = true;
 };
 
 const handleCreateUser = () => {
-  if (!name.value.trim() || !email.value.trim()) return;
+  if (!name.value.trim()) return;
+  if (role.value !== 'student' && !email.value.trim()) return;
+  if (role.value === 'student' && !studentId.value.trim()) return;
+
+  const fallbackEmail = `${normalizeId(studentId.value).toLowerCase()}@student.ncst.edu.ph`;
+  const assignedEmail = role.value === 'student'
+    ? (email.value.trim() || fallbackEmail)
+    : email.value.trim();
 
   const userPayload: Partial<User> = {
     name: name.value.trim(),
-    email: email.value.trim(),
+    email: assignedEmail,
     role: role.value,
     isActive: true,
   };
@@ -1625,9 +1588,14 @@ const handleReactivateFromConflict = (existing: User) => {
 const handleSaveEdit = () => {
   if (!editingUser.value) return;
 
+  const fallbackEmail = `${normalizeId(editStudentId.value || editingUser.value.studentId || '').toLowerCase()}@student.ncst.edu.ph`;
+  const assignedEmail = editRole.value !== 'student'
+    ? editEmail.value.trim()
+    : (editingUser.value.email || fallbackEmail);
+
   const updatePayload: Partial<User> = {
     name: editName.value.trim(),
-    email: editEmail.value.trim(),
+    email: assignedEmail,
     role: editRole.value,
     studentId: editRole.value === 'student' ? editStudentId.value.trim() || undefined : undefined,
     employeeId: editRole.value !== 'student' ? editEmployeeId.value.trim() || undefined : undefined,

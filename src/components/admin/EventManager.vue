@@ -62,6 +62,29 @@
             </button>
           </div>
 
+          <!-- Academic Configuration Action Button -->
+          <button
+            @click="isAcademicPeriodModalOpen = true"
+            class="group flex items-center gap-2.5 px-3 py-1.5 bg-white dark:bg-[#202020] hover:bg-blue-50/80 dark:hover:bg-blue-950/40 text-slate-800 dark:text-slate-200 rounded-xl text-xs font-bold border border-slate-300 dark:border-[#383838] hover:border-blue-500 dark:hover:border-blue-500 shadow-xs hover:shadow-sm transition-all duration-150 cursor-pointer"
+            title="Click to configure Academic Periods and switch active semester"
+          >
+            <div class="p-1 rounded-lg bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 group-hover:scale-105 transition-transform">
+              <GraduationCap class="w-4 h-4" />
+            </div>
+            <div class="flex flex-col items-start text-left leading-tight">
+              <span class="text-[8.5px] uppercase font-black text-slate-400 dark:text-slate-500 tracking-wider">
+                Academic Period
+              </span>
+              <span class="text-xs font-extrabold text-slate-900 dark:text-white">
+                {{ activeAcademicPeriod.academicYear }} • {{ activeAcademicPeriod.semester }}
+              </span>
+            </div>
+            <span class="ml-1 flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider bg-blue-600 hover:bg-blue-700 text-white shadow-2xs group-hover:shadow-xs transition">
+              Manage
+              <SlidersHorizontal class="w-2.5 h-2.5" />
+            </span>
+          </button>
+
           <!-- Primary Action: Create Event -->
           <button
             @click="openCreateModal"
@@ -91,6 +114,17 @@
 
         <!-- Filters -->
         <div class="flex flex-wrap items-center gap-2">
+          <!-- Academic Period Filter -->
+          <select
+            v-model="selectedAcademicPeriodFilter"
+            class="px-3 py-2 bg-slate-50 dark:bg-[#222222] border border-slate-200 dark:border-[#333333] rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-500 cursor-pointer"
+          >
+            <option value="all">All Academic Periods</option>
+            <option v-for="p in academicPeriods" :key="p.id" :value="p.id">
+              {{ p.academicYear }} {{ p.semester }} ({{ p.status }})
+            </option>
+          </select>
+
           <!-- Status Filter -->
           <select
             v-model="selectedStatusFilter"
@@ -147,10 +181,14 @@
               />
               <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent pointer-events-none" />
 
-              <!-- Category & Status -->
+              <!-- Category, Period & Status -->
               <div class="absolute top-3 left-3 flex items-center gap-1.5 flex-wrap">
                 <span class="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-slate-900/80 text-blue-300 border border-slate-700">
                   {{ ev.category }}
+                </span>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-900/80 text-amber-300 border border-amber-600/50 flex items-center gap-1">
+                  <GraduationCap class="w-2.5 h-2.5" />
+                  <span>{{ ev.academicYear || '2026-2027' }} • {{ ev.semester || '1st Semester' }}</span>
                 </span>
                 <span
                   class="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full"
@@ -669,6 +707,49 @@
             placeholder="Brief summary of activities, guidelines, and attendee instructions..."
             class="w-full bg-slate-50 dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 resize-none"
           />
+        </div>
+
+        <!-- Authoritative Academic Scoping -->
+        <div class="p-3.5 bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/40 rounded-2xl space-y-2.5">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <GraduationCap class="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              <span class="font-bold text-slate-800 dark:text-slate-200 text-xs">
+                Academic Scoping (Authoritative)
+              </span>
+            </div>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300">
+              Active: {{ activeAcademicPeriod.academicYear }} {{ activeAcademicPeriod.semester }}
+            </span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block font-semibold text-slate-700 dark:text-slate-300 text-[11px] mb-1">
+                Academic Year <span class="text-rose-500">*</span>
+              </label>
+              <select
+                v-model="selectedAcademicYear"
+                class="w-full bg-white dark:bg-[#1a1a1a] border border-slate-300 dark:border-[#3a3a3a] rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 cursor-pointer"
+              >
+                <option v-for="yr in availableAcademicYears" :key="yr" :value="yr">{{ yr }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="block font-semibold text-slate-700 dark:text-slate-300 text-[11px] mb-1">
+                Semester <span class="text-rose-500">*</span>
+              </label>
+              <select
+                v-model="selectedSemester"
+                class="w-full bg-white dark:bg-[#1a1a1a] border border-slate-300 dark:border-[#3a3a3a] rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 cursor-pointer"
+              >
+                <option value="1st Semester">1st Semester</option>
+                <option value="2nd Semester">2nd Semester</option>
+              </select>
+            </div>
+          </div>
+          <p class="text-[10px] text-slate-500 dark:text-slate-400">
+            Tickets, transactions, and attendance logs strictly inherit their academic association from this event record.
+          </p>
         </div>
 
         <!-- 2. Category & 8. Venue -->
@@ -1249,6 +1330,14 @@
       @confirm="confirmDeleteEvent"
       @cancel="eventToDelete = null"
     />
+
+    <!-- Academic Period Management Modal (Admin Authoritative Control) -->
+    <AcademicPeriodModal
+      :is-open="isAcademicPeriodModalOpen"
+      @close="isAcademicPeriodModalOpen = false"
+    />
+
+
   </div>
 </template>
 
@@ -1257,10 +1346,11 @@ import { ref, computed, watch } from 'vue';
 import {
   Plus, Edit2, Trash2, MapPin, Upload, X,
   LayoutList, CalendarDays, Search, Check, Calendar, ChevronLeft, ChevronRight,
-  AlertCircle, AlertTriangle, CheckCircle2, Clock, Users, DollarSign, Tag
+  AlertCircle, AlertTriangle, CheckCircle2, Clock, Users, DollarSign, Tag, GraduationCap,
+  SlidersHorizontal
 } from 'lucide-vue-next';
 import { useAppStore } from '../../composables/useAppStore';
-import { EventItem, EventStatus, User } from '../../types';
+import { EventItem, EventStatus, User, AcademicPeriod } from '../../types';
 import { formatPhilippineDate, getPhilippineDateString } from '../../utils/philippineTime';
 import {
   validateEvent,
@@ -1273,12 +1363,27 @@ import {
 import Modal from '../common/Modal.vue';
 import ConfirmModal from '../common/ConfirmModal.vue';
 import EventCoverImage from '../common/EventCoverImage.vue';
+import AcademicPeriodModal from './AcademicPeriodModal.vue';
+import { apiUrl } from '../../utils/apiUrl';
 
 defineEmits<{
   (e: 'navigate', tab: string): void;
 }>();
 
-const { currentUser, events, createEvent, updateEvent, deleteEvent, currentEvent, setCurrentEvent, tickets, users, updateUser } = useAppStore();
+const {
+  currentUser,
+  events,
+  createEvent,
+  updateEvent,
+  deleteEvent,
+  currentEvent,
+  setCurrentEvent,
+  tickets,
+  users,
+  updateUser,
+  academicPeriods,
+  activeAcademicPeriod
+} = useAppStore();
 
 // View switcher state
 const activeView = ref<'list' | 'calendar'>('list');
@@ -1287,6 +1392,22 @@ const activeView = ref<'list' | 'calendar'>('list');
 const searchQuery = ref('');
 const selectedStatusFilter = ref<string>('all');
 const selectedCategoryFilter = ref<string>('all');
+const selectedAcademicPeriodFilter = ref<string>('all');
+
+// Academic Period Management Modal State
+const isAcademicPeriodModalOpen = ref(false);
+
+// Form Academic Scoping
+const selectedAcademicYear = ref<string>(activeAcademicPeriod.value?.academicYear || '2026-2027');
+const selectedSemester = ref<string>(activeAcademicPeriod.value?.semester || '1st Semester');
+const availableAcademicYears = computed(() => {
+  const years = new Set<string>();
+  academicPeriods.value.forEach(p => years.add(p.academicYear));
+  years.add('2025-2026');
+  years.add('2026-2027');
+  years.add('2027-2028');
+  return Array.from(years).sort();
+});
 
 // Modals state
 const isModalOpen = ref(false);
@@ -1456,6 +1577,16 @@ const filteredEvents = computed(() => {
       if (ev.category !== selectedCategoryFilter.value) return false;
     }
 
+    // Academic Period
+    if (selectedAcademicPeriodFilter.value !== 'all') {
+      const targetPeriod = academicPeriods.value.find(p => p.id === selectedAcademicPeriodFilter.value);
+      if (targetPeriod) {
+        if (ev.academicYear !== targetPeriod.academicYear || ev.semester !== targetPeriod.semester) {
+          return false;
+        }
+      }
+    }
+
     return true;
   });
 });
@@ -1613,7 +1744,7 @@ const openCreateModal = () => {
   ticketPrice.value = 0;
   isFreeAdmission.value = true;
   status.value = 'upcoming';
-  bannerUrl.value = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400" viewBox="0 0 800 400"><defs><linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%231e3a8a"/><stop offset="100%" stop-color="%233b82f6"/></linearGradient></defs><rect width="800" height="400" fill="url(%23bg)"/><text x="40" y="210" fill="%23ffffff" font-family="system-ui,sans-serif" font-weight="800" font-size="36">CAMPUS EVENT</text></svg>';
+  bannerUrl.value = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400" viewBox="0 0 800 400"><defs><linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%23061530"/><stop offset="50%" stop-color="%230f3066"/><stop offset="85%" stop-color="%231a4a9c"/><stop offset="100%" stop-color="%23d97706"/></linearGradient><linearGradient id="goldRibbon" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="%23f59e0b"/><stop offset="50%" stop-color="%23fbbf24"/><stop offset="100%" stop-color="%23fde68a"/></linearGradient></defs><rect width="800" height="400" fill="url(%23bg)"/><circle cx="710" cy="80" r="160" fill="%23fbbf24" opacity="0.18"/><path d="M0,320 Q220,240 460,305 T800,255 L800,400 L0,400 Z" fill="%23d97706" opacity="0.45"/><path d="M0,345 Q260,275 520,325 T800,285 L800,400 L0,400 Z" fill="%23081b3d" opacity="0.88"/><path d="M0,322 Q220,242 460,307 T800,257" fill="none" stroke="url(%23goldRibbon)" stroke-width="4" opacity="0.95"/><rect x="40" y="152" width="136" height="24" rx="6" fill="%23f59e0b" opacity="0.22"/><text x="48" y="169" fill="%23fde047" font-family="system-ui,sans-serif" font-weight="800" font-size="12" letter-spacing="1">NCST EVENT</text><text x="40" y="215" fill="%23ffffff" font-family="system-ui,sans-serif" font-weight="900" font-size="36" letter-spacing="-0.5">CAMPUS EVENT</text><text x="40" y="255" fill="%23fde047" font-family="system-ui,sans-serif" font-weight="700" font-size="17">Official National College of Science and Technology Event</text></svg>';
   ticketDesignUrl.value = '';
   ticketDesignOffsetY.value = 20;
 
@@ -1621,6 +1752,9 @@ const openCreateModal = () => {
   assignedStaffIds.value = users.value
     .filter(u => u.role === 'event_staff' && u.isActive !== false)
     .map(u => u.id);
+
+  selectedAcademicYear.value = activeAcademicPeriod.value?.academicYear || '2026-2027';
+  selectedSemester.value = activeAcademicPeriod.value?.semester || '1st Semester';
 
   isModalOpen.value = true;
 };
@@ -1650,6 +1784,9 @@ const openEditModal = (ev: EventItem) => {
   bannerUrl.value = ev.bannerUrl;
   ticketDesignUrl.value = ev.ticketDesignUrl || '';
   ticketDesignOffsetY.value = ev.ticketDesignOffsetY ?? 20;
+
+  selectedAcademicYear.value = ev.academicYear || activeAcademicPeriod.value?.academicYear || '2026-2027';
+  selectedSemester.value = ev.semester || activeAcademicPeriod.value?.semester || '1st Semester';
 
   // Load existing assigned staff for this event
   assignedStaffIds.value = users.value
@@ -1754,6 +1891,8 @@ const handleSubmit = async () => {
       ticketPrice: finalPrice,
       isFreeAdmission: isFreeAdmission.value,
       status: status.value,
+      academicYear: selectedAcademicYear.value,
+      semester: selectedSemester.value,
       organizer: 'Office of Student Affairs',
       bannerUrl: bannerUrl.value,
       ticketDesignUrl: ticketDesignUrl.value || undefined,
@@ -1761,7 +1900,7 @@ const handleSubmit = async () => {
     };
 
     // Call server validation endpoint if available
-    await fetch('/api/validate-event', {
+    await fetch(apiUrl('/api/validate-event'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -1783,6 +1922,8 @@ const handleSubmit = async () => {
         capacity: finalCapacity,
         ticketPrice: finalPrice,
         status: status.value,
+        academicYear: selectedAcademicYear.value,
+        semester: selectedSemester.value,
         bannerUrl: bannerUrl.value,
         ticketDesignUrl: ticketDesignUrl.value || undefined,
         ticketDesignOffsetY: ticketDesignOffsetY.value,
@@ -1808,6 +1949,8 @@ const handleSubmit = async () => {
         capacity: finalCapacity,
         ticketPrice: finalPrice,
         status: status.value,
+        academicYear: selectedAcademicYear.value,
+        semester: selectedSemester.value,
         organizer: 'Office of Student Affairs',
         bannerUrl: bannerUrl.value,
         ticketDesignUrl: ticketDesignUrl.value || undefined,

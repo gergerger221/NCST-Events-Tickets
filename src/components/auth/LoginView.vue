@@ -18,7 +18,7 @@
           class="w-20 h-20 sm:w-24 sm:h-24 object-contain rounded-full shadow-lg bg-white p-1 mb-3 ring-4 ring-blue-500/20"
         />
         <h1 class="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-          NCST <span class="text-blue-600 dark:text-blue-400">Events & Tickets</span>
+          NCST <span class="text-[#1E3A5F] dark:text-blue-400">Events & Tickets</span>
         </h1>
         <p class="text-xs text-slate-500 dark:text-[#a0a0a0] mt-1 font-medium">
           National College of Science & Technology
@@ -32,14 +32,14 @@
           <button
             @click="activeTab = 'login'; errorMessage = ''; successMessage = ''"
             class="flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer text-center"
-            :class="activeTab === 'login' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 dark:text-[#b3b3b3] hover:text-slate-900 dark:hover:text-white'"
+            :class="activeTab === 'login' ? 'bg-[#1E3A5F] text-white shadow-xs' : 'text-slate-600 dark:text-[#b3b3b3] hover:text-slate-900 dark:hover:text-white'"
           >
             Sign In
           </button>
           <button
             @click="activeTab = 'register'; errorMessage = ''; successMessage = ''"
             class="flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer text-center"
-            :class="activeTab === 'register' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 dark:text-[#b3b3b3] hover:text-slate-900 dark:hover:text-white'"
+            :class="activeTab === 'register' ? 'bg-[#1E3A5F] text-white shadow-xs' : 'text-slate-600 dark:text-[#b3b3b3] hover:text-slate-900 dark:hover:text-white'"
           >
             Student Registration
           </button>
@@ -64,9 +64,13 @@
 
         <!-- 1. Sign In Form -->
         <form v-if="activeTab === 'login'" @submit.prevent="handleLogin" class="space-y-4">
+          <div class="mb-2">
+            <h2 class="text-base font-bold text-slate-900 dark:text-white">Welcome Back</h2>
+          </div>
+
           <div>
             <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-              Student ID or Employee ID
+              ID Number
             </label>
             <div class="relative">
               <UserIcon class="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -74,13 +78,10 @@
                 v-model="loginIdentifier"
                 type="text"
                 required
-                placeholder="e.g. 2026-00125 or EMP-00101"
+                placeholder="Enter your ID"
                 class="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-xl text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
               />
             </div>
-            <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-              Sign in using your Student ID (students) or Employee ID (faculty/staff).
-            </p>
           </div>
 
           <div>
@@ -88,7 +89,6 @@
               <label class="text-xs font-bold text-slate-700 dark:text-slate-300">
                 Password
               </label>
-              <span class="text-[11px] text-blue-600 dark:text-blue-400 font-medium">Default: password123 / ncst123</span>
             </div>
             <div class="relative">
               <Lock class="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -96,7 +96,7 @@
                 v-model="loginPassword"
                 :type="showPassword ? 'text' : 'password'"
                 required
-                placeholder="••••••••"
+                placeholder="Enter your password"
                 class="w-full pl-10 pr-10 py-2.5 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-xl text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
               />
               <button
@@ -132,21 +132,34 @@
           <button
             type="submit"
             :disabled="isLoading"
-            class="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold rounded-xl shadow-md transition-all transform hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+            class="w-full py-3 px-4 bg-[#1E3A5F] hover:bg-[#152A45] text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
           >
             <span v-if="isLoading" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             <LogIn v-else class="w-4 h-4" />
-            <span>{{ isLoading ? 'Authenticating...' : 'Sign In to Portal' }}</span>
+            <span>{{ isLoading ? 'Signing In...' : 'Sign In' }}</span>
           </button>
 
+          <!-- Separate Outsider / Guest Ticket Retrieval Link -->
+          <div class="pt-3 border-t border-slate-200 dark:border-[#333333] text-center">
+            <p class="text-[11px] text-slate-500 dark:text-[#888888] mb-2">Guest attendee or looking for your event pass?</p>
+            <button
+              type="button"
+              @click="openGuestLookupModal"
+              class="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-[#1e1e1e] dark:hover:bg-[#2c2c2c] text-slate-800 dark:text-slate-200 text-xs font-bold rounded-xl border border-slate-200 dark:border-[#383838] transition flex items-center justify-center gap-2 cursor-pointer shadow-sm hover:border-blue-500/40"
+            >
+              <Ticket class="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              <span>Find My Ticket</span>
+            </button>
+          </div>
+
           <!-- First-Time Student Notice Card -->
-          <div class="mt-4 p-3 bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/50 rounded-2xl text-left space-y-1">
+          <div class="mt-4 p-3 bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-800/50 rounded-2xl text-left space-y-1">
             <div class="flex items-center gap-1.5 text-xs font-bold text-blue-900 dark:text-blue-200">
-              <KeyRound class="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              <KeyRound class="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
               <span>First-Time Student Login</span>
             </div>
-            <p class="text-[10px] text-blue-700 dark:text-blue-300 leading-relaxed">
-              If you purchased a ticket at the Cashier, your account is ready! Sign in using your <strong>Student ID</strong> and default password <strong>ncst123</strong>. You will be prompted to create your secure password on first sign-in.
+            <p class="text-[10.5px] text-blue-700/90 dark:text-blue-300/90 leading-relaxed">
+              If your student account was created when you purchased a ticket at the Cashier, sign in using your Student ID and your official surname as your temporary password. You must create a new password before accessing the student portal.
             </p>
           </div>
         </form>
@@ -396,7 +409,7 @@
             <button
               type="submit"
               :disabled="isLoading || !regPassword.trim() || !regConfirmPassword.trim()"
-              class="w-full mt-2 py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold rounded-xl shadow-md transition-all transform hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+              class="w-full mt-2 py-3 px-4 bg-[#1E3A5F] hover:bg-[#152A45] text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <span v-if="isLoading" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               <UserCheck v-else class="w-4 h-4" />
@@ -478,7 +491,7 @@
                   type="text"
                   required
                   autocomplete="off"
-                  placeholder="Type section..."
+                  placeholder="Type section code..."
                   class="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-[#1e1e1e] border rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-white placeholder:font-normal placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none transition uppercase"
                   :class="{
                     'border-rose-400 focus:border-rose-500 focus:ring-1 focus:ring-rose-500/20': !isSectionSuggestionsOpen && sectionErrorMessage && sectionTouched,
@@ -588,8 +601,13 @@
           </div>
         </form>
 
-        <!-- Quick Credentials Accordion (For Evaluation / Testing Convenience) -->
-        <div class="mt-6 pt-5 border-t border-slate-200 dark:border-[#333333]">
+        <!-- Controlled Demo Accounts Accordion (Defense Demonstration Environment Only - Excluded in Production) -->
+        <div v-if="isDemoMode" class="mt-6 pt-5 border-t border-slate-200 dark:border-[#333333]">
+          <div class="mb-2.5 px-3 py-2 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 rounded-xl flex items-center gap-2 text-[10.5px] text-amber-800 dark:text-amber-300">
+            <ShieldAlert class="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
+            <span><strong>Controlled Demo Mode:</strong> Demonstration auto-fill is active for evaluation only. Excluded from production.</span>
+          </div>
+
           <button
             type="button"
             @click="showCredentialHints = !showCredentialHints"
@@ -597,7 +615,7 @@
           >
             <span class="flex items-center gap-1.5">
               <KeyRound class="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-              <span>Available Demo Accounts (Click to Auto-Fill)</span>
+              <span>Available Demo Accounts (Defense Evaluation)</span>
             </span>
             <ChevronDown class="w-3.5 h-3.5 transition-transform" :class="{ 'rotate-180': showCredentialHints }" />
           </button>
@@ -761,6 +779,182 @@
         </form>
       </div>
     </div>
+
+    <!-- 3. Separate Outsider / Guest Ticket Retrieval Modal -->
+    <div
+      v-if="isGuestLookupOpen"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in"
+    >
+      <div class="bg-white dark:bg-[#242424] border border-slate-200 dark:border-[#333333] rounded-3xl w-full max-w-lg p-6 shadow-2xl relative transition-all max-h-[90vh] overflow-y-auto">
+        <!-- Close Button -->
+        <button
+          type="button"
+          @click="closeGuestLookupModal"
+          class="absolute top-5 right-5 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 cursor-pointer transition p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-[#333333]"
+        >
+          <X class="w-5 h-5" />
+        </button>
+
+        <!-- Header -->
+        <div class="flex items-center gap-3 mb-5">
+          <div class="p-2.5 rounded-2xl bg-blue-100 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900/50">
+            <Ticket class="w-6 h-6" />
+          </div>
+          <div>
+            <h3 class="text-lg font-extrabold text-slate-900 dark:text-white">
+              Find My Ticket
+            </h3>
+            <p class="text-xs text-slate-500 dark:text-[#b3b3b3]">
+              Retrieve your admission pass using your ticket Control Number
+            </p>
+          </div>
+        </div>
+
+        <!-- Alert in Modal -->
+        <div
+          v-if="guestLookupError"
+          class="mb-4 p-3 bg-rose-50 dark:bg-rose-950/70 border border-rose-200 dark:border-rose-500/40 rounded-xl text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2"
+        >
+          <AlertCircle class="w-4 h-4 flex-shrink-0" />
+          <span>{{ guestLookupError }}</span>
+        </div>
+
+        <!-- Flow A: Search Form (When ticket has not been retrieved yet) -->
+        <form v-if="!guestTicketData" @submit.prevent="handleGuestLookup" class="space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+              Ticket Control Number *
+            </label>
+            <input
+              v-model="guestControlNumber"
+              type="text"
+              required
+              placeholder="e.g. TKT-2026-00123 or Control Number"
+              class="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-white uppercase placeholder:font-normal placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:border-blue-500 transition"
+            />
+            <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+              Found on your cashier receipt or ticket confirmation slip.
+            </p>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+              Contact Number (Optional Verification)
+            </label>
+            <input
+              v-model="guestContactNumber"
+              type="text"
+              placeholder="e.g. 09171234567"
+              class="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-xl text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:border-blue-500 transition"
+            />
+            <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+              Optional: Provided during ticket purchase for extra security.
+            </p>
+          </div>
+
+          <div class="p-3 bg-slate-50 dark:bg-[#1e1e1e] rounded-xl border border-slate-200 dark:border-[#333] text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+            Guest ticket retrieval displays only the verified event pass details. It does not grant Student Portal access.
+          </div>
+
+          <div class="flex items-center gap-2 pt-2 border-t border-slate-200 dark:border-[#333333]">
+            <button
+              type="button"
+              @click="closeGuestLookupModal"
+              class="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-[#333333] dark:hover:bg-[#3d3d3d] text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl transition cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              :disabled="guestLookupLoading || !guestControlNumber.trim()"
+              class="flex-1 py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold rounded-xl shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              <span v-if="guestLookupLoading" class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              <Search v-else class="w-3.5 h-3.5" />
+              <span>Retrieve Ticket</span>
+            </button>
+          </div>
+        </form>
+
+        <!-- Flow B: Retrieved Guest Ticket Pass Display -->
+        <div v-else class="space-y-4 animate-fade-in">
+          <!-- Ticket Pass Container -->
+          <div class="border-2 border-dashed border-blue-300 dark:border-blue-700/60 bg-blue-50/40 dark:bg-blue-950/20 rounded-2xl p-4 sm:p-5 text-left relative overflow-hidden">
+            <div class="flex items-start justify-between gap-2 border-b border-blue-200/60 dark:border-blue-800/40 pb-3 mb-3">
+              <div>
+                <span class="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/60 px-2 py-0.5 rounded">
+                  Guest Admission Pass
+                </span>
+                <h4 class="text-base font-black text-slate-900 dark:text-white mt-1">
+                  {{ guestTicketData.eventTitle }}
+                </h4>
+              </div>
+              <div class="text-right">
+                <span class="text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400 block">CONTROL NO.</span>
+                <span class="text-xs font-mono font-black text-blue-700 dark:text-blue-300">
+                  {{ guestTicketData.controlNumber }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Ticket Details Grid -->
+            <div class="grid grid-cols-2 gap-3 text-xs mb-3">
+              <div>
+                <span class="text-[10px] text-slate-500 dark:text-slate-400 block">Attendee</span>
+                <span class="font-bold text-slate-900 dark:text-white">{{ guestTicketData.attendeeName }}</span>
+              </div>
+              <div>
+                <span class="text-[10px] text-slate-500 dark:text-slate-400 block">Ticket Status</span>
+                <span class="font-bold text-emerald-600 dark:text-emerald-400 uppercase text-[11px]">{{ guestTicketData.ticketStatus }}</span>
+              </div>
+              <div>
+                <span class="text-[10px] text-slate-500 dark:text-slate-400 block">Date</span>
+                <span class="font-medium text-slate-800 dark:text-slate-200">{{ guestTicketData.date || 'Event Day' }}</span>
+              </div>
+              <div>
+                <span class="text-[10px] text-slate-500 dark:text-slate-400 block">Venue</span>
+                <span class="font-medium text-slate-800 dark:text-slate-200">{{ guestTicketData.venue }}</span>
+              </div>
+            </div>
+
+            <!-- QR Code Token Card -->
+            <div class="bg-white dark:bg-[#1a1a1a] rounded-xl p-3 border border-slate-200 dark:border-[#333] flex flex-col items-center justify-center text-center">
+              <div class="w-32 h-32 bg-slate-50 dark:bg-[#222] border-2 border-slate-300 dark:border-[#444] rounded-lg flex flex-col items-center justify-center p-2 mb-2">
+                <QrCode class="w-20 h-20 text-slate-800 dark:text-slate-200" />
+                <span class="text-[9px] font-mono text-slate-500 dark:text-slate-400 mt-1">Official Gate Scan</span>
+              </div>
+              <p class="text-[10px] font-mono font-bold text-slate-700 dark:text-slate-300">
+                TOKEN: {{ guestTicketData.qrToken }}
+              </p>
+              <p class="text-[9px] text-slate-500 dark:text-slate-400 mt-0.5">
+                Present this QR code or Control Number at the entrance scanner
+              </p>
+            </div>
+          </div>
+
+          <div class="p-2.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/40 rounded-xl text-[10px] text-amber-800 dark:text-amber-300">
+            <strong>Security Notice:</strong> This admission pass is for venue gate check-in only. Outsiders do not require or hold portal account credentials.
+          </div>
+
+          <div class="flex items-center gap-2 pt-2 border-t border-slate-200 dark:border-[#333333]">
+            <button
+              type="button"
+              @click="guestTicketData = null"
+              class="flex-1 py-2.5 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-[#333333] dark:hover:bg-[#3d3d3d] text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl transition cursor-pointer"
+            >
+              Lookup Another
+            </button>
+            <button
+              type="button"
+              @click="closeGuestLookupModal"
+              class="flex-1 py-2.5 px-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold rounded-xl shadow-md transition cursor-pointer"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -781,6 +975,8 @@ import {
   ShieldAlert,
   X,
   Search,
+  Ticket,
+  QrCode,
 } from 'lucide-vue-next';
 import { useAppStore } from '../../composables/useAppStore';
 import ThemeToggle from '../common/ThemeToggle.vue';
@@ -797,6 +993,7 @@ const {
   register,
   resetPassword,
   lookupStudentRecord,
+  lookupGuestTicket,
   availableSections,
 } = useAppStore();
 
@@ -811,6 +1008,13 @@ const isLoading = ref(false);
 const errorMessage = ref('');
 const successMessage = ref('');
 const showCredentialHints = ref(false);
+
+// Defense Demonstration Mode Guard
+// Demo account auto-fill buttons are permanently removed from production builds.
+// In non-production environments, demo accounts are only visible if explicitly enabled via VITE_ENABLE_DEMO_ACCOUNTS=true.
+const isDemoMode = computed(() => {
+  return !import.meta.env.PROD && import.meta.env.VITE_ENABLE_DEMO_ACCOUNTS === 'true';
+});
 
 // Authoritative Student Registration & Manual Fallback State
 const regStudentId = ref('');
@@ -862,7 +1066,7 @@ const sectionErrorMessage = computed(() => {
   if (!val && !sectionTouched.value) return '';
   if (!val && sectionTouched.value) return 'Section is required.';
   if (!isSectionValid.value) {
-    return 'Please select a valid section.';
+    return 'Please select a valid section code.';
   }
   return '';
 });
@@ -1115,45 +1319,92 @@ const handleFpReset = () => {
   }, 350);
 };
 
+// Outsider / Guest Ticket Retrieval State
+const isGuestLookupOpen = ref(false);
+const guestControlNumber = ref('');
+const guestContactNumber = ref('');
+const guestLookupLoading = ref(false);
+const guestLookupError = ref('');
+const guestTicketData = ref<any | null>(null);
+
+const openGuestLookupModal = () => {
+  isGuestLookupOpen.value = true;
+  guestControlNumber.value = '';
+  guestContactNumber.value = '';
+  guestLookupLoading.value = false;
+  guestLookupError.value = '';
+  guestTicketData.value = null;
+};
+
+const closeGuestLookupModal = () => {
+  isGuestLookupOpen.value = false;
+  guestTicketData.value = null;
+  guestLookupError.value = '';
+};
+
+const handleGuestLookup = async () => {
+  guestLookupError.value = '';
+  if (!guestControlNumber.value.trim()) {
+    guestLookupError.value = 'Please enter your ticket Control Number.';
+    return;
+  }
+
+  guestLookupLoading.value = true;
+  try {
+    const res = await lookupGuestTicket(guestControlNumber.value.trim(), guestContactNumber.value.trim());
+    guestLookupLoading.value = false;
+    if (res.success && res.ticket) {
+      guestTicketData.value = res.ticket;
+    } else {
+      guestTicketData.value = null;
+      guestLookupError.value = (res as any).error || res.message || 'No matching ticket found for this Control Number.';
+    }
+  } catch (err: any) {
+    guestLookupLoading.value = false;
+    guestLookupError.value = err?.message || 'Failed to retrieve ticket. Please check the Control Number.';
+  }
+};
+
 const testAccounts = [
   {
     role: 'Admin',
     name: 'Engr. Mark Santos',
     idNumber: 'EMP-00101',
-    identifier: 'admin.santos@school.edu.ph',
+    identifier: 'EMP-00101',
     roleClass: 'bg-purple-100 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-500/30'
   },
   {
     role: 'Event Staff',
     name: 'Alex Rivera',
     idNumber: 'EMP-00103',
-    identifier: 'staff.alex@school.edu.ph',
+    identifier: 'EMP-00103',
     roleClass: 'bg-indigo-100 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-500/30'
   },
   {
     role: 'Cashier',
     name: 'Carla Gomez',
     idNumber: 'EMP-00102',
-    identifier: 'cashier.gomez@school.edu.ph',
+    identifier: 'EMP-00102',
     roleClass: 'bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-500/30'
   },
   {
     role: 'Teacher',
     name: 'Prof. Ramon Reyes',
     idNumber: 'EMP-00125',
-    identifier: 'ramon.reyes@school.edu.ph',
+    identifier: 'EMP-00125',
     roleClass: 'bg-cyan-100 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-300 border border-cyan-300 dark:border-cyan-500/30'
   },
   {
     role: 'Student',
     name: 'Juan Dela Cruz',
     idNumber: '2026-00125',
-    identifier: 'juan.delacruz@student.edu.ph',
+    identifier: '2026-00125',
     roleClass: 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/30'
   },
 ];
 
 const fillCredentials = (identifier: string, pass: string) => {
+  if (!isDemoMode.value) return;
   activeTab.value = 'login';
   loginIdentifier.value = identifier;
   loginPassword.value = pass;

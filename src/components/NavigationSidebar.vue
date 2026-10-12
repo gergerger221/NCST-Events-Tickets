@@ -23,8 +23,8 @@
             class="w-11 h-11 rounded-2xl flex items-center justify-center transition-all cursor-pointer relative"
             :class="[
               activeTab === item.id
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 scale-105'
-                : 'text-slate-500 dark:text-[#a0a0a0] hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#262626]'
+                ? 'bg-[#1E3A5F] text-white shadow-sm scale-105'
+                : 'text-[#64748B] dark:text-[#a0a0a0] hover:text-[#0F172A] dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#262626]'
             ]"
           >
             <component :is="item.icon" class="w-5 h-5" />
@@ -53,8 +53,8 @@
 
       <!-- Bottom Mini Status & Expand Button -->
       <div class="flex flex-col items-center gap-2 pt-2 border-t border-slate-200 dark:border-[#2c2c2c] w-full px-2">
-        <!-- Mini Live Event Indicator (hidden for Student role) -->
-        <div v-if="currentUser?.role !== 'student'" class="relative group flex justify-center w-full">
+        <!-- Mini Live Event Indicator (hidden for Student & Cashier roles) -->
+        <div v-if="currentUser?.role !== 'student' && currentUser?.role !== 'cashier'" class="relative group flex justify-center w-full">
           <div
             class="w-9 h-9 rounded-xl flex items-center justify-center cursor-help transition-colors"
             :class="currentEvent ? 'bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400' : 'bg-slate-100 dark:bg-[#222222] border border-slate-200 dark:border-[#333333] text-slate-400'"
@@ -133,15 +133,15 @@
             class="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer text-left group"
             :class="[
               activeTab === item.id
-                ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25 font-extrabold'
-                : 'text-slate-600 dark:text-[#a6a6a6] hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#242424]'
+                ? 'bg-[#1E3A5F] text-white shadow-sm font-bold'
+                : 'text-[#475569] dark:text-[#a6a6a6] hover:text-[#0F172A] dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#242424]'
             ]"
           >
             <div class="flex items-center gap-2.5 min-w-0">
               <component
                 :is="item.icon"
                 class="w-4 h-4 flex-shrink-0 transition-transform duration-150 group-hover:scale-105"
-                :class="activeTab === item.id ? 'text-white' : 'text-slate-500 dark:text-[#888888] group-hover:text-blue-600 dark:group-hover:text-blue-400'"
+                :class="activeTab === item.id ? 'text-white' : 'text-[#64748B] dark:text-[#888888] group-hover:text-[#1E3A5F] dark:group-hover:text-blue-400'"
               />
               <span class="truncate">{{ item.label }}</span>
             </div>
@@ -162,8 +162,8 @@
         </div>
       </div>
 
-      <!-- 2. Bottom Live Event Widget & Collapse Bar (hidden for Student role) -->
-      <div v-if="currentUser?.role !== 'student'" class="p-3 border-t border-slate-200/80 dark:border-[#2a2a2a] bg-slate-50/50 dark:bg-[#1c1c1c]/50">
+      <!-- 2. Bottom Live Event Widget & Collapse Bar (hidden for Student & Cashier roles) -->
+      <div v-if="currentUser?.role !== 'student' && currentUser?.role !== 'cashier'" class="p-3 border-t border-slate-200/80 dark:border-[#2a2a2a] bg-slate-50/50 dark:bg-[#1c1c1c]/50">
         <!-- Active Live Event Card -->
         <div v-if="currentEvent" class="p-3 bg-white dark:bg-[#222222] border border-slate-200/80 dark:border-[#2e2e2e] rounded-2xl text-xs space-y-1.5 shadow-xs">
           <div class="flex items-center justify-between">
@@ -397,6 +397,20 @@ const navGroups = computed<NavGroup[]>(() => {
       ];
 
     case 'student':
+      if (currentUser.value?.mustChangePassword) {
+        return [
+          {
+            title: 'FIRST-TIME LOGIN',
+            items: [
+              {
+                id: 'student_dashboard',
+                label: 'Password Setup',
+                icon: QrCode,
+              }
+            ]
+          }
+        ];
+      }
       return [
         {
           title: 'MY EVENTS',

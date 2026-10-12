@@ -36,16 +36,17 @@ $tixNumber = "TIX-" . rand(10000, 99999);
 
 $pdo->beginTransaction();
 $insTix = $pdo->prepare("
-    INSERT INTO tickets (id, ticket_number, qr_token, event_id, original_owner_id, original_owner_name, current_attendee_id, current_attendee_name, attendee_student_id, price, ticket_status, payment_status, attendance_status)
-    VALUES (?, ?, ?, 'evt-juans-2026', 'usr-student-001', 'Juan Dela Cruz', 'usr-student-001', 'Juan Dela Cruz', '2024-58566', 150.00, 'ISSUED', 'paid', 'not_entered')
+    INSERT INTO tickets (id, ticket_number, qr_token, event_id, original_owner_id, original_owner_name, current_attendee_id, current_attendee_name, attendee_student_id, price, ticket_status, payment_status, attendance_status, academic_year, semester)
+    VALUES (?, ?, ?, 'evt-juans-2026', 'usr-student-001', 'Juan Dela Cruz', 'usr-student-001', 'Juan Dela Cruz', '2024-58566', 150.00, 'ISSUED', 'paid', 'not_entered', '2026-2027', '1st Semester')
 ");
 $insTix->execute([$tixId, $tixNumber, $qrToken]);
 
+$txId = "tx-" . time();
 $insTxn = $pdo->prepare("
-    INSERT INTO purchase_transactions (id, user_id, user_name, student_id, event_id, event_title, ticket_id, ticket_number, amount, payment_status, payment_method, cashier_name)
-    VALUES (?, 'usr-student-001', 'Juan Dela Cruz', '2024-58566', 'evt-juans-2026', 'NCST Concert 2026', ?, ?, 150.00, 'paid', 'Cash', 'Maria Clara Santos')
+    INSERT INTO purchase_transactions (id, user_id, user_name, student_id, event_id, event_title, ticket_id, ticket_number, amount, payment_status, payment_method, cashier_name, academic_year, semester)
+    VALUES (?, 'usr-student-001', 'Juan Dela Cruz', '2024-58566', 'evt-juans-2026', 'NCST Concert 2026', ?, ?, 150.00, 'paid', 'Cash', 'Maria Clara Santos', '2026-2027', '1st Semester')
 ");
-$insTxn->execute(["tx-" . time(), $tixId, $tixNumber]);
+$insTxn->execute([$txId, $tixId, $tixNumber]);
 $pdo->commit();
 
 echo "✅ TEST 4 PASSED: Successfully issued ticket #{$tixNumber} and logged transaction to MySQL!\n";
@@ -55,16 +56,19 @@ $pdo->beginTransaction();
 $upd = $pdo->prepare("UPDATE tickets SET ticket_status = 'USED', attendance_status = 'present', time_in = '08:30 AM', last_scanned_by = 'Juan Gate Staff' WHERE id = ?");
 $upd->execute([$tixId]);
 
+$logId = "log-" . time();
 $insLog = $pdo->prepare("
-    INSERT INTO attendance_logs (id, ticket_id, ticket_number, event_id, event_title, attendee_type, attendee_name, student_id, time_in, verified_by_id, verified_by_name, status)
-    VALUES (?, ?, ?, 'evt-juans-2026', 'NCST Concert 2026', 'STUDENT', 'Juan Dela Cruz', '2024-58566', '08:30 AM', 'usr-staff-001', 'Juan Gate Staff', 'valid')
+    INSERT INTO attendance_logs (id, ticket_id, ticket_number, event_id, event_title, attendee_type, attendee_name, student_id, time_in, verified_by_id, verified_by_name, status, academic_year, semester)
+    VALUES (?, ?, ?, 'evt-juans-2026', 'NCST Concert 2026', 'STUDENT', 'Juan Dela Cruz', '2024-58566', '08:30 AM', 'usr-staff-001', 'Juan Gate Staff', 'valid', '2026-2027', '1st Semester')
 ");
-$insLog->execute(["log-" . time(), $tixId, $tixNumber]);
+$insLog->execute([$logId, $tixId, $tixNumber]);
 $pdo->commit();
 
 echo "✅ TEST 5 PASSED: Attendance successfully verified and recorded into MySQL attendance_logs!\n";
 
-// Cleanup test record
+// Cleanup test records
 $pdo->exec("DELETE FROM tickets WHERE id = '{$tixId}'");
+$pdo->exec("DELETE FROM purchase_transactions WHERE id = '{$txId}'");
+$pdo->exec("DELETE FROM attendance_logs WHERE id = '{$logId}'");
 
 echo "\n🎉 ALL MYSQL DATABASE INTEGRATION TESTS PASSED WITH 100% SUCCESS!\n";

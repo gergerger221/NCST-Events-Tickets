@@ -7,6 +7,7 @@
     "dev": "vite",
     "dev:https": "vite --https",
     "build": "tsc -b && vite build",
+    "deploy:xampp": "npm run build && powershell -Command \"if (Test-Path 'C:/xampp/htdocs/Integ 2/dist') { Remove-Item -Path 'C:/xampp/htdocs/Integ 2/dist' -Recurse -Force }; Copy-Item -Path 'dist/*' -Destination 'C:/xampp/htdocs/Integ 2' -Recurse -Force; Copy-Item -Path 'api/*' -Destination 'C:/xampp/htdocs/Integ 2/api' -Recurse -Force; Copy-Item -Path '.htaccess' -Destination 'C:/xampp/htdocs/Integ 2/.htaccess' -Force; Copy-Item -Path '.env' -Destination 'C:/xampp/htdocs/Integ 2/.env' -Force\"",
     "test": "node scripts/run-all-tests.mjs && php scripts/run-all-tests.php",
     "lint": "oxlint",
     "preview": "vite preview"

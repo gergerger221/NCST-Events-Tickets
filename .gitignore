@@ -15,6 +15,10 @@ dist-ssr
 .env*.local
 .server_db.json
 *.sql.gz
+*backup*.sql
+database_backup*.sql
+*.zip
+scripts/inspect_data.php
 
 
 # Editor directories and files

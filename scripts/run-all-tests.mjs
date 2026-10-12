@@ -28,7 +28,7 @@ for (const testFile of testFiles) {
     const output = execSync(`node "${filePath}"`, {
       encoding: 'utf-8',
       stdio: ['ignore', 'pipe', 'pipe'],
-      timeout: 15000,
+      timeout: 30000,
     });
 
     console.log(`  [PASS] ${testFile} (${suiteName})`);

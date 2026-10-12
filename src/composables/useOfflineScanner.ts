@@ -1,5 +1,6 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { QueuedScan } from '../types';
+import { apiUrl } from '../utils/apiUrl';
 
 const STORAGE_KEYS = {
   QUEUE: 'integ2_offline_scan_queue_v1',
@@ -115,7 +116,8 @@ export function useOfflineScanner() {
     const remainingItems: QueuedScan[] = [];
     const token = getAuthToken ? getAuthToken() : (localStorage.getItem('integ2_vue_session_token_v10') || '');
 
-    for (const scan of queuedScans.value) {
+    for (let i = 0; i < queuedScans.value.length; i++) {
+      const scan = queuedScans.value[i];
       try {
         scan.status = 'syncing';
         const headers: Record<string, string> = {
@@ -125,7 +127,7 @@ export function useOfflineScanner() {
           headers['Authorization'] = `Bearer ${token}`;
         }
 
-        const res = await fetch('/api/scan-ticket', {
+        const res = await fetch(apiUrl('/api/scan-ticket'), {
           method: 'POST',
           headers,
           body: JSON.stringify({
@@ -139,19 +141,62 @@ export function useOfflineScanner() {
 
         const data = await res.json().catch(() => null);
 
-        // Success or already marked as scanned in DB (duplicate is acceptable resolution)
-        if (res.ok || (data && (data.is_duplicate || data.already_scanned))) {
+        // 1. Success or Server-Resolved Duplicate (Duplicate is terminal resolved state)
+        const isDuplicate = res.status === 409 || (data && (data.is_duplicate || data.already_scanned || data.status === 'ALREADY_USED'));
+        if (res.ok || isDuplicate) {
           scan.status = 'synced';
+          scan.error = undefined;
           syncedCount++;
           if (onSuccessItem) onSuccessItem(scan);
-        } else {
-          scan.status = 'failed';
-          scan.error = data?.error || 'Server error';
-          remainingItems.push(scan);
-          failedCount++;
+          continue;
         }
+
+        // 2. Expired Authentication Session (401 / 403) - Preserve pending scans!
+        if (res.status === 401 || res.status === 403) {
+          scan.status = 'pending';
+          scan.error = 'Session expired. Please re-authenticate to sync scans.';
+          syncError.value = 'Session expired. Scans preserved in queue. Please log in again to sync.';
+          // Keep current scan and all remaining un-processed scans in queue
+          remainingItems.push(scan);
+          for (let j = i + 1; j < queuedScans.value.length; j++) {
+            queuedScans.value[j].status = 'pending';
+            remainingItems.push(queuedScans.value[j]);
+          }
+          failedCount += (queuedScans.value.length - i);
+          break; // Stop syncing until user re-authenticates
+        }
+
+        // 3. Rate Limiting (429) - Preserve pending scans!
+        if (res.status === 429) {
+          scan.status = 'pending';
+          scan.error = data?.error || 'Rate limit reached. Retrying shortly.';
+          syncError.value = 'Rate limit reached. Scans preserved in queue. Retrying shortly.';
+          remainingItems.push(scan);
+          for (let j = i + 1; j < queuedScans.value.length; j++) {
+            queuedScans.value[j].status = 'pending';
+            remainingItems.push(queuedScans.value[j]);
+          }
+          failedCount += (queuedScans.value.length - i);
+          break; // Pause syncing to respect server rate limit
+        }
+
+        // 4. Permanent Validation Rejections (400, 404, 422 - Invalid credential, wrong event, void ticket)
+        if (res.status === 400 || res.status === 404 || res.status === 422) {
+          scan.status = 'failed';
+          scan.error = data?.error || 'Permanently rejected: Invalid ticket or event mismatch';
+          failedCount++;
+          // Do not re-enqueue permanently invalid ticket credentials
+          continue;
+        }
+
+        // 5. Transient Server Errors (5xx)
+        scan.status = 'pending';
+        scan.error = data?.error || 'Server error, retrying...';
+        remainingItems.push(scan);
+        failedCount++;
       } catch (err: any) {
-        scan.status = 'failed';
+        // Network fetch exception / connection drop - Keep in queue for automatic retry
+        scan.status = 'pending';
         scan.error = err?.message || 'Network request failed';
         remainingItems.push(scan);
         failedCount++;

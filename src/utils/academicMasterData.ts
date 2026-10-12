@@ -238,7 +238,7 @@ export const extractActualSystemSections = (
     // Section codes must not contain spaces
     if (/\s/.test(clean)) return false;
     // Must conform to NCST format: [Year 1-5][Sem 1-2][Sched M/A/E][Section 1-5]
-    return /^[1-5][1-2][A-Z][0-9]+$/.test(clean);
+    return /^[1-5][1-2][MAE][0-9]+$/.test(clean);
   };
 
   studentRecords?.forEach(r => {
@@ -284,14 +284,14 @@ export const isValidNCSTSection = (val?: string, availableList?: string[]): bool
   }
 
   // Format validation if available list is empty: [Year 1-5][Sem 1-2][Sched M/A/E][Section 1-5]
-  if (/^[1-5][1-2][A-Z][1-5]$/.test(clean)) return true;
+  if (/^[1-5][1-2][MAE][1-5]$/.test(clean)) return true;
   return false;
 };
 
 /**
  * Matches a student's academic identity with an authorized teacher class assignment.
  * Authoritative class identity check: Department + Course + Year Level + Section.
- * e.g. CSD + BSIT + 3rd Year + A2 must NOT match 2nd Year A2 or 3rd Year A1.
+ * e.g. CSD + BSIT + 3rd Year + 31M1 must NOT match 2nd Year 21M1 or 3rd Year 31A1.
  */
 export const matchTeacherClassAssignment = (
   assignment: { department?: string; course: string; yearLevel?: string; section: string },
@@ -309,7 +309,7 @@ export const matchTeacherClassAssignment = (
   const sSection = (student.section || '').toUpperCase().trim();
   if (aSection && sSection && aSection !== sSection) return false;
 
-  // 3. Year Level Match (Strict: 3rd Year A2 must not match 2nd Year A2)
+  // 3. Year Level Match (Strict: 3rd Year 31M1 must not match 2nd Year 21M1)
   if (assignment.yearLevel && student.yearLevel) {
     const aYear = assignment.yearLevel.toLowerCase().trim();
     const sYear = student.yearLevel.toLowerCase().trim();
