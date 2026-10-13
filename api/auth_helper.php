@@ -207,9 +207,49 @@ function ncst_base64url_decode(string $data): string|false {
     return base64_decode(strtr($data, '-_', '+/'));
 }
 
+function ncst_get_app_secret(): string {
+    $secret = trim(ncst_env('APP_SECRET', '') ?: ncst_env('APP_KEY', ''));
+    $env = strtolower(trim(ncst_env('APP_ENV', 'development')));
+    $insecureDefaults = [
+        'ncst_sec_jwt_hmac_secret_2026_default',
+        'your_secure_random_64_character_hmac_secret_key_here',
+        '<64_character_generated_hex_key>',
+        'secret',
+        'changeme',
+        'password'
+    ];
+
+    if ($env === 'production') {
+        if (empty($secret) || in_array(strtolower($secret), $insecureDefaults) || strlen($secret) < 32) {
+            http_response_code(500);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode([
+                'success' => false,
+                'error' => '500 Internal Server Error: Production configuration violation. A secure, random APP_SECRET of at least 32 characters must be configured in .env.'
+            ]);
+            exit;
+        }
+    }
+
+    return !empty($secret) ? $secret : 'ncst_sec_jwt_hmac_secret_2026_default';
+}
+
+function ncst_mask_email(?string $email): string {
+    if (empty($email) || !str_contains($email, '@')) {
+        return '***@student.ncst.edu.ph';
+    }
+    [$user, $domain] = explode('@', $email, 2);
+    if (strlen($user) <= 2) {
+        $maskedUser = substr($user, 0, 1) . '***';
+    } else {
+        $maskedUser = substr($user, 0, 1) . '***' . substr($user, -1);
+    }
+    return $maskedUser . '@' . $domain;
+}
+
 // 4. Cryptographically Signed Session Tokens (HMAC-SHA256)
 function ncst_generate_token(array $user): string {
-    $secret = ncst_env('APP_SECRET', 'ncst_sec_jwt_hmac_secret_2026_default');
+    $secret = ncst_get_app_secret();
     $payload = [
         'uid'  => $user['id'],
         'role' => $user['role'],
@@ -226,7 +266,7 @@ function ncst_generate_token(array $user): string {
 }
 
 function ncst_verify_token(string $token): ?array {
-    $secret = ncst_env('APP_SECRET', 'ncst_sec_jwt_hmac_secret_2026_default');
+    $secret = ncst_get_app_secret();
 
     // 1. Check Cryptographically Signed Token: ncst_<role>_<data64>.<sig64>
     if (preg_match('/^ncst_[a-z_]+_([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)$/', $token, $m)) {
@@ -257,8 +297,9 @@ function ncst_verify_token(string $token): ?array {
         ];
     }
 
-    // 2. Compatibility check for legacy dev tokens during migration
-    if (ncst_env('APP_ENV', 'development') === 'development') {
+    // 2. Compatibility check for legacy dev tokens (STRICTLY PROHIBITED IN PRODUCTION)
+    $env = strtolower(trim(ncst_env('APP_ENV', 'development')));
+    if ($env !== 'production') {
         if (preg_match('/^sess_[a-z_]+_(usr-[a-z0-9-]+)$/', $token, $m)) {
             return ['userId' => $m[1], 'role' => 'dev', 'exp' => time() + 86400];
         }

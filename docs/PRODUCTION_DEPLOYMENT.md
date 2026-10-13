@@ -55,7 +55,7 @@ npm run build
    ```bash
    cp .env.example .env
    ```
-2. Generate a cryptographically secure 64-character hex key for `APP_KEY`:
+2. Generate a cryptographically secure 64-character hex key for `APP_SECRET`:
    ```bash
    php -r "echo bin2hex(random_bytes(32)) . PHP_EOL;"
    ```
@@ -64,6 +64,7 @@ npm run build
    # Application Environment
    APP_ENV=production
    APP_DEBUG=false
+   APP_SECRET=<64_CHARACTER_GENERATED_HEX_KEY>
    APP_KEY=<64_CHARACTER_GENERATED_HEX_KEY>
 
    # Database Configuration

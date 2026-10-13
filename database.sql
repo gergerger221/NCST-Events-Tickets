@@ -137,6 +137,22 @@ CREATE TABLE IF NOT EXISTS `system_audit_logs` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
+-- 3d. Table structure for table `password_resets`
+-- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `password_resets` (
+  `id` VARCHAR(64) NOT NULL,
+  `user_id` VARCHAR(64) NOT NULL,
+  `student_id` VARCHAR(50) NOT NULL,
+  `email` VARCHAR(150) NOT NULL,
+  `reset_code` VARCHAR(64) NOT NULL,
+  `expires_at` DATETIME NOT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX `idx_pwd_reset_student` (`student_id`),
+  INDEX `idx_pwd_reset_code` (`reset_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
 -- 4. Table structure for table `tickets`
 -- --------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `tickets` (

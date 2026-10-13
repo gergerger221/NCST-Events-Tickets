@@ -669,10 +669,10 @@
           </div>
           <div>
             <h3 class="text-lg font-extrabold text-slate-900 dark:text-white">
-              Student Password Reset
+              Reset Your Password
             </h3>
             <p class="text-xs text-slate-500 dark:text-[#b3b3b3]">
-              Verify your student identity to reset your password
+              Verify your student identity to recover your account
             </p>
           </div>
         </div>
@@ -686,6 +686,15 @@
           <span>{{ fpError }}</span>
         </div>
 
+        <!-- Info / Success in Modal -->
+        <div
+          v-if="fpInfoMessage"
+          class="mb-4 p-3 bg-blue-50 dark:bg-blue-950/70 border border-blue-200 dark:border-blue-500/40 rounded-xl text-blue-700 dark:text-blue-300 text-xs flex items-center gap-2"
+        >
+          <CheckCircle2 class="w-4 h-4 flex-shrink-0" />
+          <span>{{ fpInfoMessage }}</span>
+        </div>
+
         <!-- Employee Notice / Block Warning -->
         <div class="mb-4 p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/40 rounded-xl text-[11px] text-amber-800 dark:text-amber-300">
           <p class="font-bold flex items-center gap-1.5">
@@ -697,7 +706,8 @@
           </p>
         </div>
 
-        <form @submit.prevent="handleFpReset" class="space-y-3.5">
+        <!-- Password Reset Form -->
+        <form @submit.prevent="handleUnifiedResetSubmit" class="space-y-3.5">
           <div>
             <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
               Student ID Number *
@@ -709,6 +719,45 @@
               placeholder="e.g. 2026-00125"
               class="w-full px-3.5 py-2 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-xl text-xs font-mono text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:border-blue-500 transition"
             />
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+              Institutional Email Address *
+            </label>
+            <input
+              v-model="fpEmail"
+              type="email"
+              required
+              placeholder="e.g. juan.delacruz@student.ncst.edu.ph"
+              class="w-full px-3.5 py-2 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-xl text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:border-blue-500 transition"
+            />
+          </div>
+
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <label class="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                6-Digit Verification Code *
+              </label>
+              <button
+                type="button"
+                @click="handleRequestCode"
+                :disabled="fpLoading || !fpStudentId.trim() || !fpEmail.trim()"
+                class="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer disabled:opacity-40 disabled:no-underline"
+              >
+                {{ codeSent ? 'Resend Code' : 'Send Code to Email' }}
+              </button>
+            </div>
+            <input
+              v-model="fpVerificationCode"
+              type="text"
+              maxlength="6"
+              placeholder="Enter 6-digit code (or click Send Code)"
+              class="w-full px-3.5 py-2 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-xl text-center text-sm font-mono tracking-widest font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 transition"
+            />
+            <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+              A one-time verification code is sent to your registered email to prove account ownership.
+            </p>
           </div>
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
@@ -839,16 +888,17 @@
 
           <div>
             <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-              Contact Number (Optional Verification)
+              Contact Number (Required Verification) *
             </label>
             <input
               v-model="guestContactNumber"
               type="text"
+              required
               placeholder="e.g. 09171234567"
               class="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-xl text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:border-blue-500 transition"
             />
             <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-              Optional: Provided during ticket purchase for extra security.
+              Required: Must match the mobile number registered during ticket purchase for ownership verification.
             </p>
           </div>
 
@@ -977,8 +1027,10 @@ import {
   Search,
   Ticket,
   QrCode,
+  Mail,
 } from 'lucide-vue-next';
 import { useAppStore } from '../../composables/useAppStore';
+import { apiUrl } from '../../utils/apiUrl';
 import ThemeToggle from '../common/ThemeToggle.vue';
 import { UserRole, StudentRecord } from '../../types';
 import {
@@ -1261,62 +1313,151 @@ onUnmounted(() => {
   if (lookupDebounceTimer) clearTimeout(lookupDebounceTimer);
 });
 
-// Verified Forgot Password State
+// Verified Forgot Password State (With Email Verification Proof)
 const isForgotPasswordOpen = ref(false);
+const codeSent = ref(false);
 const fpStudentId = ref('');
 const fpEmail = ref('');
+const fpVerificationCode = ref('');
 const fpNewPassword = ref('');
 const fpConfirmPassword = ref('');
 const showFpNewPassword = ref(false);
 const showFpConfirmPassword = ref(false);
 const fpError = ref('');
+const fpInfoMessage = ref('');
 const fpLoading = ref(false);
 
 const openForgotPassword = () => {
   isForgotPasswordOpen.value = true;
+  codeSent.value = false;
   fpStudentId.value = '';
   fpEmail.value = loginIdentifier.value.includes('@') ? loginIdentifier.value : '';
+  fpVerificationCode.value = '';
   fpNewPassword.value = '';
   fpConfirmPassword.value = '';
   showFpNewPassword.value = false;
   showFpConfirmPassword.value = false;
   fpError.value = '';
+  fpInfoMessage.value = '';
 };
 
 const closeForgotPassword = () => {
   isForgotPasswordOpen.value = false;
 };
 
-const handleFpReset = () => {
+const handleRequestCode = async () => {
+  fpError.value = '';
+  fpInfoMessage.value = '';
+
+  if (!fpStudentId.value.trim()) {
+    fpError.value = 'Student ID Number is required.';
+    return;
+  }
+  if (!fpEmail.value.trim() || !fpEmail.value.includes('@')) {
+    fpError.value = 'Valid Institutional Email Address is required.';
+    return;
+  }
+
+  fpLoading.value = true;
+  try {
+    const res = await fetch(apiUrl('/api/auth/reset-password'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'request_code',
+        studentId: fpStudentId.value.trim(),
+        email: fpEmail.value.trim(),
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    fpLoading.value = false;
+
+    if (res.ok && data.success) {
+      codeSent.value = true;
+      fpInfoMessage.value = data.message || 'Verification code sent to your email!';
+      if (data.dev_verification_code) {
+        fpVerificationCode.value = data.dev_verification_code;
+      }
+    } else {
+      fpError.value = data.error || 'Failed to request verification code. Please check your Student ID and Email.';
+    }
+  } catch {
+    fpLoading.value = false;
+    fpError.value = 'Network error: Unable to contact server for verification code.';
+  }
+};
+
+const handleVerifyAndReset = async () => {
   fpError.value = '';
 
+  if (!fpVerificationCode.value.trim()) {
+    fpError.value = 'Please enter the 6-digit verification code.';
+    return;
+  }
   if (fpNewPassword.value !== fpConfirmPassword.value) {
     fpError.value = 'Passwords do not match. Please re-enter.';
     return;
   }
-
   if (fpNewPassword.value.length < 4) {
     fpError.value = 'Password must be at least 4 characters long.';
     return;
   }
 
   fpLoading.value = true;
-
-  setTimeout(() => {
+  try {
+    const res = await fetch(apiUrl('/api/auth/reset-password'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        studentId: fpStudentId.value.trim(),
+        email: fpEmail.value.trim(),
+        verificationCode: fpVerificationCode.value.trim(),
+        newPassword: fpNewPassword.value,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
     fpLoading.value = false;
-    const result = resetPassword(fpStudentId.value.trim(), fpNewPassword.value);
-    if (!result.success) {
-      fpError.value = result.message;
-      return;
-    }
 
-    closeForgotPassword();
-    activeTab.value = 'login';
-    loginIdentifier.value = fpStudentId.value.trim();
-    loginPassword.value = fpNewPassword.value;
-    successMessage.value = result.message;
-    errorMessage.value = '';
-  }, 350);
+    if (res.ok && data.success) {
+      // Synchronize in local store
+      resetPassword(fpStudentId.value.trim(), fpNewPassword.value);
+      closeForgotPassword();
+      activeTab.value = 'login';
+      loginIdentifier.value = fpStudentId.value.trim();
+      loginPassword.value = fpNewPassword.value;
+      successMessage.value = data.message || 'Password successfully reset!';
+      errorMessage.value = '';
+    } else {
+      fpError.value = data.error || 'Invalid or expired verification code. Please request a new code.';
+    }
+  } catch {
+    fpLoading.value = false;
+    fpError.value = 'Network error: Unable to complete password reset.';
+  }
+};
+
+const handleUnifiedResetSubmit = async () => {
+  fpError.value = '';
+  fpInfoMessage.value = '';
+
+  if (!fpStudentId.value.trim()) {
+    fpError.value = 'Student ID Number is required.';
+    return;
+  }
+  if (!fpEmail.value.trim() || !fpEmail.value.includes('@')) {
+    fpError.value = 'Valid Institutional Email Address is required.';
+    return;
+  }
+
+  if (!fpVerificationCode.value.trim()) {
+    await handleRequestCode();
+    if (!fpError.value) {
+      fpInfoMessage.value = 'Verification code sent to your email! Please enter the code and click Verify & Reset to finish.';
+    }
+    return;
+  }
+
+  await handleVerifyAndReset();
 };
 
 // Outsider / Guest Ticket Retrieval State
@@ -1346,6 +1487,11 @@ const handleGuestLookup = async () => {
   guestLookupError.value = '';
   if (!guestControlNumber.value.trim()) {
     guestLookupError.value = 'Please enter your ticket Control Number.';
+    return;
+  }
+
+  if (!guestContactNumber.value.trim()) {
+    guestLookupError.value = 'Please enter your registered Contact Number for ownership verification.';
     return;
   }
 

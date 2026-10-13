@@ -7,8 +7,12 @@
     "dev": "vite",
     "dev:https": "vite --https",
     "build": "tsc -b && vite build",
-    "deploy:xampp": "npm run build && powershell -Command \"if (Test-Path 'C:/xampp/htdocs/Integ 2/dist') { Remove-Item -Path 'C:/xampp/htdocs/Integ 2/dist' -Recurse -Force }; Copy-Item -Path 'dist/*' -Destination 'C:/xampp/htdocs/Integ 2' -Recurse -Force; Copy-Item -Path 'api/*' -Destination 'C:/xampp/htdocs/Integ 2/api' -Recurse -Force; Copy-Item -Path '.htaccess' -Destination 'C:/xampp/htdocs/Integ 2/.htaccess' -Force; Copy-Item -Path '.env' -Destination 'C:/xampp/htdocs/Integ 2/.env' -Force\"",
+    "deploy:xampp": "npm run build && powershell -Command \"Copy-Item -Path 'dist/*' -Destination 'C:/xampp/htdocs/Integ 2' -Recurse -Force; Copy-Item -Path 'api/*' -Destination 'C:/xampp/htdocs/Integ 2/api' -Recurse -Force; Copy-Item -Path '.htaccess' -Destination 'C:/xampp/htdocs/Integ 2/.htaccess' -Force; Write-Host 'XAMPP deployment build assets successfully deployed.'\"",
     "test": "node scripts/run-all-tests.mjs && php scripts/run-all-tests.php",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:report": "playwright show-report",
     "lint": "oxlint",
     "preview": "vite preview"
   },
@@ -25,6 +29,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.0",
     "@tailwindcss/vite": "^4.3.3",
     "@types/canvas-confetti": "^1.9.0",
     "@types/node": "^24.13.3",

@@ -310,14 +310,18 @@ export function stateSyncPlugin(): Plugin {
                 return res.end(JSON.stringify({ success: false, error: 'No guest ticket found matching this Control Number. Please check your ticket receipt.' }));
               }
 
-              if (contactNumber) {
-                const cleanContact = contactNumber.replace(/[^0-9]/g, '');
-                const storedContact = (ticket.contactNumber || '').replace(/[^0-9]/g, '');
-                if (cleanContact && storedContact && !storedContact.includes(cleanContact) && !cleanContact.includes(storedContact)) {
-                  res.statusCode = 403;
-                  res.setHeader('Content-Type', 'application/json');
-                  return res.end(JSON.stringify({ success: false, error: 'Verification failed: Contact number does not match this ticket record.' }));
-                }
+              if (!contactNumber) {
+                res.statusCode = 422;
+                res.setHeader('Content-Type', 'application/json');
+                return res.end(JSON.stringify({ success: false, error: 'Contact number verification is required to retrieve guest ticket.' }));
+              }
+
+              const cleanContact = contactNumber.replace(/[^0-9]/g, '');
+              const storedContact = (ticket.contactNumber || '').replace(/[^0-9]/g, '');
+              if (!cleanContact || !storedContact || (cleanContact !== storedContact && !storedContact.endsWith(cleanContact) && !cleanContact.endsWith(storedContact))) {
+                res.statusCode = 403;
+                res.setHeader('Content-Type', 'application/json');
+                return res.end(JSON.stringify({ success: false, error: 'Verification failed: Contact number does not match this ticket record.' }));
               }
 
               const event = allEvents.find((e: any) => e.id === ticket.eventId);
@@ -457,6 +461,30 @@ export function stateSyncPlugin(): Plugin {
                 }));
               }
 
+              // Step 1: Request verification code (action === 'request_code' or when no verification code is supplied)
+              if (payload.action === 'request_code' || !payload.verificationCode) {
+                const code = String(Math.floor(100000 + Math.random() * 900000));
+                targetStudent.resetCode = code;
+                targetStudent.resetCodeExpires = Date.now() + 15 * 60 * 1000;
+                inMemoryState = JSON.stringify(parsedState);
+
+                res.statusCode = 200;
+                res.setHeader('Content-Type', 'application/json');
+                return res.end(JSON.stringify({
+                  success: true,
+                  step: 'code_sent',
+                  message: `A 6-digit verification code has been dispatched to ${cleanEmail}. Please enter it along with your new password.`,
+                  dev_verification_code: code
+                }));
+              }
+
+              // Step 2: Confirm verification code and reset password
+              if (!targetStudent.resetCode || targetStudent.resetCode !== String(payload.verificationCode).trim() || Date.now() > (targetStudent.resetCodeExpires || 0)) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json');
+                return res.end(JSON.stringify({ success: false, error: 'Invalid or expired verification code. Please request a new code.' }));
+              }
+
               if (!newPassword || newPassword.length < 4) {
                 res.statusCode = 422;
                 res.setHeader('Content-Type', 'application/json');
@@ -464,6 +492,8 @@ export function stateSyncPlugin(): Plugin {
               }
 
               targetStudent.password = newPassword.trim();
+              delete targetStudent.resetCode;
+              delete targetStudent.resetCodeExpires;
               inMemoryState = JSON.stringify(parsedState);
 
               res.statusCode = 200;
@@ -584,6 +614,7 @@ export function stateSyncPlugin(): Plugin {
               }
 
               const studentEmail = matchedRecord.email || `${rawStudentId.toLowerCase()}@student.ncst.edu.ph`;
+              const maskedEmail = studentEmail.replace(/^([^@]{1})[^@]*([^@]{1})@/, '$1***$2@');
 
               res.statusCode = 200;
               res.setHeader('Content-Type', 'application/json');
@@ -599,7 +630,7 @@ export function stateSyncPlugin(): Plugin {
                   course: matchedRecord.course,
                   yearLevel: matchedRecord.yearLevel,
                   section: matchedRecord.section,
-                  email: studentEmail,
+                  email: maskedEmail,
                 },
                 message: 'Student Record Found',
               }));

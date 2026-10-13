@@ -702,7 +702,13 @@ watch(academicPeriods, val => {
 
 watch(users, val => {
   localWriteTimestamp = Date.now();
-  localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(val));
+  const sanitized = val.map(u => {
+    const c = { ...u };
+    delete (c as any).password;
+    delete (c as any).temporaryPassword;
+    return c;
+  });
+  localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(sanitized));
   validateAndSyncSession();
   schedulePushStateToServer();
 }, { deep: true });
@@ -2122,18 +2128,21 @@ export function useAppStore() {
         if (data && data.success && data.user) {
           const serverUser: User = {
             ...data.user,
-            password: cleanPass,
           };
+          delete (serverUser as any).password;
+          delete (serverUser as any).temporaryPassword;
           const token = data.token || data.sessionToken || `sess_${serverUser.role}_${serverUser.id}`;
 
-          // Synchronize into local reactive users collection
+          // Synchronize into local reactive users collection without password
           const existingIdx = users.value.findIndex(u =>
             u.id === serverUser.id ||
             (u.studentId && normalizeId(u.studentId).toLowerCase() === normalizeId(serverUser.studentId || '').toLowerCase()) ||
             (u.employeeId && normalizeId(u.employeeId).toLowerCase() === normalizeId(serverUser.employeeId || '').toLowerCase())
           );
           if (existingIdx !== -1) {
-            users.value[existingIdx] = { ...users.value[existingIdx], ...serverUser };
+            const merged = { ...users.value[existingIdx], ...serverUser };
+            delete (merged as any).password;
+            users.value[existingIdx] = merged;
           } else {
             users.value = [serverUser, ...users.value];
           }
@@ -2142,7 +2151,13 @@ export function useAppStore() {
           sessionToken.value = token;
           localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(serverUser));
           localStorage.setItem(STORAGE_KEYS.SESSION_TOKEN, token);
-          localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users.value));
+          const sanitizedAll = users.value.map(u => {
+            const c = { ...u };
+            delete (c as any).password;
+            delete (c as any).temporaryPassword;
+            return c;
+          });
+          localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(sanitizedAll));
 
           // Fetch full authenticated state from server
           await fetchStateFromServer();
@@ -2191,15 +2206,18 @@ export function useAppStore() {
       return { success: false, message: 'Invalid password. Please verify your credentials.' };
     }
 
-    currentUser.value = foundUser;
-    const token = `sess_${foundUser.role}_${foundUser.id}`;
+    const safeFoundUser: User = { ...foundUser };
+    delete (safeFoundUser as any).password;
+    delete (safeFoundUser as any).temporaryPassword;
+    currentUser.value = safeFoundUser;
+    const token = `sess_${safeFoundUser.role}_${safeFoundUser.id}`;
     sessionToken.value = token;
-    localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(foundUser));
+    localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(safeFoundUser));
     localStorage.setItem(STORAGE_KEYS.SESSION_TOKEN, token);
     validateAndSyncSession();
     fetchStateFromServer();
     sounds.playSuccess();
-    return { success: true, message: `Welcome back, ${foundUser.name}!`, user: foundUser };
+    return { success: true, message: `Welcome back, ${safeFoundUser.name}!`, user: safeFoundUser };
   };
 
   /**
@@ -2873,12 +2891,14 @@ export function useAppStore() {
       return { success: false, error: 'No guest ticket found matching this Control Number. Please check your ticket receipt.' };
     }
 
-    if (contactNumber) {
-      const cleanContact = contactNumber.replace(/[^0-9]/g, '');
-      const storedContact = (t.contactNumber || '').replace(/[^0-9]/g, '');
-      if (cleanContact && storedContact && !storedContact.includes(cleanContact) && !cleanContact.includes(storedContact)) {
-        return { success: false, error: 'Verification failed: Contact number does not match this ticket record.' };
-      }
+    if (!contactNumber) {
+      return { success: false, error: 'Contact number verification is required to retrieve guest ticket.' };
+    }
+
+    const cleanContact = contactNumber.replace(/[^0-9]/g, '');
+    const storedContact = (t.contactNumber || '').replace(/[^0-9]/g, '');
+    if (!cleanContact || !storedContact || (cleanContact !== storedContact && !storedContact.endsWith(cleanContact) && !cleanContact.endsWith(storedContact))) {
+      return { success: false, error: 'Verification failed: Contact number does not match this ticket record.' };
     }
 
     const ev = events.value.find(e => e.id === t.eventId);

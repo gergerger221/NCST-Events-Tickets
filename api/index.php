@@ -169,12 +169,30 @@ if (($path === '/api/auth/login' || str_ends_with($path, 'login.php')) && $metho
 // ROUTE 1b: POST /api/tickets/guest-lookup (Outsider Find My Ticket)
 // -------------------------------------------------------------
 if (($path === '/api/tickets/guest-lookup' || $path === '/api/guest/lookup-ticket' || str_ends_with($path, 'guest-lookup')) && $method === 'POST') {
+    // 1. Rate limiting on guest ticket lookup
+    $rl = ncst_check_rate_limit('guest_lookup', 10, 60);
+    if (!$rl['allowed']) {
+        http_response_code(429);
+        echo json_encode([
+            'success' => false,
+            'error' => "Too many ticket lookup attempts. Please wait {$rl['retry_after']} seconds before trying again."
+        ]);
+        exit;
+    }
+
     $controlNumber = trim($body['controlNumber'] ?? $body['control_number'] ?? $body['ticketNumber'] ?? '');
     $contactNumber = trim($body['contactNumber'] ?? $body['contact_number'] ?? '');
 
     if (empty($controlNumber)) {
         http_response_code(400);
         echo json_encode(['success' => false, 'error' => 'Control Number is required to find your guest ticket.']);
+        exit;
+    }
+
+    // MANDATORY PROOF OF OWNERSHIP: Full contact verification is strictly required
+    if (empty($contactNumber)) {
+        http_response_code(422);
+        echo json_encode(['success' => false, 'error' => 'Contact number verification is required to retrieve guest ticket.']);
         exit;
     }
 
@@ -203,15 +221,15 @@ if (($path === '/api/tickets/guest-lookup' || $path === '/api/guest/lookup-ticke
         exit;
     }
 
-    // Secondary verification if contactNumber is provided
-    if (!empty($contactNumber)) {
-        $cleanContact = preg_replace('/[^0-9]/', '', $contactNumber);
-        $storedContact = preg_replace('/[^0-9]/', '', $ticket['contact_number'] ?? '');
-        if ($cleanContact && $storedContact && !str_contains($storedContact, $cleanContact) && !str_contains($cleanContact, $storedContact)) {
-            http_response_code(403);
-            echo json_encode(['success' => false, 'error' => 'Verification failed: Contact number does not match this ticket record.']);
-            exit;
-        }
+    // Exact contact number verification
+    $cleanContact = preg_replace('/[^0-9]/', '', $contactNumber);
+    $storedContact = preg_replace('/[^0-9]/', '', $ticket['contact_number'] ?? '');
+    if (empty($cleanContact) || empty($storedContact) ||
+        ($cleanContact !== $storedContact &&
+         substr($storedContact, -10) !== substr($cleanContact, -10))) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'Verification failed: Contact number does not match this ticket record.']);
+        exit;
     }
 
     // Scoped guest response: Strictly for viewing/presenting the pass. Never grants portal session or administrative access.
@@ -468,18 +486,25 @@ if (($path === '/api/auth/verify-session' || str_ends_with($path, 'verify-sessio
 // ROUTE 3: POST /api/auth/reset-password
 // -------------------------------------------------------------
 if (($path === '/api/auth/reset-password' || str_ends_with($path, 'reset-password')) && $method === 'POST') {
-    $studentId = trim($body['studentId'] ?? '');
+    $action = trim($body['action'] ?? '');
+    $studentId = trim($body['studentId'] ?? ($body['student_id'] ?? ''));
     $email = trim($body['email'] ?? '');
-    $newPassword = trim($body['newPassword'] ?? '');
-    $adminUserId = trim($body['adminUserId'] ?? '');
+    $newPassword = trim($body['newPassword'] ?? ($body['password'] ?? ''));
+    $verificationCode = trim($body['verificationCode'] ?? ($body['resetCode'] ?? ($body['code'] ?? '')));
     $targetUserId = trim($body['targetUserId'] ?? '');
 
-    // Admin reset
+    // Admin-assisted password reset
     if (!empty($targetUserId)) {
         $authUser = getAuthUser($pdo);
         if (!$authUser || $authUser['role'] !== 'admin') {
             http_response_code(403);
             echo json_encode(['success' => false, 'error' => 'Only Administrators can perform Admin-assisted password reset.']);
+            exit;
+        }
+
+        if (strlen($newPassword) < 4) {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'error' => 'New password must be at least 4 characters long.']);
             exit;
         }
 
@@ -498,6 +523,18 @@ if (($path === '/api/auth/reset-password' || str_ends_with($path, 'reset-passwor
     }
 
     $cleanStudentId = preg_replace('/\s+/', '', strtolower($studentId));
+
+    // Rate Limiting on password reset operations
+    $rl = ncst_check_rate_limit('pwd_reset_' . $cleanStudentId, 5, 300); // 5 attempts per 5 minutes
+    if (!$rl['allowed']) {
+        http_response_code(429);
+        echo json_encode([
+            'success' => false,
+            'error' => "Too many password reset attempts. Please try again after {$rl['retry_after']} seconds."
+        ]);
+        exit;
+    }
+
     $stmt = $pdo->prepare("SELECT * FROM `users` WHERE `role` = 'student' AND LOWER(REPLACE(`student_id`, ' ', '')) = ? AND LOWER(`email`) = LOWER(?) LIMIT 1");
     $stmt->execute([$cleanStudentId, $email]);
     $targetStudent = $stmt->fetch();
@@ -508,9 +545,75 @@ if (($path === '/api/auth/reset-password' || str_ends_with($path, 'reset-passwor
         exit;
     }
 
+    // Ensure password_resets table exists
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS `password_resets` (
+            `id` VARCHAR(64) NOT NULL,
+            `user_id` VARCHAR(64) NOT NULL,
+            `student_id` VARCHAR(50) NOT NULL,
+            `email` VARCHAR(150) NOT NULL,
+            `reset_code` VARCHAR(64) NOT NULL,
+            `expires_at` DATETIME NOT NULL,
+            `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (`id`),
+            INDEX `idx_pwd_reset_student` (`student_id`),
+            INDEX `idx_pwd_reset_code` (`reset_code`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ");
+
+    // STEP 1: Request verification code (action === 'request_code' or when no verification code is supplied)
+    if ($action === 'request_code' || empty($verificationCode)) {
+        $code = str_pad((string)random_int(100000, 999999), 6, '0', STR_PAD_LEFT);
+        $resetId = 'pr-' . bin2hex(random_bytes(16));
+        $expiresAt = date('Y-m-d H:i:s', time() + 900); // 15 minutes expiration
+
+        // Invalidate prior codes for this student
+        $pdo->prepare("DELETE FROM `password_resets` WHERE `student_id` = ?")->execute([$cleanStudentId]);
+
+        // Insert new reset code
+        $insReset = $pdo->prepare("INSERT INTO `password_resets` (id, user_id, student_id, email, reset_code, expires_at) VALUES (?, ?, ?, ?, ?, ?)");
+        $insReset->execute([$resetId, $targetStudent['id'], $cleanStudentId, $email, $code, $expiresAt]);
+
+        $masked = ncst_mask_email($email);
+        $response = [
+            'success' => true,
+            'step' => 'code_sent',
+            'message' => "A 6-digit verification code has been dispatched to {$masked}. Please enter it along with your new password.",
+        ];
+
+        // In development / testing environments, provide the verification code for test automation
+        if (strtolower(trim(ncst_env('APP_ENV', 'development'))) !== 'production') {
+            $response['dev_verification_code'] = $code;
+        }
+
+        echo json_encode($response);
+        exit;
+    }
+
+    // STEP 2: Verify code and update password
+    if (empty($newPassword) || strlen($newPassword) < 4) {
+        http_response_code(422);
+        echo json_encode(['success' => false, 'error' => 'New password must be at least 4 characters long.']);
+        exit;
+    }
+
+    $chkCode = $pdo->prepare("SELECT * FROM `password_resets` WHERE `student_id` = ? AND `reset_code` = ? AND `expires_at` > NOW() ORDER BY `created_at` DESC LIMIT 1");
+    $chkCode->execute([$cleanStudentId, $verificationCode]);
+    $resetRecord = $chkCode->fetch();
+
+    if (!$resetRecord) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Invalid or expired verification code. Please request a new code.']);
+        exit;
+    }
+
+    // Code verified! Update password and remove consumed reset record
     $hashed = ncst_hash_password($newPassword);
     $updateStmt = $pdo->prepare("UPDATE `users` SET `password` = ?, `must_change_password` = 0 WHERE `id` = ?");
     $updateStmt->execute([$hashed, $targetStudent['id']]);
+
+    $pdo->prepare("DELETE FROM `password_resets` WHERE `student_id` = ?")->execute([$cleanStudentId]);
+    ncst_reset_rate_limit('pwd_reset_' . $cleanStudentId);
 
     echo json_encode(['success' => true, 'message' => "Password for {$targetStudent['name']} was successfully reset. You can now sign in."]);
     exit;
@@ -635,7 +738,7 @@ if (($path === '/api/lookup-student' || str_ends_with($path, 'lookup-student')) 
             'course' => $record['course'],
             'yearLevel' => $record['year_level'],
             'section' => $record['section'],
-            'email' => $record['email'] ?? "{$cleanId}@student.ncst.edu.ph"
+            'email' => ncst_mask_email($record['email'] ?? "{$cleanId}@student.ncst.edu.ph")
         ]
     ]);
     exit;
@@ -649,12 +752,29 @@ if (($path === '/api/register' || $path === '/api/validate-user') && $method ===
     $email = strtolower(trim($body['email'] ?? ''));
     $rawStudentId = trim($body['studentId'] ?? $body['student_id'] ?? '');
     $cleanStudentId = preg_replace('/\s+/', '', strtolower($rawStudentId));
-    $role = strtolower(trim($body['role'] ?? 'student'));
+    $requestedRole = strtolower(trim($body['role'] ?? 'student'));
     $password = trim($body['password'] ?? 'password123');
     $course = trim($body['course'] ?? 'BSIT');
     $yearLevel = trim($body['yearLevel'] ?? $body['year_level'] ?? '1st Year');
     $section = trim($body['section'] ?? '11M1');
     $department = trim($body['department'] ?? 'Computer Studies Department');
+
+    // SECURITY ENFORCEMENT: Public registration is strictly locked to student accounts.
+    // Staff, cashier, teacher, and administrator accounts require an authenticated administrator session.
+    if ($requestedRole !== 'student') {
+        $authUser = getAuthUser($pdo);
+        if (!$authUser || $authUser['role'] !== 'admin') {
+            http_response_code(403);
+            echo json_encode([
+                'success' => false,
+                'error' => '403 Forbidden: Public registration is restricted to students. Staff and administrative accounts require an authenticated administrator.'
+            ]);
+            exit;
+        }
+        $role = $requestedRole;
+    } else {
+        $role = 'student';
+    }
 
     if (empty($email) && $role === 'student' && !empty($cleanStudentId)) {
         $email = $cleanStudentId . '@student.ncst.edu.ph';
@@ -1656,10 +1776,37 @@ if (($path === '/api/purchase-ticket' || $path === '/api/tickets/purchase' || st
         $ev = $evStmt->fetch();
 
         if (!$ev) {
+            $pdo->rollBack();
             http_response_code(404);
             echo json_encode(['success' => false, 'error' => 'Selected event does not exist in the authoritative database.']);
             exit;
         }
+
+        // Server-side authoritative ticket price derivation & tampering rejection
+        $eventTicketPrice = (float)($ev['ticket_price'] ?? 0.00);
+        if ($eventTicketPrice < 0) {
+            $pdo->rollBack();
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Invalid event configuration: ticket price cannot be negative.']);
+            exit;
+        }
+
+        // Reject client-supplied tampered or invalid amounts
+        if (isset($body['price'])) {
+            $submittedPrice = (float)$body['price'];
+            if (abs($submittedPrice - $eventTicketPrice) > 0.009) {
+                $pdo->rollBack();
+                http_response_code(400);
+                echo json_encode([
+                    'success' => false,
+                    'error' => "Price mismatch: The authoritative price for \"{$ev['title']}\" is ₱" . number_format($eventTicketPrice, 2) . ". Submitted price (₱" . number_format($submittedPrice, 2) . ") was rejected."
+                ]);
+                exit;
+            }
+        }
+
+        // Price is strictly derived from the server-side event record
+        $price = $eventTicketPrice;
 
         $eventTitle = $ev['title'] ?? 'NCST Event';
         $eventAcadYear = $ev['academic_year'] ?? '2026-2027';
@@ -1670,16 +1817,22 @@ if (($path === '/api/purchase-ticket' || $path === '/api/tickets/purchase' || st
         $periodCheck->execute([$eventAcadYear, $eventSem]);
         $evPeriod = $periodCheck->fetch();
         if ($evPeriod && $evPeriod['status'] === 'archived') {
+            $pdo->rollBack();
             http_response_code(400);
             echo json_encode(['success' => false, 'error' => "Cannot sell tickets: The event belongs to an archived academic period ({$eventAcadYear} {$eventSem})."]);
             exit;
         }
 
-        // Count tickets to generate sequential ticket number
-        $cntStmt = $pdo->query("SELECT COUNT(*) FROM `tickets`");
-        $tixSeq = 10000 + (int)$cntStmt->fetchColumn() + 1;
-        $ticketNumber = ($isOutsider ? 'TIX-O-' : 'TIX-') . $tixSeq;
+        // Unguessable ticket number & secure QR token generation
+        if ($isOutsider) {
+            $ticketNumber = 'TIX-O-' . strtoupper(bin2hex(random_bytes(4)));
+        } else {
+            $cntStmt = $pdo->query("SELECT COUNT(*) FROM `tickets`");
+            $tixSeq = 10000 + (int)$cntStmt->fetchColumn() + 1;
+            $ticketNumber = 'TIX-' . $tixSeq;
+        }
         $ticketId = $ticketNumber;
+        $qrToken = 'QR-' . bin2hex(random_bytes(16));
 
         // Insert ticket with authoritative academic year and semester
         $tStmt = $pdo->prepare("
@@ -1689,7 +1842,7 @@ if (($path === '/api/purchase-ticket' || $path === '/api/tickets/purchase' || st
         $tStmt->execute([
             $ticketId,
             $ticketNumber,
-            $ticketNumber,
+            $qrToken,
             $eventId,
             $eventTitle,
             $attendeeType,
@@ -1799,10 +1952,25 @@ if (($path === '/api/scan-ticket' || $path === '/api/scan_ticket') && $method ==
     } elseif (!empty($authUser['assignedEventIds'])) {
         $assignedEvents = $authUser['assignedEventIds'];
     }
-    if (!empty($assignedEvents) && is_array($assignedEvents) && $authUser['role'] !== 'admin') {
-        if (!empty($eventId) && !in_array($eventId, $assignedEvents)) {
+
+    if ($authUser['role'] === 'event_staff') {
+        if (empty($assignedEvents) || !is_array($assignedEvents)) {
             http_response_code(403);
-            echo json_encode(['success' => false, 'error' => '403 Forbidden: Staff member is not authorized to scan for this event.']);
+            echo json_encode(['success' => false, 'error' => '403 Forbidden: Staff member has no assigned events.']);
+            exit;
+        }
+
+        // Check the ticket's actual event_id against staff assignments on every scan
+        if (!in_array($ticket['event_id'], $assignedEvents)) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => '403 Forbidden: Staff member is not authorized to scan tickets for this event.']);
+            exit;
+        }
+
+        // If client also supplied an eventId, verify consistency
+        if (!empty($eventId) && (!in_array($eventId, $assignedEvents) || $ticket['event_id'] !== $eventId)) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => '403 Forbidden: Event mismatch with staff assignment.']);
             exit;
         }
     }

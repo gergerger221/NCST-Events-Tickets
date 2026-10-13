@@ -379,6 +379,23 @@ npm test
 * **Frontend Logic (19 Suites)**: Discovers and runs all automated suites in [`scripts/run-all-tests.mjs`](scripts/run-all-tests.mjs).
 * **Backend Integration (2 Suites)**: Validates authentication, password security, and delta sync via [`scripts/run-all-tests.php`](scripts/run-all-tests.php).
 
+### Playwright End-to-End (E2E) Browser Automation
+Run end-to-end user journey tests in real browser engines (Chromium, Firefox, WebKit, Mobile Chrome):
+```bash
+# Run headless E2E test suites (8 modules, 31 tests)
+npm run test:e2e
+
+# Run with visible browser window
+npm run test:e2e:headed
+
+# Open interactive Playwright UI mode with time-travel inspection
+npm run test:e2e:ui
+
+# View latest HTML execution report
+npm run test:e2e:report
+```
+* Complete setup, scenario catalog, and browser configuration: see [📘 **Playwright E2E Testing Guide**](docs/PLAYWRIGHT_E2E_TESTING.md).
+
 ### Application-Level Error Boundary
 * Configured in [`src/App.vue`](src/App.vue) via `onErrorCaptured`.
 * Catches unhandled runtime exceptions in any view, replacing blank white screens with an interactive recovery card offering retry and home-navigation options.
