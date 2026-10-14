@@ -7,8 +7,8 @@
     "dev": "vite",
     "dev:https": "vite --https",
     "build": "tsc -b && vite build",
-    "deploy:xampp": "npm run build && powershell -Command \"Copy-Item -Path 'dist/*' -Destination 'C:/xampp/htdocs/Integ 2' -Recurse -Force; Copy-Item -Path 'api/*' -Destination 'C:/xampp/htdocs/Integ 2/api' -Recurse -Force; Copy-Item -Path '.htaccess' -Destination 'C:/xampp/htdocs/Integ 2/.htaccess' -Force; Write-Host 'XAMPP deployment build assets successfully deployed.'\"",
-    "test": "node scripts/run-all-tests.mjs && php scripts/run-all-tests.php",
+    "deploy:xampp": "npm run build && powershell -Command \"$dest = if ($env:XAMPP_DEPLOY_DIR) { $env:XAMPP_DEPLOY_DIR } else { (Get-Location).Path }; if ($dest -ne (Get-Location).Path) { New-Item -ItemType Directory -Force -Path $dest | Out-Null; Copy-Item -Path 'dist/*' -Destination $dest -Recurse -Force; Copy-Item -Path 'api/*' -Destination \\\"$dest/api\\\" -Recurse -Force; Copy-Item -Path '.htaccess' -Destination \\\"$dest/.htaccess\\\" -Force }; Write-Host 'XAMPP deployment build assets successfully deployed.'\"",
+    "test": "node scripts/run-all-tests.mjs && (where php >nul 2>nul && php scripts/run-all-tests.php || C:\\xampp\\php\\php.exe scripts/run-all-tests.php)",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
@@ -19,7 +19,6 @@
   "dependencies": {
     "@fontsource/jetbrains-mono": "^5.3.0",
     "@fontsource/plus-jakarta-sans": "^5.3.0",
-    "@lucide/vue": "^1.48.0",
     "canvas-confetti": "^1.9.4",
     "html5-qrcode": "^2.3.8",
     "lucide-vue-next": "^1.0.0",

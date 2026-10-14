@@ -1,12 +1,16 @@
-import * as XLSX from 'xlsx';
-import { Ticket, EventItem, AttendanceLog, User } from '../types';
+import { Ticket, EventItem, AttendanceLog } from '../types';
 import { formatPhilippineFull, formatPhilippineTime, formatPhilippineDate } from './philippineTime';
 
-export const exportTicketsToExcel = (
+const getXLSX = async () => {
+  return await import('xlsx');
+};
+
+export const exportTicketsToExcel = async (
   tickets: Ticket[],
   events: EventItem[],
   fileName: string = 'Event_Attendance_Report.xlsx'
 ) => {
+  const XLSX = await getXLSX();
   const eventMap = new Map(events.map(e => [e.id, e.title]));
   const venueMap = new Map(events.map(e => [e.id, e.venue]));
 
@@ -66,11 +70,12 @@ export const exportTicketsToExcel = (
   XLSX.writeFile(workbook, fileName);
 };
 
-export const exportStudentAttendanceOnlyToExcel = (
+export const exportStudentAttendanceOnlyToExcel = async (
   tickets: Ticket[],
   events: EventItem[],
   fileName: string = 'Student_Attendance_Report.xlsx'
 ) => {
+  const XLSX = await getXLSX();
   const eventMap = new Map(events.map(e => [e.id, e.title]));
   const studentTickets = tickets.filter(t => (t.attendeeType || 'STUDENT') === 'STUDENT');
 
@@ -98,11 +103,12 @@ export const exportStudentAttendanceOnlyToExcel = (
   XLSX.writeFile(workbook, fileName);
 };
 
-export const exportOutsiderAttendanceOnlyToExcel = (
+export const exportOutsiderAttendanceOnlyToExcel = async (
   tickets: Ticket[],
   events: EventItem[],
   fileName: string = 'Outsider_Attendance_Report.xlsx'
 ) => {
+  const XLSX = await getXLSX();
   const eventMap = new Map(events.map(e => [e.id, e.title]));
   const outsiderTickets = tickets.filter(t => t.attendeeType === 'OUTSIDER');
 
@@ -127,10 +133,11 @@ export const exportOutsiderAttendanceOnlyToExcel = (
   XLSX.writeFile(workbook, fileName);
 };
 
-export const exportScanLogsToExcel = (
+export const exportScanLogsToExcel = async (
   logs: AttendanceLog[],
   fileName: string = 'Scan_Audit_Logs.xlsx'
 ) => {
+  const XLSX = await getXLSX();
   const rows = logs.map((log, idx) => ({
     '#': idx + 1,
     'Scan ID': log.id,
@@ -169,10 +176,11 @@ export const exportScanLogsToExcel = (
   XLSX.writeFile(workbook, fileName);
 };
 
-export const exportTransactionsToExcel = (
+export const exportTransactionsToExcel = async (
   transactions: any[],
   fileName: string = 'Ticket_Transactions_Report.xlsx'
 ) => {
+  const XLSX = await getXLSX();
   const rows = transactions.map((txn, idx) => ({
     '#': idx + 1,
     'Transaction ID': txn.id,
@@ -215,7 +223,8 @@ export const exportTransactionsToExcel = (
   XLSX.writeFile(workbook, fileName);
 };
 
-export const downloadStudentImportTemplate = (fileName: string = 'Student_Roster_Import_Template.xlsx') => {
+export const downloadStudentImportTemplate = async (fileName: string = 'Student_Roster_Import_Template.xlsx') => {
+  const XLSX = await getXLSX();
   const sampleData = [
     {
       'Student ID': '2024-00101',
@@ -266,12 +275,13 @@ export const downloadStudentImportTemplate = (fileName: string = 'Student_Roster
   XLSX.writeFile(workbook, fileName);
 };
 
-export const exportMasterWorkbookToExcel = (
+export const exportMasterWorkbookToExcel = async (
   event: EventItem,
   tickets: Ticket[],
   logs: AttendanceLog[],
   fileName?: string
 ) => {
+  const XLSX = await getXLSX();
   const safeTitle = event.title.replace(/[^a-zA-Z0-9_-]/g, '_');
   const finalFileName = fileName || `${event.code || safeTitle}_Master_Attendance_Workbook.xlsx`;
   const workbook = XLSX.utils.book_new();
@@ -382,7 +392,7 @@ export const exportMasterWorkbookToExcel = (
 
 export const exportAttendanceLogsToExcel = exportScanLogsToExcel;
 
-export const exportRosterAttendanceToExcel = (
+export const exportRosterAttendanceToExcel = async (
   rosterItems: Array<{
     student: any;
     isPresent: boolean;
@@ -390,10 +400,11 @@ export const exportRosterAttendanceToExcel = (
     timeInFormatted?: string;
     attendanceStatus?: string;
   }>,
-  eventOrTitle: EventItem | string | null | undefined,
+  _eventOrTitle: EventItem | string | null | undefined,
   fileName: string = 'Assigned_Student_Attendance.xlsx',
   isClosed: boolean = false
 ) => {
+  const XLSX = await getXLSX();
   const rows = rosterItems.map((item, idx) => {
     const status = item.attendanceStatus || (item.isPresent ? 'PRESENT' : (isClosed ? 'ABSENT' : 'NOT YET ENTERED'));
     const timeDisplay = item.timeInFormatted || (item.isPresent && item.timeIn ? formatPhilippineTime(item.timeIn) : '---');
@@ -416,6 +427,145 @@ export const exportRosterAttendanceToExcel = (
 
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Attendance Report');
+  XLSX.writeFile(workbook, fileName);
+};
+
+/**
+ * Formula Injection Protection: Sanitizes values exported to Excel/CSV.
+ * Prepends a single quote if string begins with =, +, -, @, \t, or \r.
+ */
+export function sanitizeFormulaInjection(value: any): any {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  if (/^[=+\-@\t\r]/.test(trimmed)) {
+    return "'" + trimmed;
+  }
+  return value;
+}
+
+export const downloadClassListTemplate = async (fileName: string = 'NCST_Class_List_Sample.xlsx') => {
+  const XLSX = await getXLSX();
+  const sampleData = [
+    {
+      'Student ID': '2024-58566',
+      'Student Full Name': 'Mico De Guzman',
+      'Course': 'BSIT',
+      'Year Level': '3rd Year',
+      'Section': '31M1',
+    },
+    {
+      'Student ID': '2024-00101',
+      'Student Full Name': 'Juan Dela Cruz',
+      'Course': 'BSIT',
+      'Year Level': '3rd Year',
+      'Section': '31M1',
+    },
+    {
+      'Student ID': '2024-00102',
+      'Student Full Name': 'Maria Clara Santos',
+      'Course': 'BSIT',
+      'Year Level': '3rd Year',
+      'Section': '31M1',
+    },
+    {
+      'Student ID': '2024-00103',
+      'Student Full Name': 'Mark Anthony Reyes',
+      'Course': 'BSIT',
+      'Year Level': '3rd Year',
+      'Section': '31M1',
+    },
+    {
+      'Student ID': '2024-00104',
+      'Student Full Name': 'Angelica Torres',
+      'Course': 'BSCS',
+      'Year Level': '2nd Year',
+      'Section': '21A1',
+    },
+  ];
+
+  const worksheet = XLSX.utils.json_to_sheet(sampleData);
+  worksheet['!cols'] = [
+    { wch: 18 }, // Student ID
+    { wch: 28 }, // Student Full Name
+    { wch: 14 }, // Course
+    { wch: 14 }, // Year Level
+    { wch: 12 }, // Section
+  ];
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Class List');
+  XLSX.writeFile(workbook, fileName);
+};
+
+export interface ReconciledAttendanceExportItem {
+  rowNumber: number;
+  studentId: string;
+  name: string;
+  course: string;
+  yearLevel: string;
+  section: string;
+  isPresent: boolean;
+  attendanceStatus: string;
+  timeIn?: string | null;
+  inRoster: boolean;
+  isAuthorized: boolean;
+  ticketNumber?: string | null;
+  remarks?: string;
+}
+
+export const exportReconciledClassAttendanceToExcel = async (
+  items: ReconciledAttendanceExportItem[],
+  _event: EventItem | null,
+  _classLabel: string,
+  _teacherName: string,
+  fileName: string = 'Reconciled_Class_Attendance.xlsx'
+) => {
+  const XLSX = await getXLSX();
+  const workbook = XLSX.utils.book_new();
+
+  const formattedRows = items.map((item, idx) => ({
+    '#': idx + 1,
+    'Student ID': sanitizeFormulaInjection(item.studentId),
+    'Student Full Name': sanitizeFormulaInjection(item.name),
+    'Course': sanitizeFormulaInjection(item.course),
+    'Year Level': sanitizeFormulaInjection(item.yearLevel),
+    'Section': sanitizeFormulaInjection(item.section),
+    'Attendance Status': item.isPresent ? 'PRESENT' : (item.attendanceStatus === 'not_found' ? 'NOT FOUND IN ROSTER' : (item.attendanceStatus === 'absent' ? 'ABSENT' : 'NOT YET ENTERED')),
+    'Time In (PHT)': item.timeIn ? (item.timeIn.includes('T') ? formatPhilippineTime(item.timeIn) : item.timeIn) : '---',
+    'Roster Status': item.inRoster ? 'Verified in Roster' : 'Unregistered Student',
+    'Scope Permission': item.isAuthorized ? 'Authorized Class' : 'Out of Scope',
+    'Remarks / Notes': sanitizeFormulaInjection(item.remarks || (item.isPresent ? 'Verified Attendance Scan' : (item.attendanceStatus === 'not_found' ? 'Student ID not in school roster' : 'No entrance scan'))),
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(formattedRows.length > 0 ? formattedRows : [{
+    '#': '',
+    'Student ID': '',
+    'Student Full Name': 'No students in class list',
+    'Course': '',
+    'Year Level': '',
+    'Section': '',
+    'Attendance Status': '',
+    'Time In (PHT)': '',
+    'Roster Status': '',
+    'Scope Permission': '',
+    'Remarks / Notes': '',
+  }]);
+
+  worksheet['!cols'] = [
+    { wch: 4 },  // #
+    { wch: 18 }, // Student ID
+    { wch: 30 }, // Name
+    { wch: 12 }, // Course
+    { wch: 12 }, // Year
+    { wch: 10 }, // Section
+    { wch: 22 }, // Attendance Status
+    { wch: 16 }, // Time In
+    { wch: 22 }, // Roster Status
+    { wch: 18 }, // Scope
+    { wch: 32 }, // Remarks
+  ];
+
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Reconciled Attendance');
   XLSX.writeFile(workbook, fileName);
 };
 

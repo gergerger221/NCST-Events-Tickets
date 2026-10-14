@@ -77,32 +77,52 @@
 
       <!-- Quick Export & Import & Copy Buttons -->
       <div class="flex items-center gap-2.5 self-end sm:self-auto flex-wrap">
-        <button
-          type="button"
-          @click="isImportModalOpen = true"
-          class="flex items-center gap-1.5 px-3.5 py-2 bg-purple-600 hover:bg-purple-700 active:scale-[0.98] text-white rounded-xl text-xs font-black shadow-sm transition cursor-pointer"
-        >
-          <Upload class="w-3.5 h-3.5" />
-          <span>Import Roster (.xlsx)</span>
-        </button>
-
-        <button
-          type="button"
-          @click="handleCopyAttendance"
-          class="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white rounded-xl text-xs font-black shadow-sm transition cursor-pointer"
-        >
-          <Check v-if="copied" class="w-3.5 h-3.5 text-emerald-300" />
-          <Copy v-else class="w-3.5 h-3.5" />
-          <span>{{ copied ? 'Copied to Clipboard!' : 'Copy Attendance' }}</span>
-        </button>
-
+        <!-- 1. Export (.xlsx) - Functional Muted Emerald Tint -->
         <button
           type="button"
           @click="handleExportAttendance"
-          class="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white rounded-xl text-xs font-black shadow-sm transition cursor-pointer"
+          class="group flex items-center gap-2 px-4 py-2.5 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100/90 dark:hover:bg-emerald-900/50 text-emerald-800 dark:text-emerald-200 rounded-xl text-xs font-bold border border-emerald-200 dark:border-emerald-800/80 hover:border-emerald-300 dark:hover:border-emerald-700 shadow-xs hover:shadow-md hover:shadow-emerald-900/10 dark:hover:shadow-black/40 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all duration-200 cursor-pointer select-none"
+          title="Download attendance roster as an Excel spreadsheet"
         >
-          <Download class="w-3.5 h-3.5" />
+          <Download class="w-4 h-4 text-emerald-600 dark:text-emerald-400 group-hover:translate-y-0.5 transition-transform shrink-0" />
           <span>Export (.xlsx)</span>
+        </button>
+
+        <!-- 2. Import Excel Class List - Matches against authorized roster & generates sorted report -->
+        <button
+          type="button"
+          @click="isClassListModalOpen = true"
+          class="group flex items-center gap-2 px-4 py-2.5 bg-gradient-to-b from-[#22446e] to-[#1E3A5F] hover:from-[#295285] hover:to-[#172d4a] text-white rounded-xl text-xs font-bold shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all duration-200 cursor-pointer select-none"
+          title="Upload Excel class list (.xlsx, .xls, .csv) and generate sorted attendance report"
+        >
+          <FileSpreadsheet class="w-4 h-4 text-white group-hover:scale-110 transition-transform shrink-0" />
+          <span>Import Excel</span>
+        </button>
+
+        <!-- 3. Import Roster (.xlsx) - Functional Cobalt Blue Tint -->
+        <button
+          type="button"
+          @click="isImportModalOpen = true"
+          class="group flex items-center gap-2 px-4 py-2.5 bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100/90 dark:hover:bg-blue-900/50 text-blue-800 dark:text-blue-200 rounded-xl text-xs font-bold border border-blue-200 dark:border-blue-800/80 hover:border-blue-300 dark:hover:border-blue-700 shadow-xs hover:shadow-md hover:shadow-blue-900/10 dark:hover:shadow-black/40 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all duration-200 cursor-pointer select-none"
+          title="Upload or update official student roster"
+        >
+          <Upload class="w-4 h-4 text-blue-600 dark:text-blue-400 group-hover:-translate-y-0.5 transition-transform shrink-0" />
+          <span>Import Roster (.xlsx)</span>
+        </button>
+
+        <!-- 3. Copy Attendance - Functional Neutral Slate Tint with Reactive Copied State -->
+        <button
+          type="button"
+          @click="handleCopyAttendance"
+          class="group flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold border shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all duration-200 cursor-pointer select-none"
+          :class="copied
+            ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700 shadow-emerald-500/10'
+            : 'bg-slate-100/80 dark:bg-[#252525] hover:bg-slate-200/80 dark:hover:bg-[#2e2e2e] text-slate-800 dark:text-slate-200 border-slate-200 dark:border-[#383838] hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-slate-200/60 dark:hover:shadow-black/40'"
+          title="Copy tab-separated attendance to clipboard"
+        >
+          <Check v-if="copied" class="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+          <Copy v-else class="w-4 h-4 text-slate-500 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-white group-hover:scale-110 group-hover:rotate-3 transition-all shrink-0" />
+          <span>{{ copied ? 'Copied to Clipboard!' : 'Copy Attendance' }}</span>
         </button>
       </div>
     </div>
@@ -260,6 +280,15 @@
       @close="isImportModalOpen = false"
       @imported="handleImportSuccess"
     />
+
+    <!-- Class List Attendance Reconciliation & Reporting Modal -->
+    <ClassListAttendanceModal
+      :is-open="isClassListModalOpen"
+      :target-event="currentEvent"
+      :class-label="selectedClassLabel"
+      :selected-class-key="selectedClassKey"
+      @close="isClassListModalOpen = false"
+    />
   </div>
 </template>
 
@@ -273,6 +302,7 @@ import { useAppStore } from '../../composables/useAppStore';
 import UserAvatar from '../common/UserAvatar.vue';
 import StatusBadge from '../common/StatusBadge.vue';
 import StudentImportModal from './StudentImportModal.vue';
+import ClassListAttendanceModal from './ClassListAttendanceModal.vue';
 import { exportRosterAttendanceToExcel } from '../../utils/excelExport';
 import { splitFullName, sortByLastName } from '../../utils/nameUtils';
 import { formatPhilippineTime } from '../../utils/philippineTime';
@@ -315,6 +345,7 @@ watch(filteredEventsForTeacher, (newEvents) => {
 });
 
 const isImportModalOpen = ref(false);
+const isClassListModalOpen = ref(false);
 const filterStatus = ref('all');
 const searchQuery = ref('');
 const copied = ref(false);

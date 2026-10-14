@@ -41,6 +41,54 @@
 
       <form @submit.prevent="handleChangePassword" class="space-y-4">
         <div>
+          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+            Recovery Email Address *
+          </label>
+          <div class="flex gap-2">
+            <div class="relative flex-1">
+              <Mail class="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                v-model="recoveryEmailInput"
+                type="email"
+                required
+                placeholder="e.g. personal@gmail.com or student@student.ncst.edu.ph"
+                class="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-[#181818] border border-slate-300 dark:border-[#3a3a3a] rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 transition"
+              />
+            </div>
+            <button
+              type="button"
+              @click="handleSendFirstLoginOtp"
+              :disabled="otpSending || !recoveryEmailInput.trim() || !recoveryEmailInput.includes('@')"
+              class="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0 shadow-sm"
+            >
+              <span v-if="otpSending" class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              <Mail v-else class="w-3.5 h-3.5" />
+              <span>{{ otpSent ? 'Resend Code' : 'Send Code' }}</span>
+            </button>
+          </div>
+          <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+            Personal or institutional email. A 6-digit OTP will be sent to verify your ownership.
+          </p>
+          <p v-if="otpFeedback" class="text-[11px] font-bold text-blue-600 dark:text-blue-400 mt-1">
+            {{ otpFeedback }}
+          </p>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+            6-Digit Email Verification Code *
+          </label>
+          <input
+            v-model="verificationCodeInput"
+            type="text"
+            maxlength="6"
+            required
+            placeholder="Enter 6-digit OTP sent to your recovery email"
+            class="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-[#181818] border border-slate-300 dark:border-[#3a3a3a] rounded-xl text-center text-sm font-mono tracking-widest font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 transition"
+          />
+        </div>
+
+        <div>
           <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">New Permanent Password *</label>
           <div class="relative">
             <input
@@ -88,10 +136,11 @@
 
         <button
           type="submit"
-          :disabled="!newPassword.trim() || !confirmNewPassword.trim()"
-          class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer shadow-md disabled:opacity-50"
+          :disabled="isSubmittingFirstLogin || !newPassword.trim() || !confirmNewPassword.trim() || (!currentUser?.recoveryEmailVerified && (!recoveryEmailInput.trim() || !verificationCodeInput.trim()))"
+          class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer shadow-md disabled:opacity-50 flex items-center justify-center gap-2"
         >
-          Save Password & Activate Portal Access
+          <span v-if="isSubmittingFirstLogin" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+          <span>Save Password & Activate Portal Access</span>
         </button>
       </form>
     </div>
@@ -146,27 +195,28 @@
       </div>
     </div>
 
-    <!-- Temporary Password Security Notice -->
+    <!-- Prompt for Existing Students Without Recovery Email -->
     <div
-      v-if="currentUser?.mustChangePassword"
-      class="p-4 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 rounded-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-xs"
+      v-if="!currentUser?.recoveryEmailVerified"
+      class="p-4 bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800 rounded-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-xs"
     >
       <div class="flex items-center gap-3">
         <div class="p-2.5 bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 rounded-2xl">
-          <KeyRound class="w-5 h-5" />
+          <Mail class="w-5 h-5" />
         </div>
         <div>
-          <h4 class="font-bold text-amber-900 dark:text-amber-200 text-xs">First-Time Login Security Activation</h4>
+          <h4 class="font-bold text-amber-900 dark:text-amber-200 text-xs">Self-Service Account Recovery Required</h4>
           <p class="text-[11px] text-amber-700 dark:text-amber-300 mt-0.5">
-            You signed in using an initial temporary password. Please set a permanent password to secure your account.
+            You do not have a verified recovery email registered. Register and verify your personal or institutional email to protect your account and regain access if you forget your password.
           </p>
         </div>
       </div>
       <button
-        @click="isChangePassModalOpen = true"
-        class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer"
+        type="button"
+        @click="openRegisterRecoveryModal"
+        class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs transition cursor-pointer shadow-xs whitespace-nowrap"
       >
-        Set Permanent Password
+        Register Recovery Email
       </button>
     </div>
 
@@ -456,6 +506,81 @@
         </form>
       </div>
     </Modal>
+    <!-- Register Recovery Email Modal for Existing Students -->
+    <Modal
+      :is-open="isRegisterRecoveryModalOpen"
+      @close="isRegisterRecoveryModalOpen = false"
+      title="Register Recovery Email"
+      subtitle="Link and verify an email for secure self-service password recovery"
+      max-width="md"
+    >
+      <div class="space-y-4">
+        <div v-if="modalRecoveryError" class="p-3 bg-rose-50 dark:bg-rose-950/70 border border-rose-200 dark:border-rose-800 rounded-xl text-rose-700 dark:text-rose-300 text-xs">
+          {{ modalRecoveryError }}
+        </div>
+        <div v-if="modalRecoverySuccess" class="p-3 bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-800 rounded-xl text-emerald-700 dark:text-emerald-300 text-xs font-bold">
+          {{ modalRecoverySuccess }}
+        </div>
+
+        <form @submit.prevent="handleVerifyRecoveryModal" class="space-y-3.5">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Recovery Email Address *</label>
+            <div class="flex gap-2">
+              <input
+                v-model="modalRecoveryEmail"
+                type="email"
+                required
+                placeholder="e.g. yourname@gmail.com or institutional email"
+                class="flex-1 px-3.5 py-2.5 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 transition"
+              />
+              <button
+                type="button"
+                @click="handleSendModalOtp"
+                :disabled="modalOtpSending || !modalRecoveryEmail.trim() || !modalRecoveryEmail.includes('@')"
+                class="px-3.5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition cursor-pointer disabled:opacity-50 shrink-0"
+              >
+                <span v-if="modalOtpSending" class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span v-else>{{ modalOtpSent ? 'Resend' : 'Send Code' }}</span>
+              </button>
+            </div>
+            <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+              Personal or institutional address. A 6-digit OTP will be dispatched.
+            </p>
+            <p v-if="modalOtpFeedback" class="text-[11px] font-bold text-blue-600 dark:text-blue-400 mt-1">{{ modalOtpFeedback }}</p>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">6-Digit Verification Code *</label>
+            <input
+              v-model="modalRecoveryCode"
+              type="text"
+              maxlength="6"
+              required
+              placeholder="Enter 6-digit OTP"
+              class="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-xl text-center text-sm font-mono tracking-widest font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 transition"
+            />
+          </div>
+
+          <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-[#333333]">
+            <button
+              type="button"
+              @click="isRegisterRecoveryModalOpen = false"
+              class="px-4 py-2.5 bg-slate-100 dark:bg-[#2c2c2c] text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-200 dark:hover:bg-[#383838] transition cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              :disabled="modalVerifying || !modalRecoveryEmail.trim() || !modalRecoveryCode.trim()"
+              class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer shadow-md disabled:opacity-50 flex items-center gap-1.5"
+            >
+              <span v-if="modalVerifying" class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              <span>Verify & Save Email</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </Modal>
   </div>
 </template>
 
@@ -471,7 +596,9 @@ import {
   Ticket as TicketIcon,
   KeyRound,
   Eye,
-  EyeOff
+  EyeOff,
+  Mail,
+  ShieldCheck,
 } from 'lucide-vue-next';
 import { useAppStore } from '../../composables/useAppStore';
 import { EventItem } from '../../types';
@@ -487,7 +614,15 @@ const emit = defineEmits<{
 
 const lastUpdatedTime = computed(() => formatPhilippineTime(new Date()));
 
-const { currentUser, tickets, events, logs, updateUserPassword } = useAppStore();
+const {
+  currentUser,
+  tickets,
+  events,
+  logs,
+  updateUserPassword,
+  requestEmailVerification,
+  verifyRecoveryEmail
+} = useAppStore();
 
 const isChangePassModalOpen = ref(false);
 const newPassword = ref('');
@@ -497,7 +632,36 @@ const showConfirmPassword = ref(false);
 const passError = ref('');
 const passSuccess = ref('');
 
-const handleChangePassword = () => {
+// First-login recovery email & OTP state
+const recoveryEmailInput = ref('');
+const verificationCodeInput = ref('');
+const otpSending = ref(false);
+const otpSent = ref(false);
+const otpFeedback = ref('');
+const isSubmittingFirstLogin = ref(false);
+
+const handleSendFirstLoginOtp = async () => {
+  otpFeedback.value = '';
+  passError.value = '';
+  if (!recoveryEmailInput.value.trim() || !recoveryEmailInput.value.includes('@')) {
+    passError.value = 'Please provide a valid recovery email address.';
+    return;
+  }
+  otpSending.value = true;
+  const res = await requestEmailVerification(recoveryEmailInput.value.trim());
+  otpSending.value = false;
+  if (res.success) {
+    otpSent.value = true;
+    otpFeedback.value = res.message || 'Verification code sent to your email!';
+    if (res.dev_verification_code) {
+      verificationCodeInput.value = res.dev_verification_code;
+    }
+  } else {
+    passError.value = res.error || 'Failed to send verification code.';
+  }
+};
+
+const handleChangePassword = async () => {
   passError.value = '';
   passSuccess.value = '';
   if (!currentUser.value) return;
@@ -519,18 +683,103 @@ const handleChangePassword = () => {
     passError.value = 'Password must be at least 4 characters long.';
     return;
   }
+  if (!currentUser.value.recoveryEmailVerified) {
+    if (!recoveryEmailInput.value.trim() || !recoveryEmailInput.value.includes('@')) {
+      passError.value = 'A valid recovery email address is required.';
+      return;
+    }
+    if (!verificationCodeInput.value.trim() || verificationCodeInput.value.trim().length !== 6) {
+      passError.value = 'Please enter the 6-digit verification code sent to your email.';
+      return;
+    }
+  }
 
-  const res = updateUserPassword(currentUser.value.id, newPassword.value);
+  isSubmittingFirstLogin.value = true;
+  const res = await updateUserPassword(
+    currentUser.value.id,
+    newPassword.value,
+    recoveryEmailInput.value.trim() || undefined,
+    verificationCodeInput.value.trim() || undefined
+  );
+  isSubmittingFirstLogin.value = false;
+
   if (res.success) {
-    passSuccess.value = 'Password updated successfully! Welcome to your Student Portal.';
+    passSuccess.value = 'Password and recovery email verified successfully! Welcome to your Student Portal.';
     newPassword.value = '';
     confirmNewPassword.value = '';
+    recoveryEmailInput.value = '';
+    verificationCodeInput.value = '';
     setTimeout(() => {
       isChangePassModalOpen.value = false;
       passSuccess.value = '';
     }, 1200);
   } else {
     passError.value = res.message || 'Failed to update password.';
+  }
+};
+
+// Existing Student Recovery Email Registration Modal State
+const isRegisterRecoveryModalOpen = ref(false);
+const modalRecoveryEmail = ref('');
+const modalRecoveryCode = ref('');
+const modalOtpSending = ref(false);
+const modalOtpSent = ref(false);
+const modalOtpFeedback = ref('');
+const modalVerifying = ref(false);
+const modalRecoveryError = ref('');
+const modalRecoverySuccess = ref('');
+
+const openRegisterRecoveryModal = () => {
+  modalRecoveryEmail.value = currentUser.value?.email || currentUser.value?.recoveryEmail || '';
+  modalRecoveryCode.value = '';
+  modalOtpSending.value = false;
+  modalOtpSent.value = false;
+  modalOtpFeedback.value = '';
+  modalVerifying.value = false;
+  modalRecoveryError.value = '';
+  modalRecoverySuccess.value = '';
+  isRegisterRecoveryModalOpen.value = true;
+};
+
+const handleSendModalOtp = async () => {
+  modalRecoveryError.value = '';
+  modalOtpFeedback.value = '';
+  if (!modalRecoveryEmail.value.trim() || !modalRecoveryEmail.value.includes('@')) {
+    modalRecoveryError.value = 'Please provide a valid email address.';
+    return;
+  }
+  modalOtpSending.value = true;
+  const res = await requestEmailVerification(modalRecoveryEmail.value.trim());
+  modalOtpSending.value = false;
+  if (res.success) {
+    modalOtpSent.value = true;
+    modalOtpFeedback.value = res.message || 'Verification code sent to your email!';
+    if (res.dev_verification_code) {
+      modalRecoveryCode.value = res.dev_verification_code;
+    }
+  } else {
+    modalRecoveryError.value = res.error || 'Failed to request verification code.';
+  }
+};
+
+const handleVerifyRecoveryModal = async () => {
+  modalRecoveryError.value = '';
+  modalRecoverySuccess.value = '';
+  if (!modalRecoveryCode.value.trim() || modalRecoveryCode.value.trim().length !== 6) {
+    modalRecoveryError.value = 'Please enter the complete 6-digit verification code.';
+    return;
+  }
+  modalVerifying.value = true;
+  const res = await verifyRecoveryEmail(modalRecoveryEmail.value.trim(), modalRecoveryCode.value.trim());
+  modalVerifying.value = false;
+  if (res.success) {
+    modalRecoverySuccess.value = 'Recovery email verified successfully!';
+    setTimeout(() => {
+      isRegisterRecoveryModalOpen.value = false;
+      modalRecoverySuccess.value = '';
+    }, 1200);
+  } else {
+    modalRecoveryError.value = res.error || 'Failed to verify recovery email code.';
   }
 };
 

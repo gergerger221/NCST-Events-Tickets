@@ -70,7 +70,7 @@
 
           <div>
             <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-              ID Number
+              ID Number / Guest Reference
             </label>
             <div class="relative">
               <UserIcon class="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -78,7 +78,7 @@
                 v-model="loginIdentifier"
                 type="text"
                 required
-                placeholder="Enter your ID"
+                placeholder="Enter Student ID, Employee ID, or Guest Reference"
                 class="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-xl text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
               />
             </div>
@@ -672,7 +672,7 @@
               Reset Your Password
             </h3>
             <p class="text-xs text-slate-500 dark:text-[#b3b3b3]">
-              Verify your student identity to recover your account
+              Enter your registered email address to receive an OTP verification code
             </p>
           </div>
         </div>
@@ -695,43 +695,37 @@
           <span>{{ fpInfoMessage }}</span>
         </div>
 
-        <!-- Employee Notice / Block Warning -->
-        <div class="mb-4 p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/40 rounded-xl text-[11px] text-amber-800 dark:text-amber-300">
-          <p class="font-bold flex items-center gap-1.5">
-            <ShieldAlert class="w-4 h-4 text-amber-600 dark:text-amber-400" />
-            <span>Institutional Policy Notice:</span>
-          </p>
-          <p class="text-[10px] text-amber-700 dark:text-amber-400/90 mt-1 leading-relaxed">
-            Faculty, Event Staff, Cashier, and Admin accounts cannot be reset self-service for security compliance. Please contact the NCST IT Center for Admin-assisted password reset.
-          </p>
-        </div>
-
         <!-- Password Reset Form -->
         <form @submit.prevent="handleUnifiedResetSubmit" class="space-y-3.5">
           <div>
             <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-              Student ID Number *
-            </label>
-            <input
-              v-model="fpStudentId"
-              type="text"
-              required
-              placeholder="e.g. 2026-00125"
-              class="w-full px-3.5 py-2 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-xl text-xs font-mono text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:border-blue-500 transition"
-            />
-          </div>
-
-          <div>
-            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-              Institutional Email Address *
+              Registered Email Address *
             </label>
             <input
               v-model="fpEmail"
               type="email"
               required
-              placeholder="e.g. juan.delacruz@student.ncst.edu.ph"
+              placeholder="e.g. juan@student.ncst.edu.ph or personal@gmail.com"
               class="w-full px-3.5 py-2 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-xl text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:border-blue-500 transition"
             />
+            <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+              Institutional or personal email registered with your Student, Employee, or Guest account.
+            </p>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+              Account ID / Student ID / Guest Reference <span class="font-normal text-slate-400">(Optional)</span>
+            </label>
+            <input
+              v-model="fpAccountIdentifier"
+              type="text"
+              placeholder="e.g. 2026-00125, TCH-001, or GUEST-8421"
+              class="w-full px-3.5 py-2 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-xl text-xs font-mono text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:border-blue-500 transition"
+            />
+            <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+              Required only if multiple accounts share the same registered email address.
+            </p>
           </div>
 
           <div>
@@ -742,7 +736,7 @@
               <button
                 type="button"
                 @click="handleRequestCode"
-                :disabled="fpLoading || !fpStudentId.trim() || !fpEmail.trim()"
+                :disabled="fpLoading || !fpEmail.trim() || !fpEmail.includes('@')"
                 class="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer disabled:opacity-40 disabled:no-underline"
               >
                 {{ codeSent ? 'Resend Code' : 'Send Code to Email' }}
@@ -756,7 +750,7 @@
               class="w-full px-3.5 py-2 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-xl text-center text-sm font-mono tracking-widest font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 transition"
             />
             <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-              A one-time verification code is sent to your registered email to prove account ownership.
+              A 6-digit one-time PIN (OTP) valid for 15 minutes is sent to verify ownership.
             </p>
           </div>
 
@@ -817,7 +811,7 @@
             </button>
             <button
               type="submit"
-              :disabled="fpLoading || !fpStudentId.trim() || !fpNewPassword.trim()"
+              :disabled="fpLoading || !fpEmail.trim() || !fpNewPassword.trim()"
               class="flex-1 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold rounded-xl shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
             >
               <span v-if="fpLoading" class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -1316,8 +1310,8 @@ onUnmounted(() => {
 // Verified Forgot Password State (With Email Verification Proof)
 const isForgotPasswordOpen = ref(false);
 const codeSent = ref(false);
-const fpStudentId = ref('');
 const fpEmail = ref('');
+const fpAccountIdentifier = ref('');
 const fpVerificationCode = ref('');
 const fpNewPassword = ref('');
 const fpConfirmPassword = ref('');
@@ -1330,8 +1324,8 @@ const fpLoading = ref(false);
 const openForgotPassword = () => {
   isForgotPasswordOpen.value = true;
   codeSent.value = false;
-  fpStudentId.value = '';
   fpEmail.value = loginIdentifier.value.includes('@') ? loginIdentifier.value : '';
+  fpAccountIdentifier.value = !loginIdentifier.value.includes('@') ? loginIdentifier.value : '';
   fpVerificationCode.value = '';
   fpNewPassword.value = '';
   fpConfirmPassword.value = '';
@@ -1349,12 +1343,8 @@ const handleRequestCode = async () => {
   fpError.value = '';
   fpInfoMessage.value = '';
 
-  if (!fpStudentId.value.trim()) {
-    fpError.value = 'Student ID Number is required.';
-    return;
-  }
   if (!fpEmail.value.trim() || !fpEmail.value.includes('@')) {
-    fpError.value = 'Valid Institutional Email Address is required.';
+    fpError.value = 'A valid registered email address is required.';
     return;
   }
 
@@ -1365,8 +1355,8 @@ const handleRequestCode = async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'request_code',
-        studentId: fpStudentId.value.trim(),
         email: fpEmail.value.trim(),
+        accountIdentifier: fpAccountIdentifier.value.trim() || undefined,
       }),
     });
     const data = await res.json().catch(() => ({}));
@@ -1379,7 +1369,7 @@ const handleRequestCode = async () => {
         fpVerificationCode.value = data.dev_verification_code;
       }
     } else {
-      fpError.value = data.error || 'Failed to request verification code. Please check your Student ID and Email.';
+      fpError.value = data.error || 'Failed to request verification code. Please check your registered email.';
     }
   } catch {
     fpLoading.value = false;
@@ -1409,8 +1399,8 @@ const handleVerifyAndReset = async () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        studentId: fpStudentId.value.trim(),
         email: fpEmail.value.trim(),
+        accountIdentifier: fpAccountIdentifier.value.trim() || undefined,
         verificationCode: fpVerificationCode.value.trim(),
         newPassword: fpNewPassword.value,
       }),
@@ -1420,10 +1410,10 @@ const handleVerifyAndReset = async () => {
 
     if (res.ok && data.success) {
       // Synchronize in local store
-      resetPassword(fpStudentId.value.trim(), fpNewPassword.value);
+      resetPassword(fpAccountIdentifier.value.trim() || fpEmail.value.trim(), fpNewPassword.value);
       closeForgotPassword();
       activeTab.value = 'login';
-      loginIdentifier.value = fpStudentId.value.trim();
+      loginIdentifier.value = fpAccountIdentifier.value.trim() || fpEmail.value.trim();
       loginPassword.value = fpNewPassword.value;
       successMessage.value = data.message || 'Password successfully reset!';
       errorMessage.value = '';
@@ -1440,12 +1430,8 @@ const handleUnifiedResetSubmit = async () => {
   fpError.value = '';
   fpInfoMessage.value = '';
 
-  if (!fpStudentId.value.trim()) {
-    fpError.value = 'Student ID Number is required.';
-    return;
-  }
   if (!fpEmail.value.trim() || !fpEmail.value.includes('@')) {
-    fpError.value = 'Valid Institutional Email Address is required.';
+    fpError.value = 'A valid registered email address is required.';
     return;
   }
 
@@ -1546,6 +1532,13 @@ const testAccounts = [
     idNumber: '2026-00125',
     identifier: '2026-00125',
     roleClass: 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/30'
+  },
+  {
+    role: 'Outsider / Guest',
+    name: 'Jed (Guest)',
+    idNumber: '09156833859',
+    identifier: '09156833859',
+    roleClass: 'bg-orange-100 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border border-orange-300 dark:border-orange-500/30'
   },
 ];
 

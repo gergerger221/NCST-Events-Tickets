@@ -49,9 +49,17 @@ try {
             `is_active` TINYINT(1) NOT NULL DEFAULT 1,
             `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (`id`),
-            UNIQUE KEY `uq_users_email` (`email`)
+            UNIQUE KEY `uq_users_email` (`email`),
+            UNIQUE KEY `uq_users_student_id` (`student_id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ");
+
+    // Safe index migration for users(student_id)
+    $stmtUq = $pdo->prepare("SELECT INDEX_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND INDEX_NAME = 'uq_users_student_id'");
+    $stmtUq->execute();
+    if (!$stmtUq->fetch()) {
+        $pdo->exec("ALTER TABLE `users` ADD UNIQUE KEY `uq_users_student_id` (`student_id`)");
+    }
 
     // Safe column migrations for users
     $userCols = [
@@ -64,7 +72,14 @@ try {
         "verification_status" => "ENUM('verified', 'pending') NOT NULL DEFAULT 'verified'",
         "is_verified" => "TINYINT(1) NOT NULL DEFAULT 1",
         "must_change_password" => "TINYINT(1) NOT NULL DEFAULT 0",
+        "contact_number" => "VARCHAR(50) NULL",
+        "expires_at" => "DATETIME NULL",
+        "password_changed_at" => "DATETIME NULL",
+        "recovery_email" => "VARCHAR(150) NULL",
+        "recovery_email_verified" => "TINYINT(1) NOT NULL DEFAULT 0",
+        "recovery_email_verified_at" => "DATETIME NULL",
     ];
+    $pdo->exec("ALTER TABLE `users` MODIFY COLUMN `email` VARCHAR(150) NULL");
     foreach ($userCols as $col => $type) {
         $stmt = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = ?");
         $stmt->execute([$col]);
@@ -73,12 +88,17 @@ try {
         }
     }
 
-    // Safe composite index migration for tickets(event_id, attendance_status)
-    $stmtIdx = $pdo->prepare("SELECT INDEX_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tickets' AND INDEX_NAME = 'idx_tickets_event_attendance'");
-    $stmtIdx->execute();
-    if (!$stmtIdx->fetch()) {
-        $pdo->exec("ALTER TABLE `tickets` ADD INDEX `idx_tickets_event_attendance` (`event_id`, `attendance_status`)");
+    $srCols = [
+        "contact_number" => "VARCHAR(50) NULL",
+    ];
+    foreach ($srCols as $col => $type) {
+        $stmt = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'student_records' AND COLUMN_NAME = ?");
+        $stmt->execute([$col]);
+        if (!$stmt->fetch()) {
+            $pdo->exec("ALTER TABLE `student_records` ADD COLUMN `$col` $type");
+        }
     }
+
 
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS `student_records` (
@@ -178,6 +198,7 @@ try {
         "outsider_id" => "VARCHAR(50) NULL",
         "qr_print_status" => "ENUM('PENDING', 'PRINTED', 'ATTACHED') NOT NULL DEFAULT 'PENDING'",
         "qr_print_count" => "INT(11) NOT NULL DEFAULT 0",
+        "qr_printed_at" => "DATETIME NULL",
     ];
     foreach ($ticketCols as $col => $type) {
         $stmt = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tickets' AND COLUMN_NAME = ?");
@@ -185,6 +206,13 @@ try {
         if (!$stmt->fetch()) {
             $pdo->exec("ALTER TABLE `tickets` ADD COLUMN `$col` $type");
         }
+    }
+
+    // Safe composite index migration for tickets(event_id, attendance_status)
+    $stmtIdx = $pdo->prepare("SELECT INDEX_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tickets' AND INDEX_NAME = 'idx_tickets_event_attendance'");
+    $stmtIdx->execute();
+    if (!$stmtIdx->fetch()) {
+        $pdo->exec("ALTER TABLE `tickets` ADD INDEX `idx_tickets_event_attendance` (`event_id`, `attendance_status`)");
     }
 
     $pdo->exec("
@@ -211,6 +239,9 @@ try {
             `timestamp` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             `time_in` VARCHAR(30) NOT NULL,
             `verified_by_id` VARCHAR(64) NOT NULL,
+            `verified_by_name` VARCHAR(150) NULL,
+            `academic_year` VARCHAR(50) NULL,
+            `semester` VARCHAR(50) NULL,
             `status` ENUM('valid', 'denied') NOT NULL DEFAULT 'valid',
             `denial_reason` VARCHAR(255) NULL,
             PRIMARY KEY (`id`),
@@ -225,6 +256,9 @@ try {
         "last_name" => "VARCHAR(100) NULL",
         "outsider_id" => "VARCHAR(50) NULL",
         "time_in" => "VARCHAR(30) NULL",
+        "verified_by_name" => "VARCHAR(150) NULL",
+        "academic_year" => "VARCHAR(50) NULL",
+        "semester" => "VARCHAR(50) NULL",
     ];
     foreach ($logCols as $col => $type) {
         $stmt = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'attendance_logs' AND COLUMN_NAME = ?");
@@ -257,11 +291,107 @@ try {
             `quantity` INT(11) NOT NULL DEFAULT 1,
             `payment_method` VARCHAR(50) NOT NULL DEFAULT 'Cash',
             `cashier_name` VARCHAR(150) NULL,
+            `cashier_id` VARCHAR(64) NULL,
+            `idempotency_key` VARCHAR(128) NULL,
             PRIMARY KEY (`id`),
             INDEX `idx_txn_event` (`event_id`),
-            INDEX `idx_txn_student_id` (`student_id`)
+            INDEX `idx_txn_student_id` (`student_id`),
+            INDEX `idx_txn_idempotency` (`idempotency_key`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ");
+
+    $txnCols = [
+        "idempotency_key" => "VARCHAR(128) NULL",
+        "cashier_id" => "VARCHAR(64) NULL",
+    ];
+    foreach ($txnCols as $col => $type) {
+        $stmt = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'purchase_transactions' AND COLUMN_NAME = ?");
+        $stmt->execute([$col]);
+        if (!$stmt->fetch()) {
+            $pdo->exec("ALTER TABLE `purchase_transactions` ADD COLUMN `$col` $type");
+        }
+    }
+    $stmtTxnIdx = $pdo->prepare("SELECT INDEX_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'purchase_transactions' AND INDEX_NAME = 'idx_txn_idempotency'");
+    $stmtTxnIdx->execute();
+    if (!$stmtTxnIdx->fetch()) {
+        $pdo->exec("ALTER TABLE `purchase_transactions` ADD INDEX `idx_txn_idempotency` (`idempotency_key`)");
+    }
+
+    // Physical Serial Number column migration for tickets
+    $stmtSerial = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tickets' AND COLUMN_NAME = 'physical_serial_number'");
+    $stmtSerial->execute();
+    if (!$stmtSerial->fetch()) {
+        $pdo->exec("ALTER TABLE `tickets` ADD COLUMN `physical_serial_number` VARCHAR(50) NULL");
+    }
+
+    // Table: ticket_stock (Centralized shared physical ticket stock inventory across cashier stations)
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS `ticket_stock` (
+            `id` VARCHAR(64) NOT NULL,
+            `event_id` VARCHAR(64) NULL,
+            `stock_type` VARCHAR(50) NOT NULL DEFAULT 'physical_passes',
+            `total_quantity` INT(11) NOT NULL DEFAULT 500,
+            `available_quantity` INT(11) NOT NULL DEFAULT 500,
+            `reserved_quantity` INT(11) NOT NULL DEFAULT 0,
+            `used_quantity` INT(11) NOT NULL DEFAULT 0,
+            `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (`id`),
+            UNIQUE KEY `uq_stock_event_type` (`event_id`, `stock_type`),
+            INDEX `idx_stock_event` (`event_id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ");
+
+    // Table: ticket_stock_logs (Auditable history of stock adjustments, sale reservations, and print fulfillment)
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS `ticket_stock_logs` (
+            `id` VARCHAR(64) NOT NULL,
+            `stock_id` VARCHAR(64) NOT NULL,
+            `event_id` VARCHAR(64) NULL,
+            `action` ENUM('initialization', 'adjustment', 'sale_reservation', 'sale_consumption', 'release', 'print_fulfillment') NOT NULL,
+            `quantity_delta` INT(11) NOT NULL,
+            `previous_available` INT(11) NOT NULL,
+            `new_available` INT(11) NOT NULL,
+            `ticket_id` VARCHAR(64) NULL,
+            `ticket_number` VARCHAR(50) NULL,
+            `cashier_id` VARCHAR(64) NULL,
+            `cashier_name` VARCHAR(150) NULL,
+            `notes` TEXT NULL,
+            `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (`id`),
+            INDEX `idx_stock_logs_stock` (`stock_id`),
+            INDEX `idx_stock_logs_event` (`event_id`),
+            INDEX `idx_stock_logs_ticket` (`ticket_id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ");
+
+    // Seed authoritative physical stock records for demo events and global stock pool
+    $seedEventsStock = [
+        ['id' => 'stock-evt-juans-2026', 'event_id' => 'evt-juans-2026', 'total' => 500],
+        ['id' => 'stock-evt-hackathon-2026', 'event_id' => 'evt-hackathon-2026', 'total' => 300],
+        ['id' => 'stock-evt-fnd-2026', 'event_id' => 'evt-fnd-2026', 'total' => 600],
+        ['id' => 'stock-evt-it-2026', 'event_id' => 'evt-it-2026', 'total' => 400],
+        ['id' => 'stock-evt-spf-2026', 'event_id' => 'evt-spf-2026', 'total' => 250],
+        ['id' => 'stock-global-passes', 'event_id' => null, 'total' => 1000],
+    ];
+    foreach ($seedEventsStock as $stk) {
+        $usedCount = 0;
+        if (!empty($stk['event_id'])) {
+            $uStmt = $pdo->prepare("SELECT COUNT(*) FROM `tickets` WHERE `event_id` = ? AND UPPER(`ticket_status`) NOT IN ('CANCELLED', 'VOID', 'REFUNDED')");
+            $uStmt->execute([$stk['event_id']]);
+            $usedCount = (int)$uStmt->fetchColumn();
+        }
+        $avail = max(0, $stk['total'] - $usedCount);
+
+        $stkStmt = $pdo->prepare("
+            INSERT INTO `ticket_stock` (id, event_id, stock_type, total_quantity, available_quantity, reserved_quantity, used_quantity)
+            VALUES (?, ?, 'physical_passes', ?, ?, 0, ?)
+            ON DUPLICATE KEY UPDATE
+                total_quantity = VALUES(total_quantity)
+        ");
+        $stkStmt->execute([$stk['id'], $stk['event_id'], $stk['total'], $avail, $usedCount]);
+    }
+
 
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS `academic_periods` (
@@ -301,16 +431,138 @@ try {
         CREATE TABLE IF NOT EXISTS `password_resets` (
             `id` VARCHAR(64) NOT NULL,
             `user_id` VARCHAR(64) NOT NULL,
-            `student_id` VARCHAR(50) NOT NULL,
+            `student_id` VARCHAR(50) NULL,
+            `account_identifier` VARCHAR(100) NULL,
             `email` VARCHAR(150) NOT NULL,
-            `reset_code` VARCHAR(64) NOT NULL,
+            `reset_code` VARCHAR(64) NULL,
+            `reset_code_hash` VARCHAR(255) NULL,
             `expires_at` DATETIME NOT NULL,
+            `used_at` DATETIME NULL,
             `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (`id`),
             INDEX `idx_pwd_reset_student` (`student_id`),
-            INDEX `idx_pwd_reset_code` (`reset_code`)
+            INDEX `idx_pwd_reset_email` (`email`),
+            INDEX `idx_pwd_reset_user` (`user_id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ");
+
+    // Safe column migrations for password_resets
+    $pdo->exec("ALTER TABLE `password_resets` MODIFY COLUMN `student_id` VARCHAR(50) NULL");
+    $pdo->exec("ALTER TABLE `password_resets` MODIFY COLUMN `reset_code` VARCHAR(64) NULL");
+    $pdo->exec("ALTER TABLE `password_resets` MODIFY COLUMN `reset_code_hash` VARCHAR(255) NULL");
+    $prCols = [
+        "account_identifier" => "VARCHAR(100) NULL",
+        "reset_code_hash" => "VARCHAR(255) NULL",
+        "used_at" => "DATETIME NULL",
+        "attempts" => "INT(11) NOT NULL DEFAULT 0"
+    ];
+    foreach ($prCols as $col => $type) {
+        $stmt = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'password_resets' AND COLUMN_NAME = ?");
+        $stmt->execute([$col]);
+        if (!$stmt->fetch()) {
+            $pdo->exec("ALTER TABLE `password_resets` ADD COLUMN `$col` $type");
+        }
+    }
+
+    // Safe index migration for password_resets(email)
+    $stmtPrIdx = $pdo->prepare("SELECT INDEX_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'password_resets' AND INDEX_NAME = 'idx_pwd_reset_email'");
+    $stmtPrIdx->execute();
+    if (!$stmtPrIdx->fetch()) {
+        $pdo->exec("ALTER TABLE `password_resets` ADD INDEX `idx_pwd_reset_email` (`email`)");
+    }
+
+    // Backfill outsider account emails from authoritative tickets if missing in users table
+    $pdo->exec("
+        UPDATE `users` u
+        JOIN `tickets` t ON (t.current_attendee_id = u.id OR t.original_owner_id = u.id)
+        SET u.email = t.attendee_email
+        WHERE u.role = 'outsider'
+          AND (u.email IS NULL OR u.email = '')
+          AND (t.attendee_email IS NOT NULL AND t.attendee_email != '')
+    ");
+
+    // Email verifications table for self-service recovery email registration
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS `email_verifications` (
+            `id` VARCHAR(64) NOT NULL,
+            `user_id` VARCHAR(64) NOT NULL,
+            `email` VARCHAR(150) NOT NULL,
+            `verification_code_hash` VARCHAR(255) NOT NULL,
+            `expires_at` DATETIME NOT NULL,
+            `used_at` DATETIME NULL,
+            `attempts` INT(11) NOT NULL DEFAULT 0,
+            `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (`id`),
+            INDEX `idx_ev_user` (`user_id`),
+            INDEX `idx_ev_email` (`email`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ");
+
+    // Audited Verified Recovery Email Migration:
+    // Only establish verified status when supported by a trusted authoritative directory or confirmed OTP proof.
+    // Do not automatically treat an email as verified solely because it matches an institutional domain.
+    // 1. Populate candidate recovery_email from user email if not set
+    $pdo->exec("
+        UPDATE `users`
+        SET `recovery_email` = `email`
+        WHERE `email` IS NOT NULL 
+          AND `email` != '' 
+          AND `recovery_email` IS NULL
+    ");
+
+    // 2. Mark verified ONLY for authoritative system seed accounts in trusted directory
+    $pdo->exec("
+        UPDATE `users`
+        SET `recovery_email_verified` = 1,
+            `recovery_email_verified_at` = COALESCE(`recovery_email_verified_at`, NOW())
+        WHERE `id` IN ('usr-admin-001', 'usr-cashier-001', 'usr-staff-001', 'usr-teacher-001')
+          AND `email` LIKE '%@ncst.edu.ph'
+    ");
+
+    // 3. Mark verified for accounts with confirmed OTP proof in email_verifications table
+    $pdo->exec("
+        UPDATE `users` u
+        JOIN `email_verifications` ev ON ev.user_id = u.id AND ev.used_at IS NOT NULL
+        SET u.recovery_email = ev.email,
+            u.recovery_email_verified = 1,
+            u.recovery_email_verified_at = COALESCE(u.recovery_email_verified_at, ev.used_at)
+    ");
+
+    // 4. Strictly mark all other accounts (students, outsiders, unverified staff) as UNVERIFIED (requiring OTP confirmation)
+    $pdo->exec("
+        UPDATE `users`
+        SET `recovery_email_verified` = 0,
+            `recovery_email_verified_at` = NULL
+        WHERE `recovery_email_verified` = 1
+          AND `id` NOT IN (SELECT DISTINCT `user_id` FROM `email_verifications` WHERE `used_at` IS NOT NULL)
+          AND `id` NOT IN ('usr-admin-001', 'usr-cashier-001', 'usr-staff-001', 'usr-teacher-001')
+    ");
+
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS `notification_queue` (
+            `id` VARCHAR(64) NOT NULL,
+            `recipient_type` ENUM('student', 'outsider') NOT NULL DEFAULT 'student',
+            `channel` ENUM('sms', 'email') NOT NULL,
+            `recipient` VARCHAR(150) NOT NULL,
+            `subject` VARCHAR(255) NULL,
+            `message` TEXT NOT NULL,
+            `status` ENUM('pending', 'queued', 'submitted', 'delivered', 'failed', 'unavailable', 'simulated') NOT NULL DEFAULT 'queued',
+            `attempts` INT(11) NOT NULL DEFAULT 0,
+            `last_error` TEXT NULL,
+            `user_id` VARCHAR(64) NULL,
+            `student_id` VARCHAR(50) NULL,
+            `ticket_id` VARCHAR(64) NULL,
+            `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (`id`),
+            INDEX `idx_notif_status` (`status`),
+            INDEX `idx_notif_student` (`student_id`),
+            INDEX `idx_notif_channel` (`channel`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ");
+
+    // Safe enum modification to support simulated status in notification_queue
+    $pdo->exec("ALTER TABLE `notification_queue` MODIFY COLUMN `status` ENUM('pending', 'queued', 'submitted', 'delivered', 'failed', 'unavailable', 'simulated') NOT NULL DEFAULT 'queued'");
 
     // Safe Column Migrations for Academic Year and Semester Scoping
     $acadMigrations = [

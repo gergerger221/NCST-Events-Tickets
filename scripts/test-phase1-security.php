@@ -44,7 +44,16 @@ foreach ($allUsers as $u) {
 assertTest("2. All MySQL passwords are real Bcrypt hashes (Zero plaintext)", $allBcrypt, "$plaintextFound unhashed passwords found");
 
 // 3. Test Bcrypt Verification & Login
-$testUser = $allUsers[0] ?? null;
+$testUser = null;
+foreach ($allUsers as $u) {
+    if ($u['id'] === 'usr-admin-001' || $u['email'] === 'admin@ncst.edu.ph') {
+        $testUser = $u;
+        break;
+    }
+}
+if (!$testUser) {
+    $testUser = $allUsers[0] ?? null;
+}
 assertTest("3. Test admin account exists in database", !empty($testUser));
 
 $verifyValid = ncst_verify_password('password123', $testUser['password']);

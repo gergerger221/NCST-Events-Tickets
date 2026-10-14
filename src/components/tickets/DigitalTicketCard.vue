@@ -12,7 +12,7 @@
       />
       <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
       <div class="absolute bottom-2 left-4">
-        <span class="text-[9px] uppercase font-bold tracking-widest px-2 py-0.5 rounded bg-black/60 text-amber-300 border border-amber-400/30 backdrop-blur-xs">
+        <span class="text-[11px] uppercase font-bold tracking-widest px-2.5 py-0.5 rounded bg-black/60 text-amber-300 border border-amber-400/30 backdrop-blur-xs">
           Official Event Pass
         </span>
       </div>
@@ -32,7 +32,7 @@
           <span class="text-[11px] font-extrabold tracking-wider uppercase px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20">
             {{ safeEvent.category || 'Campus' }} Event
           </span>
-          <span class="text-[9.5px] font-bold tracking-wider px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+          <span class="text-[11px] font-bold tracking-wider px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
             A.Y. {{ ticket.academicYear || safeEvent.academicYear || '2026-2027' }} • {{ ticket.semester || safeEvent.semester || '1st Sem' }}
           </span>
         </div>
@@ -53,7 +53,7 @@
         <UserAvatar :src="ticket.attendeePhotoUrl" :alt="ticket.currentAttendeeName" size="lg" shape="rounded" />
 
         <div class="flex-1 min-w-0">
-          <span class="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-wider block">
+          <span class="text-[11px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-wider block">
             Official Attendee Pass
           </span>
           <h4 class="text-sm font-bold text-slate-900 dark:text-white truncate">
@@ -156,10 +156,10 @@
 
       <!-- Institutional Policy Footer -->
       <div class="mt-4 p-2.5 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-200 dark:border-[#333333] rounded-xl text-center">
-        <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-[#999999]">
+        <span class="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-[#999999]">
           OFFICIAL PASS • NON-TRANSFERABLE
         </span>
-        <p class="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">
+        <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
           This digital pass is exclusively valid for {{ ticket.currentAttendeeName }}
         </p>
       </div>
@@ -179,12 +179,12 @@
     <!-- Mobile Focus / Fullscreen QR Modal -->
     <div
       v-if="showFocusQR"
-      class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+      class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4"
       @click.self="showFocusQR = false"
     >
       <div class="bg-white dark:bg-[#1e1e1e] rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4">
         <div class="flex items-center justify-between">
-          <span class="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
+          <span class="text-xs font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
             Official QR Pass
           </span>
           <button
@@ -199,13 +199,13 @@
           <h3 class="font-extrabold text-slate-900 dark:text-white text-base leading-snug">
             {{ safeEvent.title || ticket.eventTitle || 'Campus Event' }}
           </h3>
-          <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
             {{ ticket.currentAttendeeName }} • ID: {{ ticket.attendeeStudentId || 'Attendee' }}
           </p>
         </div>
 
-        <!-- High-contrast QR with max optical size -->
-        <div class="p-4 bg-white rounded-2xl border-2 border-slate-200 shadow-inner flex justify-center">
+        <!-- High-contrast QR with max optical size & bright bezel -->
+        <div class="p-4 bg-white rounded-2xl border-2 border-slate-200 shadow-sm flex flex-col items-center justify-center">
           <img
             v-if="qrDataUrl"
             :src="qrDataUrl"
@@ -214,20 +214,26 @@
           />
         </div>
 
+        <!-- Gate Brightness Helper Hint -->
+        <div class="flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-700 dark:text-amber-300 text-xs font-bold">
+          <span>💡</span>
+          <span>Set screen brightness to 100% for gate scan</span>
+        </div>
+
         <div class="space-y-1">
-          <span class="font-mono font-extrabold text-blue-600 dark:text-blue-400 text-sm tracking-widest block">
+          <span class="font-mono font-black text-blue-600 dark:text-blue-400 text-sm tracking-widest block">
             {{ ticket.ticketNumber || ticket.id }}
           </span>
-          <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+          <span class="text-[11px] text-slate-400 font-bold uppercase tracking-wider block">
             OFFICIAL PASS • NON-TRANSFERABLE
           </span>
         </div>
 
         <button
           @click="showFocusQR = false"
-          class="w-full py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-[#2c2c2c] dark:hover:bg-[#383838] text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl transition cursor-pointer"
+          class="w-full py-3 bg-slate-100 hover:bg-slate-200 dark:bg-[#2c2c2c] dark:hover:bg-[#383838] text-slate-800 dark:text-slate-200 font-bold text-xs rounded-xl transition cursor-pointer"
         >
-          Close
+          Close Pass
         </button>
       </div>
     </div>

@@ -5,9 +5,9 @@
 # 1. Directory Browsing Protection
 Options -Indexes
 
-# 2. Default Index File (Prioritize root index.html)
+# 2. Default Index File (Prioritize compiled dist/index.html)
 <IfModule mod_dir.c>
-    DirectoryIndex index.html dist/index.html index.php
+    DirectoryIndex dist/index.html index.php index.html
 </IfModule>
 
 # 2.1 Prevent browser caching of index.html so updates are immediately visible
@@ -69,9 +69,9 @@ Options -Indexes
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^(ncst-logo\.png|favicon\.ico|vite\.svg)$ dist/$1 [L]
 
-    # Route SPA front-end requests to index.html (excluding /api)
+    # Route SPA front-end requests to compiled dist/index.html (excluding /api)
     RewriteCond %{REQUEST_URI} !^.*/api(/.*)?$
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
-    RewriteRule ^ index.html [L]
+    RewriteRule ^ dist/index.html [L]
 </IfModule>

@@ -568,7 +568,6 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import * as XLSX from 'xlsx';
 import {
   FileSpreadsheet, Download, Upload, SlidersHorizontal, Users as UsersIcon,
   BookOpen, Layers, Calendar, Check, Trash2, AlertCircle, CheckCircle2, Search,
@@ -924,8 +923,9 @@ const parseFile = (file: File) => {
   parsedFileName.value = file.name;
   const reader = new FileReader();
 
-  reader.onload = (evt) => {
+  reader.onload = async (evt) => {
     try {
+      const XLSX = await import('xlsx');
       const data = evt.target?.result;
       const workbook = XLSX.read(data, { type: 'binary' });
       const firstSheetName = workbook.SheetNames[0];

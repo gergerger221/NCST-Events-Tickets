@@ -44,28 +44,38 @@
           <button
             type="button"
             @click="$emit('navigate', 'teacher_attendance')"
-            class="flex items-center gap-2 px-5 py-2.5 bg-[#1E3A5F] hover:bg-[#152A45] active:scale-[0.98] text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer"
+            class="group flex items-center gap-2 px-5 py-2.5 bg-gradient-to-b from-[#22446e] to-[#1E3A5F] hover:from-[#295285] hover:to-[#172d4a] text-white rounded-xl text-xs font-bold shadow-md shadow-[#1E3A5F]/20 hover:shadow-lg hover:shadow-[#1E3A5F]/35 border border-blue-400/25 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all duration-200 cursor-pointer select-none"
           >
-            <GraduationCap class="w-4 h-4" />
+            <GraduationCap class="w-4 h-4 text-blue-200 group-hover:text-white group-hover:scale-110 transition-all duration-200" />
             <span>Open Students' Attendance Roster</span>
-            <ArrowRight class="w-3.5 h-3.5" />
+            <ArrowRight class="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform duration-200" />
+          </button>
+
+          <button
+            type="button"
+            @click="isClassListModalOpen = true"
+            class="group flex items-center gap-2 px-4 py-2.5 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100/90 dark:hover:bg-emerald-900/50 text-emerald-800 dark:text-emerald-200 rounded-xl text-xs font-bold border border-emerald-200 dark:border-emerald-800/80 hover:border-emerald-300 dark:hover:border-emerald-700 shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all duration-200 cursor-pointer select-none"
+            title="Import class list spreadsheet (.xlsx, .xls, .csv) and generate sorted attendance report"
+          >
+            <FileSpreadsheet class="w-4 h-4 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform shrink-0" />
+            <span>Import Excel</span>
           </button>
 
           <button
             type="button"
             @click="$emit('navigate', 'student_roster_import')"
-            class="flex items-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-[#252525] hover:bg-slate-200 dark:hover:bg-[#2e2e2e] text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold border border-slate-200 dark:border-[#3a3a3a] transition cursor-pointer"
+            class="group flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-[#242424] hover:bg-slate-50 dark:hover:bg-[#2c2c2c] text-slate-700 hover:text-slate-900 dark:text-slate-200 dark:hover:text-white rounded-xl text-xs font-bold border border-slate-200 dark:border-[#383838] hover:border-slate-300 dark:hover:border-slate-600 shadow-xs hover:shadow-md hover:shadow-slate-200/60 dark:hover:shadow-black/40 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all duration-200 cursor-pointer select-none"
           >
-            <Upload class="w-4 h-4 text-slate-500 dark:text-slate-400" />
+            <Upload class="w-4 h-4 text-slate-400 group-hover:text-blue-600 dark:text-slate-400 dark:group-hover:text-blue-400 group-hover:-translate-y-0.5 transition-all duration-200" />
             <span>Import Class Roster</span>
           </button>
 
           <button
             type="button"
             @click="$emit('navigate', 'reports')"
-            class="flex items-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-[#252525] hover:bg-slate-200 dark:hover:bg-[#2e2e2e] text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold border border-slate-200 dark:border-[#3a3a3a] transition cursor-pointer"
+            class="group flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-[#242424] hover:bg-slate-50 dark:hover:bg-[#2c2c2c] text-slate-700 hover:text-slate-900 dark:text-slate-200 dark:hover:text-white rounded-xl text-xs font-bold border border-slate-200 dark:border-[#383838] hover:border-slate-300 dark:hover:border-slate-600 shadow-xs hover:shadow-md hover:shadow-slate-200/60 dark:hover:shadow-black/40 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all duration-200 cursor-pointer select-none"
           >
-            <FileSpreadsheet class="w-4 h-4 text-slate-500 dark:text-slate-400" />
+            <FileSpreadsheet class="w-4 h-4 text-slate-400 group-hover:text-blue-600 dark:text-slate-400 dark:group-hover:text-blue-400 group-hover:scale-110 transition-all duration-200" />
             <span>Attendance Reports</span>
           </button>
         </div>
@@ -306,6 +316,14 @@
         <ArrowRight class="w-4 h-4" />
       </button>
     </div>
+
+    <!-- Class List Attendance Reconciliation & Reporting Modal -->
+    <ClassListAttendanceModal
+      :is-open="isClassListModalOpen"
+      :target-event="currentEvent"
+      :class-label="selectedClassLabel"
+      @close="isClassListModalOpen = false"
+    />
   </div>
 </template>
 
@@ -316,12 +334,15 @@ import {
 } from 'lucide-vue-next';
 import { useAppStore } from '../../composables/useAppStore';
 import { TeacherClassAssignment, StudentRecord, User, Ticket } from '../../types';
+import ClassListAttendanceModal from './ClassListAttendanceModal.vue';
 
 defineEmits<{
   (e: 'navigate', tabId: string): void;
 }>();
 
 const { currentUser, currentEvent, setCurrentEvent, events, tickets, users, studentRecords } = useAppStore();
+
+const isClassListModalOpen = ref(false);
 
 const isEventClosed = computed(() => {
   if (!currentEvent.value) return false;

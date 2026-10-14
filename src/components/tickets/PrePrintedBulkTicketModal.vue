@@ -229,7 +229,7 @@
               type="button"
               :disabled="isPrintDisabled"
               @click="handlePrintStock"
-              class="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-extrabold shadow-md transition cursor-pointer"
+              class="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#1E3A5F] hover:bg-[#152A45] disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold shadow-xs transition cursor-pointer"
             >
               <Printer class="w-4 h-4" />
               <span>Print {{ effectiveBulkCount > 0 ? effectiveBulkCount : '' }} Pre-Printed Event Passes</span>
@@ -462,21 +462,34 @@ const handlePrintStock = () => {
 }
 
 @media print {
+  .bulk-ticket-print-card {
+    width: 11.5cm !important;
+    min-width: 11.5cm !important;
+    max-width: 11.5cm !important;
+    height: 4.2cm !important;
+    min-height: 4.2cm !important;
+    max-height: 4.2cm !important;
+    box-sizing: border-box !important;
+    border-radius: 0 !important;
+    overflow: hidden !important;
+  }
+
   .qr-target-container {
-    width: 60mm !important;
-    min-width: 60mm !important;
-    height: 65mm !important;
-    min-height: 65mm !important;
-    padding: 2.5mm !important;
+    width: 3.4cm !important;
+    min-width: 3.4cm !important;
+    max-width: 3.4cm !important;
+    height: 3.8cm !important;
+    min-height: 3.8cm !important;
+    padding: 1.5mm !important;
     box-sizing: border-box !important;
     background: #ffffff !important;
   }
 
   .qr-sticker-placement-box {
-    width: 53mm !important;
-    height: 53mm !important;
-    min-width: 53mm !important;
-    min-height: 53mm !important;
+    width: 3.0cm !important;
+    height: 3.0cm !important;
+    min-width: 3.0cm !important;
+    min-height: 3.0cm !important;
     box-sizing: border-box !important;
     border: 1.5pt dashed #475569 !important;
     background: #f8fafc !important;

@@ -112,6 +112,28 @@
                 <span>{{ isTorchOn ? 'Flash ON' : 'Flash' }}</span>
               </button>
 
+              <!-- Camera Power Controls -->
+              <button
+                v-if="cameraActive"
+                type="button"
+                @click="stopCamera"
+                class="px-2 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 rounded-lg text-[11px] font-bold transition flex items-center gap-1 border border-rose-500/30 cursor-pointer"
+                title="Stop Camera Stream"
+              >
+                <CameraOff class="w-3.5 h-3.5" />
+                <span>Stop</span>
+              </button>
+              <button
+                v-else-if="!isInitializing"
+                type="button"
+                @click="startCamera()"
+                class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[11px] font-bold transition flex items-center gap-1 cursor-pointer"
+                title="Start Camera Stream"
+              >
+                <Camera class="w-3.5 h-3.5" />
+                <span>Start</span>
+              </button>
+
               <button
                 type="button"
                 @click="toggleCameraFacing"
@@ -134,9 +156,48 @@
           </div>
 
           <!-- Professional Scanner Viewport Container -->
-          <div class="relative w-full max-w-sm aspect-square bg-slate-950 rounded-3xl overflow-hidden border border-slate-700/60 shadow-2xl flex items-center justify-center">
+          <div class="relative w-full max-w-sm max-h-[50vh] aspect-square bg-slate-950 rounded-3xl overflow-hidden border border-slate-700/60 shadow-2xl flex items-center justify-center">
             <!-- html5-qrcode video container -->
             <div id="vue-interactive-qr-reader-container" class="w-full h-full" />
+
+            <!-- Rapid Scan HUD Heads-Up Banner Overlay -->
+            <div
+              v-if="rapidHudResult"
+              class="absolute top-3 inset-x-3 z-30 p-3 rounded-2xl shadow-xl backdrop-blur-md border transition-all duration-200"
+              :class="rapidHudResult.isValid
+                ? 'bg-emerald-950/90 border-emerald-500 text-white'
+                : rapidHudResult.isDuplicate
+                ? 'bg-amber-950/90 border-amber-500 text-white'
+                : 'bg-rose-950/90 border-rose-500 text-white'"
+            >
+              <div class="flex items-center gap-2.5">
+                <div
+                  class="w-7 h-7 rounded-xl flex items-center justify-center shrink-0"
+                  :class="rapidHudResult.isValid
+                    ? 'bg-emerald-500 text-slate-950'
+                    : rapidHudResult.isDuplicate
+                    ? 'bg-amber-500 text-slate-950'
+                    : 'bg-rose-500 text-white'"
+                >
+                  <CheckCircle2 v-if="rapidHudResult.isValid" class="w-4 h-4 font-black" />
+                  <AlertTriangle v-else-if="rapidHudResult.isDuplicate" class="w-4 h-4" />
+                  <AlertCircle v-else class="w-4 h-4" />
+                </div>
+                <div class="flex-1 min-w-0 leading-tight">
+                  <div class="flex items-center justify-between gap-1">
+                    <span class="text-xs font-black uppercase tracking-wider">
+                      {{ rapidHudResult.isValid ? 'ENTRY ALLOWED' : (rapidHudResult.isDuplicate ? 'ALREADY USED' : 'ENTRY DENIED') }}
+                    </span>
+                    <span class="text-[10px] font-mono opacity-80">
+                      {{ rapidHudResult.ticketNumber }}
+                    </span>
+                  </div>
+                  <p class="text-xs font-bold truncate mt-0.5">
+                    {{ rapidHudResult.attendeeName || rapidHudResult.reason || 'Verified attendee' }}
+                  </p>
+                </div>
+              </div>
+            </div>
 
             <!-- Active Viewfinder Shading & Scanning Frame Overlay -->
             <div
@@ -184,21 +245,74 @@
               </div>
             </div>
 
-            <!-- Camera Error State with Mobile Guidance -->
-            <div v-if="cameraError" class="absolute inset-0 bg-slate-900/95 dark:bg-[#121212]/95 flex flex-col items-center justify-center p-6 text-center z-20">
-              <AlertTriangle class="w-10 h-10 text-amber-400 mb-2" />
-              <p class="text-xs font-bold text-slate-100 leading-snug max-w-xs">{{ cameraError }}</p>
-              <p class="text-[11px] text-slate-400 mt-1 max-w-xs leading-tight">
-                Tip: If permissions were blocked, tap the lock/settings icon next to the URL in your browser and select "Allow Camera".
+            <!-- 1. Explicit Start / Ready State (Awaiting user activation) -->
+            <div
+              v-if="!cameraActive && !cameraErrorInfo && !isInitializing"
+              class="absolute inset-0 bg-slate-900/90 dark:bg-[#121212]/90 flex flex-col items-center justify-center p-6 text-center z-20"
+            >
+              <div class="w-14 h-14 rounded-2xl bg-blue-600/15 border border-blue-500/30 flex items-center justify-center mb-3 text-blue-500">
+                <Camera class="w-7 h-7" />
+              </div>
+              <h4 class="text-sm font-bold text-white mb-1">Entrance Scanner Ready</h4>
+              <p class="text-xs text-slate-400 max-w-xs mb-4">
+                Click below to activate your camera and begin scanning attendee QR tickets.
               </p>
-              <div class="flex items-center gap-2 mt-4">
+              <button
+                type="button"
+                @click="startCamera()"
+                class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-blue-600/30 cursor-pointer flex items-center gap-2"
+              >
+                <Camera class="w-4 h-4" />
+                <span>Start Scanner</span>
+              </button>
+            </div>
+
+            <!-- 2. Connecting / Initializing State -->
+            <div
+              v-else-if="isInitializing"
+              class="absolute inset-0 bg-slate-900/95 dark:bg-[#121212]/95 flex flex-col items-center justify-center p-6 text-center z-20"
+            >
+              <Loader2 class="w-9 h-9 text-blue-500 animate-spin mb-2" />
+              <p class="text-xs font-bold text-slate-100">Connecting to camera...</p>
+              <p class="text-[11px] text-slate-400 mt-1">Requesting video stream access</p>
+            </div>
+
+            <!-- 3. Categorized Camera Error State with Actionable Guidance -->
+            <div
+              v-else-if="cameraErrorInfo"
+              class="absolute inset-0 bg-slate-900/95 dark:bg-[#121212]/95 flex flex-col items-center justify-center p-5 text-center z-20"
+            >
+              <div
+                class="w-12 h-12 rounded-2xl flex items-center justify-center mb-2.5"
+                :class="[
+                  cameraErrorInfo.type === 'permission_denied' ? 'bg-amber-500/15 text-amber-400' :
+                  cameraErrorInfo.type === 'not_found' ? 'bg-slate-800 text-slate-300' :
+                  cameraErrorInfo.type === 'busy' ? 'bg-amber-500/15 text-amber-400' :
+                  cameraErrorInfo.type === 'insecure_context' ? 'bg-rose-500/15 text-rose-400' :
+                  'bg-blue-500/15 text-blue-400'
+                ]"
+              >
+                <ShieldAlert v-if="cameraErrorInfo.type === 'permission_denied'" class="w-6 h-6" />
+                <CameraOff v-else-if="cameraErrorInfo.type === 'not_found'" class="w-6 h-6" />
+                <AlertCircle v-else-if="cameraErrorInfo.type === 'busy'" class="w-6 h-6" />
+                <Lock v-else-if="cameraErrorInfo.type === 'insecure_context'" class="w-6 h-6" />
+                <AlertTriangle v-else class="w-6 h-6" />
+              </div>
+              <h4 class="text-xs font-bold text-slate-100 leading-snug max-w-xs">{{ cameraErrorInfo.title }}</h4>
+              <p class="text-[11px] text-slate-300 mt-1 max-w-xs leading-normal">{{ cameraErrorInfo.message }}</p>
+              <p class="text-[11px] text-slate-400 mt-1.5 max-w-xs leading-tight bg-slate-800/60 dark:bg-black/40 p-2 rounded-xl border border-slate-700/50">
+                {{ cameraErrorInfo.tip }}
+              </p>
+              <div class="flex items-center gap-2 mt-3.5">
                 <button
+                  v-if="cameraErrorInfo.canRetry"
                   type="button"
-                  @click="startCamera"
-                  class="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-md cursor-pointer flex items-center gap-1.5"
+                  @click="handleRetryCamera"
+                  :disabled="isInitializing"
+                  class="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-md cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
                 >
-                  <RotateCw class="w-3.5 h-3.5" />
-                  <span>Retry Camera</span>
+                  <RotateCw class="w-3.5 h-3.5" :class="{ 'animate-spin': isInitializing }" />
+                  <span>{{ cameraErrorInfo.actionLabel || 'Retry Camera' }}</span>
                 </button>
                 <button
                   type="button"
@@ -317,6 +431,7 @@ import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import {
   Upload,
   AlertTriangle,
+  AlertCircle,
   RotateCw,
   CheckCircle2,
   Wifi,
@@ -326,12 +441,23 @@ import {
   Smartphone,
   Flashlight,
   Hash,
-  ChevronDown
+  ChevronDown,
+  Camera,
+  CameraOff,
+  ShieldAlert,
+  Lock,
+  Loader2
 } from 'lucide-vue-next';
 import { useAppStore } from '../../composables/useAppStore';
 import { useOfflineScanner } from '../../composables/useOfflineScanner';
 import { sounds } from '../../utils/audio';
 import { ScanValidationResult } from '../../types';
+import {
+  parseCameraError,
+  checkSecureContext,
+  stopMediaTracks,
+  type CameraErrorInfo
+} from '../../utils/cameraUtils';
 import Modal from '../common/Modal.vue';
 import ScanResultModal from './ScanResultModal.vue';
 
@@ -355,6 +481,8 @@ const {
 } = useOfflineScanner();
 
 const cameraActive = ref(false);
+const isInitializing = ref(false);
+const cameraErrorInfo = ref<CameraErrorInfo | null>(null);
 const cameraError = ref<string | null>(null);
 const uploadError = ref<string | null>(null);
 const isScanningPaused = ref(false);
@@ -372,8 +500,18 @@ const manualCode = ref('');
 const scanResult = ref<ScanValidationResult | null>(null);
 const showResultModal = ref(false);
 
-let html5QrCode: Html5Qrcode | null = null;
+interface RapidHudState {
+  isValid: boolean;
+  isDuplicate: boolean;
+  attendeeName?: string;
+  ticketNumber?: string;
+  reason?: string;
+}
 
+const rapidHudResult = ref<RapidHudState | null>(null);
+let rapidHudTimer: any = null;
+
+let html5QrCode: Html5Qrcode | null = null;
 
 const toggleHaptics = () => {
   sounds.toggleHaptics();
@@ -418,24 +556,62 @@ const toggleTorch = async () => {
   }
 };
 
+const stopCameraInternal = async () => {
+  if (html5QrCode) {
+    try {
+      if (html5QrCode.isScanning) {
+        await html5QrCode.stop().catch(() => {});
+      }
+    } catch {}
+    try {
+      html5QrCode.clear();
+    } catch {}
+    html5QrCode = null;
+  }
+
+  // Stop active hardware tracks immediately so camera indicator turns off
+  const container = document.getElementById('vue-interactive-qr-reader-container');
+  const videoElem = container?.querySelector('video') as HTMLVideoElement | null;
+  stopMediaTracks(videoElem);
+
+  cameraActive.value = false;
+  qrDetected.value = false;
+  hasTorch.value = false;
+  isTorchOn.value = false;
+};
+
+const stopCamera = async () => {
+  await stopCameraInternal();
+};
+
 const startCamera = async () => {
+  // Prevent duplicate concurrent initialization races
+  if (isInitializing.value || cameraActive.value) {
+    return;
+  }
+
+  isInitializing.value = true;
+  cameraErrorInfo.value = null;
   cameraError.value = null;
   uploadError.value = null;
   qrDetected.value = false;
   hasTorch.value = false;
   isTorchOn.value = false;
+
+  // 1. Verify secure context (HTTPS / localhost required for MediaDevices)
+  const secureCheck = checkSecureContext();
+  if (!secureCheck.isSecure && secureCheck.error) {
+    cameraErrorInfo.value = secureCheck.error;
+    cameraError.value = secureCheck.error.message;
+    isInitializing.value = false;
+    return;
+  }
+
+  // 2. Clear any lingering media tracks before starting
+  await stopCameraInternal();
   await nextTick();
 
   try {
-    if (html5QrCode) {
-      try {
-        if (html5QrCode.isScanning) {
-          await html5QrCode.stop();
-        }
-      } catch {}
-      html5QrCode = null;
-    }
-
     html5QrCode = new Html5Qrcode('vue-interactive-qr-reader-container', {
       experimentalFeatures: {
         useBarCodeDetectorIfSupported: true,
@@ -451,14 +627,11 @@ const startCamera = async () => {
     let cameraTarget: any = { facingMode: facingMode.value };
 
     try {
-      const devices = await Html5Qrcode.getCameras();
+      const devices = await Html5Qrcode.getCameras().catch(() => []);
       if (devices && devices.length > 0) {
         availableCameras.value = devices;
-        if (selectedCameraId.value) {
-          const deviceMatch = devices.find(d => d.id === selectedCameraId.value);
-          if (deviceMatch) {
-            cameraTarget = selectedCameraId.value;
-          }
+        if (selectedCameraId.value && devices.some(d => d.id === selectedCameraId.value)) {
+          cameraTarget = selectedCameraId.value;
         } else {
           const backCam = devices.find(d => {
             const label = d.label.toLowerCase();
@@ -481,6 +654,8 @@ const startCamera = async () => {
             }
           }
         }
+      } else {
+        cameraTarget = { facingMode: facingMode.value };
       }
     } catch {
       cameraTarget = { facingMode: facingMode.value };
@@ -492,46 +667,69 @@ const startCamera = async () => {
       return { width: edgeSize, height: edgeSize };
     };
 
-    await html5QrCode.start(
-      cameraTarget,
-      {
-        fps: 22,
-        qrbox: qrboxFunction,
-        aspectRatio: 1.0,
-        disableFlip: false,
-      },
-      (decodedText) => {
-        if (!isScanningPaused.value && !qrDetected.value) {
-          handleScannedCode(decodedText);
-        }
-      },
-      () => {}
-    );
+    const qrConfig = {
+      fps: 22,
+      qrbox: qrboxFunction,
+      aspectRatio: 1.0,
+      disableFlip: false,
+    };
+
+    const onScanSuccess = (decodedText: string) => {
+      if (!isScanningPaused.value && !qrDetected.value) {
+        handleScannedCode(decodedText);
+      }
+    };
+
+    try {
+      await html5QrCode.start(
+        cameraTarget,
+        qrConfig,
+        onScanSuccess,
+        () => {}
+      );
+    } catch (startErr: any) {
+      // Handle OverconstrainedError: fallback from rear to user/front or available camera
+      const parsedErr = parseCameraError(startErr);
+      if (parsedErr.type === 'overconstrained' && facingMode.value === 'environment') {
+        facingMode.value = 'user';
+        const fallbackTarget = availableCameras.value[0]?.id || { facingMode: 'user' };
+        selectedCameraId.value = availableCameras.value[0]?.id || '';
+        await html5QrCode.start(
+          fallbackTarget,
+          qrConfig,
+          onScanSuccess,
+          () => {}
+        );
+      } else {
+        throw startErr;
+      }
+    }
 
     cameraActive.value = true;
+    cameraErrorInfo.value = null;
+    cameraError.value = null;
     setTimeout(() => {
       checkTorchSupport();
     }, 400);
   } catch (err: any) {
-    cameraError.value = err?.message || 'Failed to initialize camera. Please grant camera permission.';
+    const errorInfo = parseCameraError(err);
+    cameraErrorInfo.value = errorInfo;
+    cameraError.value = errorInfo.message;
     cameraActive.value = false;
+    await stopCameraInternal();
+  } finally {
+    isInitializing.value = false;
   }
 };
 
-const stopCamera = async () => {
-  if (html5QrCode) {
-    try {
-      if (html5QrCode.isScanning) {
-        await html5QrCode.stop();
-      }
-      html5QrCode.clear();
-    } catch {}
-    html5QrCode = null;
+const handleRetryCamera = async () => {
+  if (cameraErrorInfo.value?.type === 'overconstrained') {
+    facingMode.value = facingMode.value === 'environment' ? 'user' : 'environment';
+    selectedCameraId.value = '';
   }
-  cameraActive.value = false;
-  qrDetected.value = false;
-  hasTorch.value = false;
-  isTorchOn.value = false;
+  cameraErrorInfo.value = null;
+  cameraError.value = null;
+  await startCamera();
 };
 
 const handleCameraSelectChange = async () => {
@@ -602,8 +800,37 @@ const handleManualSubmit = () => {
 
 const handleScannedCode = (decodedText: string) => {
   qrDetected.value = true;
-  isScanningPaused.value = true;
 
+  if (continuousScanMode.value) {
+    const result = validateAndRecordScan(decodedText.trim());
+    const isDup = !!(
+      result.reason?.toLowerCase().includes('already') ||
+      result.reason?.toLowerCase().includes('duplicate')
+    );
+
+    rapidHudResult.value = {
+      isValid: result.isValid,
+      isDuplicate: isDup,
+      attendeeName: result.ticket?.currentAttendeeName,
+      ticketNumber: result.ticket?.ticketNumber || decodedText.trim(),
+      reason: result.reason,
+    };
+
+    if (result.isValid) {
+      sounds.vibrateSuccess();
+    } else {
+      sounds.vibrateWarning();
+    }
+
+    if (rapidHudTimer) clearTimeout(rapidHudTimer);
+    rapidHudTimer = setTimeout(() => {
+      rapidHudResult.value = null;
+      qrDetected.value = false;
+    }, 1800);
+    return;
+  }
+
+  isScanningPaused.value = true;
   setTimeout(() => {
     const result = validateAndRecordScan(decodedText.trim());
     scanResult.value = result;
@@ -629,17 +856,21 @@ watch(
     if (open) {
       isScanningPaused.value = false;
       qrDetected.value = false;
-      setTimeout(() => {
-        startCamera();
-      }, 100);
+      cameraErrorInfo.value = null;
+      cameraError.value = null;
+      uploadError.value = null;
+      // Camera is initialized upon explicit user action ("Start Scanner" button)
     } else {
       stopCamera();
+      cameraErrorInfo.value = null;
+      cameraError.value = null;
     }
   },
   { immediate: true }
 );
 
 onBeforeUnmount(() => {
+  if (rapidHudTimer) clearTimeout(rapidHudTimer);
   stopCamera();
 });
 </script>

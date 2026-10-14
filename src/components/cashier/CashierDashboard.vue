@@ -50,6 +50,12 @@
             <span class="text-[9px] text-slate-400 uppercase font-extrabold block">Today's Sales</span>
             <span class="text-sm font-black text-emerald-600 dark:text-emerald-400">{{ cashierIssuedCount }} passes</span>
           </div>
+          <div v-if="selectedEventStock" class="px-3 py-1.5 bg-slate-50 dark:bg-[#222222] border border-slate-200 dark:border-[#333333] rounded-xl text-center" :title="`Shared Physical Stock: ${selectedEventStock.availableQuantity} available, ${selectedEventStock.reservedQuantity} reserved across all cashiers.`">
+            <span class="text-[9px] text-slate-400 uppercase font-extrabold block">Physical Stock</span>
+            <span class="text-sm font-black" :class="isStockDepleted ? 'text-rose-600 dark:text-rose-400' : (selectedEventStock.availableQuantity <= 20 ? 'text-amber-600 dark:text-amber-400' : 'text-blue-600 dark:text-blue-400')">
+              {{ selectedEventStock.availableQuantity }} left
+            </span>
+          </div>
         </div>
       </div>
     </div>
@@ -104,8 +110,10 @@
             <Search class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
+              ref="searchInputRef"
               v-model="searchQuery"
               @input="handleSearchInput"
+              @keydown.enter.prevent="handleQuickSubmit"
               placeholder="Search Student ID (e.g. 2026-00125) or Name (e.g. Juan)..."
               class="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-[#222222] border border-slate-200 dark:border-[#333333] rounded-xl text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
             />
@@ -162,6 +170,7 @@
                 v-model="formStudentId"
                 @blur="touchField('studentId')"
                 @input="touchField('studentId')"
+                @keydown.enter.prevent="handleQuickSubmit"
                 :placeholder="attendeeType === 'student' ? '2026-00125' : 'GUEST-1234'"
                 class="w-full px-3 py-2 bg-white dark:bg-[#1a1a1a] border rounded-xl text-xs font-mono font-bold focus:outline-none transition-colors"
                 :class="[
@@ -485,6 +494,14 @@
               <p class="text-slate-500 dark:text-[#a0a0a0] text-[11px] font-medium mt-0.5">
                 {{ selectedEvent.date }} • {{ selectedEvent.venue }} • <span class="font-bold text-blue-600 dark:text-blue-400">A.Y. {{ selectedEvent.academicYear || '2026-2027' }} {{ selectedEvent.semester || '1st Semester' }}</span>
               </p>
+              <div v-if="selectedEventStock" class="flex items-center gap-2 mt-2 flex-wrap">
+                <span class="text-[11px] font-bold px-2 py-0.5 rounded-md" :class="isStockDepleted ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300' : (selectedEventStock.availableQuantity <= 20 ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300' : 'bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300')">
+                  📦 Physical Stock: {{ selectedEventStock.availableQuantity }} / {{ selectedEventStock.totalQuantity }} blank passes available
+                </span>
+                <span v-if="selectedEvent.capacity" class="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                  • Venue Capacity: {{ selectedEvent.capacity }} attendees max
+                </span>
+              </div>
             </div>
             <div class="text-right">
               <span class="text-[10px] uppercase font-extrabold text-slate-400 block">Amount Due</span>
@@ -492,6 +509,16 @@
                 {{ isEventPaid ? `₱${(selectedEvent.ticketPrice || 0)}.00` : 'FREE' }}
               </span>
             </div>
+          </div>
+
+          <!-- Stock Depleted Warning Banner -->
+          <div v-if="isStockDepleted" class="p-3 bg-rose-50 dark:bg-rose-950/50 border border-rose-300 dark:border-rose-800 rounded-2xl flex items-center gap-2.5 text-xs text-rose-700 dark:text-rose-300 font-bold">
+            <AlertCircle class="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400" />
+            <span>Physical blank ticket stock is depleted for this event. Ticket issuance is paused until additional physical tickets are restocked.</span>
+          </div>
+          <div v-else-if="selectedEventStock && selectedEventStock.availableQuantity <= 20" class="p-2.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-2xl flex items-center gap-2 text-xs text-amber-800 dark:text-amber-300 font-semibold">
+            <AlertCircle class="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
+            <span>Low physical ticket stock: Only {{ selectedEventStock.availableQuantity }} blank physical passes remaining across all cashier stations.</span>
           </div>
 
           <!-- Cash Payment Input & Preset Buttons (For Paid Admission) -->
@@ -511,6 +538,7 @@
                     v-model="formCashReceived"
                     @blur="touchField('cashReceived')"
                     @input="touchField('cashReceived')"
+                    @keydown.enter.prevent="handleQuickSubmit"
                     placeholder="e.g. 500.00"
                     class="w-full pl-8 pr-4 py-2.5 bg-white dark:bg-[#1a1a1a] border rounded-xl text-sm font-mono font-black text-slate-900 dark:text-white focus:outline-none transition-colors"
                     :class="[
@@ -528,7 +556,7 @@
                   <button
                     type="button"
                     @click="setCashAmount(selectedEvent?.ticketPrice || 0)"
-                    class="px-2.5 py-1 bg-slate-100 dark:bg-[#2a2a2a] hover:bg-slate-200 dark:hover:bg-[#333333] text-slate-700 dark:text-slate-200 rounded-lg text-[10px] font-bold transition cursor-pointer"
+                    class="min-h-[38px] px-3 py-1.5 bg-slate-100 dark:bg-[#2a2a2a] hover:bg-slate-200 dark:hover:bg-[#333333] text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition cursor-pointer"
                   >
                     Exact (₱{{ selectedEvent?.ticketPrice || 0 }})
                   </button>
@@ -537,7 +565,7 @@
                     :key="amt"
                     type="button"
                     @click="setCashAmount(amt)"
-                    class="px-2.5 py-1 bg-slate-100 dark:bg-[#2a2a2a] hover:bg-slate-200 dark:hover:bg-[#333333] text-slate-700 dark:text-slate-200 rounded-lg text-[10px] font-bold transition cursor-pointer"
+                    class="min-h-[38px] px-3 py-1.5 bg-slate-100 dark:bg-[#2a2a2a] hover:bg-slate-200 dark:hover:bg-[#333333] text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition cursor-pointer"
                   >
                     ₱{{ amt }}
                   </button>
@@ -621,7 +649,7 @@
     <!-- ==================== 3. SUCCESS STATE CONFIRMATION MODAL ==================== -->
     <Modal
       :is-open="!!lastIssuedTicket"
-      @close="lastIssuedTicket = null"
+      @close="handleSuccessModalClose"
       title="✅ Ticket Issued Successfully"
       subtitle="NCST Official Workflow: Pass record created. Print dynamic QR label to attach to pre-printed ticket stock."
       max-width="md"
@@ -666,6 +694,82 @@
           <div class="pt-2 border-t border-emerald-200/60 dark:border-emerald-800/40 text-[10px] text-emerald-800 dark:text-emerald-300 font-bold text-center">
             NCST Event Pass Successfully Issued
           </div>
+        </div>
+
+        <!-- Student Portal Account Notification Status Card -->
+        <div v-if="accountCreationInfo?.isStudent && accountCreationInfo?.created" class="p-4 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 space-y-2.5 text-xs text-left">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-black uppercase tracking-wider text-blue-900 dark:text-blue-200 flex items-center gap-1.5">
+              <KeyRound class="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              Student Portal Account Created
+            </span>
+            <span class="font-mono text-[11px] font-bold text-blue-700 dark:text-blue-300">
+              ID: {{ accountCreationInfo.studentId }}
+            </span>
+          </div>
+
+          <p class="text-[10.5px] text-blue-800/90 dark:text-blue-300/90 leading-relaxed">
+            Initial password is the student's official surname. The student must set a new personal password on their first login.
+          </p>
+
+          <div class="pt-2 border-t border-blue-200/80 dark:border-blue-800/50 space-y-1.5">
+            <!-- SMS Status -->
+            <div class="flex items-center justify-between text-[11px]">
+              <span class="text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+                <Smartphone class="w-3.5 h-3.5 text-slate-400" />
+                <span>SMS Notification:</span>
+              </span>
+              <span class="font-semibold flex items-center gap-1" :class="getStatusBadgeClass(accountCreationInfo.notifications?.sms?.status)">
+                <component :is="getStatusIcon(accountCreationInfo.notifications?.sms?.status)" class="w-3 h-3" />
+                <span>{{ accountCreationInfo.notifications?.sms?.details || 'SMS notification queued.' }}</span>
+              </span>
+            </div>
+
+            <!-- Email Status -->
+            <div class="flex items-center justify-between text-[11px]">
+              <span class="text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+                <Mail class="w-3.5 h-3.5 text-slate-400" />
+                <span>Official NCST Email:</span>
+              </span>
+              <span class="font-semibold flex items-center gap-1" :class="getStatusBadgeClass(accountCreationInfo.notifications?.email?.status)">
+                <component :is="getStatusIcon(accountCreationInfo.notifications?.email?.status)" class="w-3 h-3" />
+                <span>{{ accountCreationInfo.notifications?.email?.details || 'Official email queued.' }}</span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Outsider Account Confirmation Card (On-Screen Credentials Only) -->
+        <div v-if="accountCreationInfo?.isOutsider && accountCreationInfo?.created" class="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/80 space-y-2.5 text-xs text-left">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-black uppercase tracking-wider text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+              <Users class="w-4 h-4 text-amber-600 dark:text-amber-400" />
+              Outsider Account Created Successfully
+            </span>
+            <span v-if="accountCreationInfo.outsiderAccount?.expirationDate" class="text-[10px] font-bold text-amber-700 dark:text-amber-300">
+              Expires: {{ accountCreationInfo.outsiderAccount.expirationDate }}
+            </span>
+          </div>
+
+          <div class="p-3 bg-white dark:bg-[#1a1a1a] rounded-xl border border-amber-200 dark:border-amber-900/60 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-slate-500 text-[10.5px]">Account ID / Username:</span>
+              <span class="font-mono font-black text-slate-900 dark:text-white text-xs select-all">
+                {{ accountCreationInfo.outsiderAccount?.accountId }}
+              </span>
+            </div>
+
+            <div v-if="accountCreationInfo.outsiderAccount?.initialPassword" class="flex items-center justify-between">
+              <span class="text-slate-500 text-[10.5px]">Initial Password:</span>
+              <span class="font-mono font-black text-amber-600 dark:text-amber-400 text-xs px-2 py-0.5 bg-amber-100 dark:bg-amber-950/60 rounded border border-amber-300/50 select-all">
+                {{ accountCreationInfo.outsiderAccount?.initialPassword }}
+              </span>
+            </div>
+          </div>
+
+          <p class="text-[10.5px] text-amber-800/90 dark:text-amber-300/90 leading-relaxed">
+            {{ accountCreationInfo.outsiderAccount?.instructions || 'Provide these credentials to the guest now for event portal access.' }}
+          </p>
         </div>
 
           <!-- Primary Actions: Print QR Label, Open Print Queue, Next Sale -->
@@ -713,7 +817,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch } from 'vue';
+import { ref, reactive, computed, watch, onMounted, nextTick } from 'vue';
 import {
   Ticket as TicketIcon,
   Search,
@@ -724,7 +828,11 @@ import {
   CheckCircle2,
   AlertCircle,
   RotateCw,
-  ShieldCheck
+  ShieldCheck,
+  KeyRound,
+  Smartphone,
+  Mail,
+  Clock
 } from 'lucide-vue-next';
 import { useAppStore } from '../../composables/useAppStore';
 import { Ticket, EventItem } from '../../types';
@@ -754,6 +862,7 @@ const {
   studentRecords,
   transactions,
   pendingQrTickets,
+  ticketStock,
   purchaseTicket,
   registerStudent,
   availableSections,
@@ -762,6 +871,7 @@ const {
 } = useAppStore();
 
 const attendeeType = ref<'student' | 'outsider'>('student');
+const searchInputRef = ref<HTMLInputElement | null>(null);
 const searchQuery = ref('');
 const isSearching = ref(false);
 
@@ -792,7 +902,55 @@ const selectedEventId = ref(
   (eligibleEvents.value.some(e => e.id === currentEvent.value?.id) ? currentEvent.value?.id : eligibleEvents.value[0]?.id) || ''
 );
 const lastIssuedTicket = ref<Ticket | null>(null);
+const accountCreationInfo = ref<{
+  isStudent: boolean;
+  isOutsider: boolean;
+  created: boolean;
+  studentId?: string;
+  notifications?: {
+    sms?: { status: string; details: string; recipient?: string };
+    email?: { status: string; details: string; recipient?: string };
+  };
+  outsiderAccount?: {
+    created: boolean;
+    accountId?: string;
+    initialPassword?: string;
+    instructions?: string;
+    expirationDate?: string;
+  };
+} | null>(null);
 const isSubmitting = ref(false);
+
+const getStatusBadgeClass = (status?: string) => {
+  switch (status) {
+    case 'submitted':
+    case 'delivered':
+      return 'text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full';
+    case 'queued':
+    case 'pending':
+      return 'text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-950/60 px-2 py-0.5 rounded-full';
+    case 'unavailable':
+      return 'text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-[#282828] px-2 py-0.5 rounded-full';
+    case 'failed':
+    default:
+      return 'text-rose-700 dark:text-rose-400 bg-rose-100 dark:bg-rose-950/60 px-2 py-0.5 rounded-full';
+  }
+};
+
+const getStatusIcon = (status?: string) => {
+  switch (status) {
+    case 'submitted':
+    case 'delivered':
+      return CheckCircle2;
+    case 'queued':
+    case 'pending':
+      return Clock;
+    case 'unavailable':
+    case 'failed':
+    default:
+      return AlertCircle;
+  }
+};
 
 // Touch tracking for instant & blur inline feedback
 const touched = reactive({
@@ -812,6 +970,18 @@ const touchField = (field: keyof typeof touched) => {
 
 const selectedEvent = computed<EventItem | null>(() => {
   return eligibleEvents.value.find(e => e.id === selectedEventId.value) || eligibleEvents.value[0] || null;
+});
+
+const selectedEventStock = computed(() => {
+  if (!ticketStock.value || ticketStock.value.length === 0) return null;
+  return ticketStock.value.find(s => s.eventId === selectedEvent.value?.id) ||
+         ticketStock.value.find(s => s.id === 'stock-global-passes') ||
+         null;
+});
+
+const isStockDepleted = computed(() => {
+  if (!selectedEventStock.value) return false;
+  return selectedEventStock.value.availableQuantity <= 0;
 });
 
 const isEventPaid = computed(() => (selectedEvent.value?.ticketPrice ?? 0) > 0);
@@ -864,6 +1034,11 @@ const cashValidation = computed(() => {
 
 // Comprehensive Form Validity
 const isFormValid = computed(() => {
+  // Physical stock depletion guard
+  if (isStockDepleted.value) {
+    return false;
+  }
+
   // Common Name check
   if (!nameValidation.value.isValid) return false;
 
@@ -889,6 +1064,9 @@ const isFormValid = computed(() => {
 
 // Validation helper explanation for disabled button
 const formValidationHint = computed(() => {
+  if (isStockDepleted.value) {
+    return '⚠️ Physical ticket stock is depleted for this event. No blank tickets available.';
+  }
   if (!formName.value.trim()) return '⚠️ Attendee Full Name is required.';
   if (!nameValidation.value.isValid) return `⚠️ ${nameValidation.value.error}`;
   
@@ -1071,7 +1249,7 @@ const handleGenerateTicket = async () => {
     const price = isEventPaid.value ? (selectedEvent.value?.ticketPrice ?? 0) : 0;
 
     // 3. Generate unique Ticket Number & QR Code in database with Cash Validation & Auto-Account Creation
-    const res = purchaseTicket(
+    const res = await purchaseTicket(
       selectedEventId.value,
       undefined,
       undefined,
@@ -1092,6 +1270,14 @@ const handleGenerateTicket = async () => {
 
     if (res.success && res.ticket) {
       lastIssuedTicket.value = res.ticket;
+      accountCreationInfo.value = {
+        isStudent: !isOutsider,
+        isOutsider: isOutsider,
+        created: isOutsider ? !!res.outsiderAccount?.created : !!res.accountCreated,
+        studentId: !isOutsider ? formStudentId.value.trim() : undefined,
+        notifications: res.notifications,
+        outsiderAccount: res.outsiderAccount,
+      };
     } else if (!res.success && res.message) {
       alert(res.message);
     }
@@ -1103,6 +1289,37 @@ const handleGenerateTicket = async () => {
 const isQrLabelModalOpen = ref(false);
 const ticketForQrLabel = ref<Ticket | null>(null);
 
+const handleQuickSubmit = () => {
+  if (isFormValid.value) {
+    handleGenerateTicket();
+  }
+};
+
+const resetForm = () => {
+  searchQuery.value = '';
+  formStudentId.value = '';
+  formName.value = '';
+  formGuestPhone.value = '';
+  formGuestEmail.value = '';
+  formCashReceived.value = '';
+  Object.keys(touched).forEach(k => {
+    touched[k as keyof typeof touched] = false;
+  });
+};
+
+const handleSuccessModalClose = () => {
+  lastIssuedTicket.value = null;
+  accountCreationInfo.value = null;
+  resetForm();
+  nextTick(() => {
+    searchInputRef.value?.focus();
+  });
+};
+
+onMounted(() => {
+  searchInputRef.value?.focus();
+});
+
 const handlePrintSingleQrLabel = (ticket: Ticket) => {
   ticketForQrLabel.value = ticket;
   isQrLabelModalOpen.value = true;
@@ -1110,6 +1327,8 @@ const handlePrintSingleQrLabel = (ticket: Ticket) => {
 
 const handleGoToPrintQueue = () => {
   lastIssuedTicket.value = null;
+  accountCreationInfo.value = null;
+  resetForm();
   emit('navigate', 'qr_print_queue');
 };
 </script>

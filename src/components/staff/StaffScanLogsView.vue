@@ -75,19 +75,64 @@
 
     <!-- Main Table Container -->
     <div class="bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#2e2e2e] rounded-3xl p-6 shadow-xs space-y-4 transition-colors">
-      <!-- Search & Filters Toolbar -->
+      <!-- Search & Segmented Filter Toolbar -->
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-[#2a2a2a] pb-4">
-        <div class="flex items-center gap-2">
-          <span class="text-xs font-bold text-slate-700 dark:text-slate-300">
-            Total Scanned:
-          </span>
-          <span class="px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 text-xs font-black font-mono">
-            {{ filteredEventLogs.length }}
-          </span>
+        <!-- Segmented Filter Buttons (All, Students, Outsiders) -->
+        <div class="inline-flex p-1 bg-slate-100 dark:bg-[#222222] rounded-xl border border-slate-200/80 dark:border-[#333333] self-start sm:self-auto">
+          <button
+            type="button"
+            @click="activeFilter = 'all'"
+            class="px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+            :class="activeFilter === 'all'
+              ? 'bg-white dark:bg-[#141414] text-slate-900 dark:text-white shadow-xs'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+          >
+            <span>All</span>
+            <span
+              class="px-1.5 py-0.2 rounded-md text-[10px] font-mono font-bold"
+              :class="activeFilter === 'all' ? 'bg-slate-100 dark:bg-[#2a2a2a] text-slate-800 dark:text-slate-200' : 'bg-transparent text-slate-400'"
+            >
+              {{ eventLogs.length }}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            @click="activeFilter = 'students'"
+            class="px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+            :class="activeFilter === 'students'
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400'"
+          >
+            <span>Students</span>
+            <span
+              class="px-1.5 py-0.2 rounded-md text-[10px] font-mono font-bold"
+              :class="activeFilter === 'students' ? 'bg-blue-700 text-white' : 'bg-transparent text-slate-400'"
+            >
+              {{ studentCount }}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            @click="activeFilter = 'outsiders'"
+            class="px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+            :class="activeFilter === 'outsiders'
+              ? 'bg-amber-600 text-white shadow-xs'
+              : 'text-slate-500 dark:text-slate-400 hover:text-amber-600 dark:hover:text-amber-400'"
+          >
+            <span>Outsiders</span>
+            <span
+              class="px-1.5 py-0.2 rounded-md text-[10px] font-mono font-bold"
+              :class="activeFilter === 'outsiders' ? 'bg-amber-700 text-white' : 'bg-transparent text-slate-400'"
+            >
+              {{ outsiderCount }}
+            </span>
+          </button>
         </div>
 
         <!-- Search Bar -->
-        <div class="relative min-w-[240px] sm:w-72">
+        <div class="relative min-w-[200px] sm:w-64">
           <Search class="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
@@ -98,7 +143,7 @@
         </div>
       </div>
 
-      <!-- Chronological Scan Table -->
+      <!-- Single Recent Entrance Scans Table -->
       <div class="overflow-x-auto rounded-2xl border border-slate-200 dark:border-[#333333]">
         <table class="w-full text-left text-xs border-collapse">
           <thead>
@@ -112,7 +157,7 @@
           </thead>
           <tbody class="divide-y divide-slate-100 dark:divide-[#262626]">
             <tr
-              v-for="log in filteredEventLogs"
+              v-for="log in displayedLogs"
               :key="log.id"
               class="hover:bg-slate-50 dark:hover:bg-[#222222] transition"
             >
@@ -126,11 +171,17 @@
                 {{ log.ticketNumber || log.ticketId }}
               </td>
 
-              <!-- Attendee Name & ID -->
+              <!-- Attendee Name & ID/Reference -->
               <td class="py-3 px-3.5 font-bold text-slate-900 dark:text-white">
                 <div class="truncate max-w-[220px]">{{ log.attendeeName }}</div>
                 <div v-if="log.studentId" class="text-[10px] text-slate-400 font-mono font-normal">
                   ID: {{ log.studentId }}
+                </div>
+                <div v-else-if="log.contactNumber" class="text-[10px] text-slate-400 font-mono font-normal">
+                  Ref: {{ log.contactNumber }}
+                </div>
+                <div v-else-if="log.outsiderId" class="text-[10px] text-slate-400 font-mono font-normal">
+                  Ref: {{ log.outsiderId }}
                 </div>
               </td>
 
@@ -138,11 +189,11 @@
               <td class="py-3 px-3.5 whitespace-nowrap">
                 <span
                   class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider"
-                  :class="log.attendeeType === 'OUTSIDER'
-                    ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-800'
-                    : 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-800'"
+                  :class="isStudentScanLog(log, tickets, studentRecords, users)
+                    ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-800'
+                    : 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-800'"
                 >
-                  {{ log.attendeeType || 'STUDENT' }}
+                  {{ isStudentScanLog(log, tickets, studentRecords, users) ? 'STUDENT' : 'OUTSIDER' }}
                 </span>
               </td>
 
@@ -163,11 +214,16 @@
               </td>
             </tr>
 
-            <tr v-if="filteredEventLogs.length === 0">
+            <!-- Unified Empty State -->
+            <tr v-if="displayedLogs.length === 0">
               <td colspan="5" class="py-12 text-center text-slate-400">
                 <Clock class="w-8 h-8 mx-auto mb-2 opacity-40" />
-                <p class="font-bold text-xs">No scan records found for this event.</p>
-                <p class="text-[11px] text-slate-400 mt-0.5">Scanned QR codes will appear here chronologically.</p>
+                <p class="font-bold text-xs">
+                  {{ activeFilter === 'students' ? 'No student entrance scans found.' : (activeFilter === 'outsiders' ? 'No outsider/guest entrance scans found.' : 'No entrance scan records found for this event.') }}
+                </p>
+                <p class="text-[11px] text-slate-400 mt-0.5">
+                  {{ activeFilter === 'all' ? 'Scanned attendee QR codes will appear here (newest first).' : 'Scanned attendees in this category appear sorted alphabetically A–Z.' }}
+                </p>
               </td>
             </tr>
           </tbody>
@@ -179,19 +235,25 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { Camera, Clock, Search, WifiOff, RotateCw } from 'lucide-vue-next';
+import { Camera, Search, Clock, RotateCw, WifiOff } from 'lucide-vue-next';
 import { useAppStore } from '../../composables/useAppStore';
 import { useOfflineScanner } from '../../composables/useOfflineScanner';
-import { EventItem } from '../../types';
+import { EventItem, AttendanceLog } from '../../types';
+import {
+  isStudentScanLog,
+  sortAlphabeticalByName,
+  sortAttendanceLogs
+} from '../../utils/scanLogSorting';
 
 defineEmits<{
   (e: 'navigate', tabId: string): void;
 }>();
 
-const { currentUser, currentEvent, setCurrentEvent, events, logs } = useAppStore();
+const { currentUser, currentEvent, setCurrentEvent, events, logs, tickets, studentRecords, users } = useAppStore();
 const { isOnline, isSyncing, queuedCount, flushQueue } = useOfflineScanner();
 
 const searchQuery = ref('');
+const activeFilter = ref<'all' | 'students' | 'outsiders'>('all');
 
 // Assigned events list for logged-in staff member
 const assignedEventsList = computed<EventItem[]>(() => {
@@ -214,17 +276,46 @@ const eventLogs = computed(() => {
   return logs.value.filter(l => l.eventId === currentEvent.value?.id);
 });
 
-// Filtered logs by search query
-const filteredEventLogs = computed(() => {
-  return eventLogs.value.filter(l => {
-    if (searchQuery.value.trim()) {
-      const q = searchQuery.value.toLowerCase();
+// Category counts based on authoritative classification
+const studentCount = computed(() => {
+  return eventLogs.value.filter(l => isStudentScanLog(l, tickets.value, studentRecords.value, users.value)).length;
+});
+
+const outsiderCount = computed(() => {
+  return eventLogs.value.filter(l => !isStudentScanLog(l, tickets.value, studentRecords.value, users.value)).length;
+});
+
+// Filtered and sorted scans for the single table
+const displayedLogs = computed<AttendanceLog[]>(() => {
+  // 1. Filter by attendee type (authoritative roster / tickets / users classification)
+  let list = eventLogs.value;
+  if (activeFilter.value === 'students') {
+    list = list.filter(l => isStudentScanLog(l, tickets.value, studentRecords.value, users.value));
+  } else if (activeFilter.value === 'outsiders') {
+    list = list.filter(l => !isStudentScanLog(l, tickets.value, studentRecords.value, users.value));
+  }
+
+  // 2. Search query filter
+  if (searchQuery.value.trim()) {
+    const q = searchQuery.value.toLowerCase();
+    list = list.filter(l => {
       const matchName = (l.attendeeName || '').toLowerCase().includes(q);
       const matchTix = (l.ticketNumber || l.ticketId || '').toLowerCase().includes(q);
       const matchStudentId = (l.studentId || '').toLowerCase().includes(q);
-      if (!matchName && !matchTix && !matchStudentId) return false;
-    }
-    return true;
-  });
+      const matchContact = (l.contactNumber || '').toLowerCase().includes(q);
+      const matchOutsiderId = (l.outsiderId || '').toLowerCase().includes(q);
+      return matchName || matchTix || matchStudentId || matchContact || matchOutsiderId;
+    });
+  }
+
+  // 3. Sorting rule per view:
+  // - "all": newest scans first (default)
+  // - "students": alphabetical by student full name A–Z
+  // - "outsiders": alphabetical by outsider/guest full name A–Z
+  if (activeFilter.value === 'students' || activeFilter.value === 'outsiders') {
+    return sortAlphabeticalByName(list);
+  }
+
+  return sortAttendanceLogs(list, 'newest');
 });
 </script>

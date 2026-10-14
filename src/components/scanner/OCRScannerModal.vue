@@ -161,7 +161,6 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import { createWorker } from 'tesseract.js';
 import { FileText, Camera, Upload, CheckCircle, Loader2, Eye, Sparkles, Ticket as TicketIcon, UserCheck } from 'lucide-vue-next';
 import { useAppStore } from '../../composables/useAppStore';
 import Modal from '../common/Modal.vue';
@@ -255,6 +254,7 @@ const runOCR = async (input: string) => {
     }
 
     // Attempt local/cached Tesseract worker with 4-second timeout to prevent offline hang
+    const { createWorker } = await import('tesseract.js');
     const workerPromise = createWorker('eng');
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error('OCR offline timeout')), 4000)

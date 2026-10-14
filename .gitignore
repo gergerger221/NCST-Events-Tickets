@@ -25,7 +25,7 @@ scripts/inspect_data.php
 .vscode/*
 !.vscode/extensions.json
 .idea
-.agents/
+
 .DS_Store
 *.suo
 *.ntvs*
@@ -39,3 +39,13 @@ scripts/inspect_data.php
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+# Playwright CLI output (may contain credentials)
+.playwright-cli/
+/storage/
+
+# Agent tooling & workspaces
+.agents/
+.claude/
+.codex/
+agent-workspace/
+.github/hooks/

@@ -46,6 +46,10 @@ export interface User {
   expiredAt?: string; // Timestamp when account was auto-deactivated
   mustChangePassword?: boolean;
   temporaryPassword?: string;
+  contactNumber?: string;
+  recoveryEmail?: string;
+  recoveryEmailVerified?: boolean;
+  recoveryEmailVerifiedAt?: string;
 }
 
 // Authoritative Enrollment Roster Record (Identity distinct from Login Account)
@@ -62,6 +66,7 @@ export interface StudentRecord {
   department?: string;
   email?: string;
   maskedEmail?: string;
+  contactNumber?: string;
   photoUrl?: string;
   createdAt: string;
   userId?: string; // Linked User login account ID (null/undefined if not yet registered)
@@ -215,6 +220,7 @@ export interface Ticket {
   transferHistory: TransferRecord[];
   
   // Physical metadata
+  physicalSerialNumber?: string;
   ocrVerified?: boolean;
   notes?: string;
 
@@ -223,6 +229,18 @@ export interface Ticket {
   academic_year?: string;
   semester?: string;
 }
+
+export interface TicketStock {
+  id: string;
+  eventId?: string | null;
+  stockType: string;
+  totalQuantity: number;
+  availableQuantity: number;
+  reservedQuantity: number;
+  usedQuantity: number;
+  updatedAt?: string;
+}
+
 
 export interface AttendanceLog {
   id: string;

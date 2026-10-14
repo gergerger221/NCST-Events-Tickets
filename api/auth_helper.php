@@ -51,6 +51,7 @@ function ncst_load_env(): void {
 
 // Automatically load on include
 ncst_load_env();
+date_default_timezone_set(ncst_env('APP_TIMEZONE', 'Asia/Manila'));
 
 function ncst_env(string $key, mixed $default = null): mixed {
     if (isset($_ENV[$key])) return $_ENV[$key];
@@ -87,9 +88,9 @@ function ncst_apply_cors(): void {
         }
     }
 
-    // Fallback: If no origin header or matches allowed
+    // Fallback: If no origin header or matches allowed, strictly default to trusted local origin
     if (empty($allowOrigin)) {
-        $allowOrigin = !empty($origin) ? $origin : '*';
+        $allowOrigin = $allowedOrigins[0] ?? 'http://localhost:5173';
     }
 
     header('Content-Type: application/json; charset=utf-8');
@@ -254,7 +255,7 @@ function ncst_generate_token(array $user): string {
         'uid'  => $user['id'],
         'role' => $user['role'],
         'iat'  => time(),
-        'exp'  => time() + (86400 * 7) // 7 days expiration
+        'exp'  => time() + (int)ncst_env('APP_TOKEN_LIFETIME', 86400) // 24 hours expiration
     ];
 
     $payloadJson = json_encode($payload);
@@ -293,19 +294,9 @@ function ncst_verify_token(string $token): ?array {
         return [
             'userId' => $payload['uid'],
             'role'   => $payload['role'] ?? 'student',
+            'iat'    => $payload['iat'] ?? 0,
             'exp'    => $payload['exp']
         ];
-    }
-
-    // 2. Compatibility check for legacy dev tokens (STRICTLY PROHIBITED IN PRODUCTION)
-    $env = strtolower(trim(ncst_env('APP_ENV', 'development')));
-    if ($env !== 'production') {
-        if (preg_match('/^sess_[a-z_]+_(usr-[a-z0-9-]+)$/', $token, $m)) {
-            return ['userId' => $m[1], 'role' => 'dev', 'exp' => time() + 86400];
-        }
-        if (preg_match('/^sess_[a-z_]+_([a-zA-Z0-9_-]+)$/', $token, $m)) {
-            return ['userId' => $m[1], 'role' => 'dev', 'exp' => time() + 86400];
-        }
     }
 
     return null;
@@ -338,6 +329,13 @@ function ncst_get_auth_user(PDO $pdo): ?array {
     $user = $stmt->fetch();
 
     if ($user) {
+        // Enforce session invalidation if password was reset after token issuance
+        if (!empty($user['password_changed_at']) && isset($verified['iat'])) {
+            $changedTime = strtotime($user['password_changed_at']);
+            if ($changedTime > ($verified['iat'] + 2)) {
+                return null; // Session revoked due to password change
+            }
+        }
         if (!empty($user['assigned_classes']) && is_string($user['assigned_classes'])) {
             $user['assignedClasses'] = json_decode($user['assigned_classes'], true);
         }
@@ -351,6 +349,9 @@ function ncst_get_auth_user(PDO $pdo): ?array {
         $user['studentId'] = $user['student_id'] ?? null;
         $user['employeeId'] = $user['employee_id'] ?? null;
         $user['yearLevel'] = $user['year_level'] ?? null;
+        $user['recoveryEmail'] = $user['recovery_email'] ?? null;
+        $user['recoveryEmailVerified'] = (bool)($user['recovery_email_verified'] ?? 0);
+        $user['recoveryEmailVerifiedAt'] = $user['recovery_email_verified_at'] ?? null;
         return $user;
     }
 
@@ -360,6 +361,9 @@ function ncst_get_auth_user(PDO $pdo): ?array {
 function ncst_sanitize_user(?array $user): ?array {
     if (!$user) return null;
     unset($user['password']);
+    $user['recoveryEmail'] = $user['recovery_email'] ?? ($user['recoveryEmail'] ?? null);
+    $user['recoveryEmailVerified'] = (bool)($user['recovery_email_verified'] ?? ($user['recoveryEmailVerified'] ?? 0));
+    $user['recoveryEmailVerifiedAt'] = $user['recovery_email_verified_at'] ?? ($user['recoveryEmailVerifiedAt'] ?? null);
     return $user;
 }
 
@@ -401,7 +405,7 @@ function ncst_reset_rate_limit(string $action): void {
 }
 
 function sys_get_temp_limit_dir(): string {
-    $dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'ncst_security';
+    $dir = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'limits';
     if (!is_dir($dir)) {
         @mkdir($dir, 0777, true);
     }

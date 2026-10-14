@@ -667,31 +667,91 @@
     padding: 0 !important;
   }
 
-  body.is-printing-ticket #printable-ticket-badge {
+  /* Physical NCST Ticket Dimensions: 11.5 cm × 4.2 cm */
+  body.is-printing-bulk-stock .bulk-ticket-print-card {
     display: flex !important;
     flex-direction: row !important;
-    width: 820px !important;
-    height: 310px !important;
-    margin: 20px auto !important;
+    width: 11.5cm !important;
+    min-width: 11.5cm !important;
+    max-width: 11.5cm !important;
+    height: 4.2cm !important;
+    min-height: 4.2cm !important;
+    max-height: 4.2cm !important;
+    margin: 0 auto !important;
     box-shadow: none !important;
+    border-radius: 0 !important;
+    box-sizing: border-box !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
     color-adjust: exact !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
+    page-break-after: always !important;
+    break-after: page !important;
+    overflow: hidden !important;
   }
 
-  body.is-printing-ticket #printable-ticket-badge > div:first-child {
-    width: 230px !important;
-    min-width: 230px !important;
+  body.is-printing-ticket #printable-ticket-badge {
+    display: flex !important;
+    flex-direction: row !important;
+    width: 11.5cm !important;
+    min-width: 11.5cm !important;
+    max-width: 11.5cm !important;
+    height: 4.2cm !important;
+    min-height: 4.2cm !important;
+    max-height: 4.2cm !important;
+    margin: 0 auto !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    box-sizing: border-box !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    overflow: hidden !important;
+  }
+
+  body.is-printing-ticket #printable-ticket-badge > div:first-child,
+  body.is-printing-bulk-stock .bulk-ticket-print-card > div:first-child {
+    width: 2.8cm !important;
+    min-width: 2.8cm !important;
+    max-width: 2.8cm !important;
+    height: 4.2cm !important;
     flex-shrink: 0 !important;
     display: flex !important;
     flex-direction: column !important;
     justify-content: space-between !important;
+    padding: 2mm !important;
+    box-sizing: border-box !important;
     background: #f1f5f9 !important;
     color: #0f172a !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+  }
+
+  body.is-printing-ticket #printable-ticket-badge .qr-target-container,
+  body.is-printing-bulk-stock .bulk-ticket-print-card .qr-target-container {
+    width: 3.4cm !important;
+    min-width: 3.4cm !important;
+    max-width: 3.4cm !important;
+    height: 3.8cm !important;
+    min-height: 3.8cm !important;
+    max-height: 3.8cm !important;
+    padding: 1.5mm !important;
+    box-sizing: border-box !important;
+    background: #ffffff !important;
+  }
+
+  body.is-printing-ticket #printable-ticket-badge .qr-sticker-placement-box,
+  body.is-printing-bulk-stock .bulk-ticket-print-card .qr-sticker-placement-box {
+    width: 3.0cm !important;
+    height: 3.0cm !important;
+    min-width: 3.0cm !important;
+    min-height: 3.0cm !important;
+    box-sizing: border-box !important;
+    border: 1pt dashed #475569 !important;
+    background: #f8fafc !important;
   }
 
   body.is-printing-ticket #printable-ticket-badge * {

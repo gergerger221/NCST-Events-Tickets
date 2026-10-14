@@ -7,7 +7,7 @@
 require_once __DIR__ . '/../api/auth_helper.php';
 require_once __DIR__ . '/../api/db.php';
 
-$baseUrl = 'http://localhost/Integ%202/api';
+$baseUrl = ncst_env('TEST_API_URL', 'http://localhost/NCST-Events-Tickets/api');
 $failures = [];
 $passes = 0;
 

@@ -424,48 +424,78 @@ export function stateSyncPlugin(): Plugin {
                 return res.end(JSON.stringify({ success: true, message: `Password for ${target.name} (${target.role.toUpperCase()}) was successfully reset.` }));
               }
 
-              // Self-service reset (Strictly for Students with 2-factor match: Student ID + registered Email)
-              const cleanStudentId = (studentId || '').trim().toLowerCase();
+              // Universal Email-Based Password Reset (Students, Teachers, Employees, Admins, Cashiers, Outsiders)
               const cleanEmail = (email || '').trim().toLowerCase();
+              const accountIdentifier = (payload.accountIdentifier || studentId || payload.employeeId || payload.guestReference || '').trim();
 
-              if (!cleanStudentId || !cleanEmail) {
+              if (!cleanEmail) {
                 res.statusCode = 422;
                 res.setHeader('Content-Type', 'application/json');
                 return res.end(JSON.stringify({
                   success: false,
-                  error: 'Both Student ID and Institutional Email are required for identity verification.'
+                  error: 'Registered email address is required.'
                 }));
               }
 
-              const targetStudent = allUsers.find((u: any) => 
-                u.role === 'student' &&
-                (u.studentId || '').trim().toLowerCase() === cleanStudentId &&
-                (u.email || '').trim().toLowerCase() === cleanEmail
-              );
+              // Match by email across all accounts
+              let matched = allUsers.filter((u: any) => (u.email || '').trim().toLowerCase() === cleanEmail);
 
-              if (!targetStudent) {
+              // Disambiguate if identifier supplied
+              if (accountIdentifier) {
+                const cleanIdent = accountIdentifier.toLowerCase().replace(/\s+/g, '');
+                matched = matched.filter((u: any) => {
+                  const uStd = (u.studentId || '').toLowerCase().replace(/\s+/g, '');
+                  const uEmp = (u.employeeId || '').toLowerCase().replace(/\s+/g, '');
+                  const uId = (u.id || '').toLowerCase();
+                  return uStd === cleanIdent || uEmp === cleanIdent || uId === cleanIdent;
+                });
+              }
+
+              if (matched.length > 1) {
+                res.statusCode = 422;
+                res.setHeader('Content-Type', 'application/json');
+                return res.end(JSON.stringify({
+                  success: false,
+                  requiresDisambiguation: true,
+                  error: 'Multiple accounts are registered with this email address. Please enter your Student ID, Employee ID, or Guest Reference to specify which account to recover.'
+                }));
+              }
+
+              if (matched.length === 0) {
                 res.statusCode = 404;
                 res.setHeader('Content-Type', 'application/json');
                 return res.end(JSON.stringify({
                   success: false,
-                  error: 'Identity verification failed: No active student account matches both the provided Student ID and Email.'
+                  error: `No registered account found matching ${cleanEmail}.`
                 }));
               }
 
-              if (targetStudent.isActive === false) {
+              const targetUser = matched[0];
+
+              if (targetUser.isActive === false || targetUser.account_status === 'deactivated') {
                 res.statusCode = 403;
                 res.setHeader('Content-Type', 'application/json');
                 return res.end(JSON.stringify({
                   success: false,
-                  error: 'This student account is deactivated. Please contact the Administrator.'
+                  error: 'This account is deactivated. Please contact the Administrator.'
                 }));
               }
 
-              // Step 1: Request verification code (action === 'request_code' or when no verification code is supplied)
+              // Outsider expiration check
+              if (targetUser.role === 'outsider' && targetUser.expiresAt && new Date(targetUser.expiresAt).getTime() < Date.now()) {
+                res.statusCode = 403;
+                res.setHeader('Content-Type', 'application/json');
+                return res.end(JSON.stringify({
+                  success: false,
+                  error: 'This guest account has expired following the event date. Expired accounts cannot be reset.'
+                }));
+              }
+
+              // Step 1: Request verification code
               if (payload.action === 'request_code' || !payload.verificationCode) {
                 const code = String(Math.floor(100000 + Math.random() * 900000));
-                targetStudent.resetCode = code;
-                targetStudent.resetCodeExpires = Date.now() + 15 * 60 * 1000;
+                targetUser.resetCode = code;
+                targetUser.resetCodeExpires = Date.now() + 15 * 60 * 1000;
                 inMemoryState = JSON.stringify(parsedState);
 
                 res.statusCode = 200;
@@ -479,7 +509,7 @@ export function stateSyncPlugin(): Plugin {
               }
 
               // Step 2: Confirm verification code and reset password
-              if (!targetStudent.resetCode || targetStudent.resetCode !== String(payload.verificationCode).trim() || Date.now() > (targetStudent.resetCodeExpires || 0)) {
+              if (!targetUser.resetCode || targetUser.resetCode !== String(payload.verificationCode).trim() || Date.now() > (targetUser.resetCodeExpires || 0)) {
                 res.statusCode = 400;
                 res.setHeader('Content-Type', 'application/json');
                 return res.end(JSON.stringify({ success: false, error: 'Invalid or expired verification code. Please request a new code.' }));
@@ -491,16 +521,17 @@ export function stateSyncPlugin(): Plugin {
                 return res.end(JSON.stringify({ success: false, error: 'Password must be at least 4 characters long.' }));
               }
 
-              targetStudent.password = newPassword.trim();
-              delete targetStudent.resetCode;
-              delete targetStudent.resetCodeExpires;
+              targetUser.password = newPassword.trim();
+              targetUser.mustChangePassword = false;
+              delete targetUser.resetCode;
+              delete targetUser.resetCodeExpires;
               inMemoryState = JSON.stringify(parsedState);
 
               res.statusCode = 200;
               res.setHeader('Content-Type', 'application/json');
               return res.end(JSON.stringify({
                 success: true,
-                message: `Password for ${targetStudent.name} (${targetStudent.studentId}) was successfully reset. You can now sign in.`
+                message: `Password for ${targetUser.name} (${targetUser.role.toUpperCase()}) was successfully reset. You can now sign in.`
               }));
             } catch (err: any) {
               res.statusCode = 400;

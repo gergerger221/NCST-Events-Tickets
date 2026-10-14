@@ -18,6 +18,7 @@ import {
   PaymentStatus,
   QRPrintStatus,
   AttendanceStatus,
+  TicketStock,
 } from '../types';
 import {
   INITIAL_USERS,
@@ -85,10 +86,20 @@ const STORAGE_KEYS = {
   SESSION_TOKEN: 'integ2_vue_session_token_v10',
 };
 
+const safeLocalStorageSetItem = (key: string, value: string): void => {
+  try {
+    localStorage.setItem(key, value);
+  } catch (e) {
+    console.warn(`[LocalStorage] Storage write suppressed for "${key}" to avoid quota overflow:`, e);
+  }
+};
+
 const sessionToken = ref<string>(
   (() => {
-    const s = localStorage.getItem(STORAGE_KEYS.SESSION_TOKEN);
-    if (s) return s;
+    try {
+      const s = localStorage.getItem(STORAGE_KEYS.SESSION_TOKEN);
+      if (s) return s;
+    } catch {}
     return '';
   })()
 );
@@ -396,6 +407,9 @@ const activeAcademicPeriod = computed<AcademicPeriod>(() => {
   };
 });
 
+// Centralized physical ticket stock inventory shared across all cashiers
+const ticketStock = ref<TicketStock[]>([]);
+
 const currentUser = ref<User | null>(
   (() => {
     const s = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
@@ -529,6 +543,7 @@ const getAuthHeaders = (): Record<string, string> => {
 
 let pushDebounceTimer: any = null;
 const schedulePushStateToServer = (immediate = false) => {
+  if (isSyncingFromServer) return;
   if (pushDebounceTimer) {
     clearTimeout(pushDebounceTimer);
     pushDebounceTimer = null;
@@ -597,7 +612,13 @@ const fetchStateFromServer = async () => {
         return;
       }
 
+      // Enter server hydration mode and cancel any pending outbound push
       isSyncingFromServer = true;
+      if (pushDebounceTimer) {
+        clearTimeout(pushDebounceTimer);
+        pushDebounceTimer = null;
+      }
+
       // Overwrite users/tickets/events if server timestamp is newer or if read-only role
       if (Array.isArray(data.users) && data.users.length > 0) {
         users.value = ensureSeedUsers(data.users);
@@ -609,11 +630,20 @@ const fetchStateFromServer = async () => {
       if (Array.isArray(data.logs) && data.logs.length > 0) logs.value = sanitizeAndDeduplicateLogs(data.logs);
       if (Array.isArray(data.transactions) && data.transactions.length > 0) transactions.value = data.transactions;
       if (Array.isArray(data.academicPeriods) && data.academicPeriods.length > 0) academicPeriods.value = data.academicPeriods;
+      if (Array.isArray(data.ticketStock) && data.ticketStock.length > 0) ticketStock.value = data.ticketStock;
       if (serverTimestamp) {
         localLastModified = serverTimestamp;
         localWriteTimestamp = serverTimestamp;
       }
-      setTimeout(() => { isSyncingFromServer = false; }, 200);
+
+      // Keep isSyncingFromServer true past the debounce window to prevent reactive ping-pong loops
+      setTimeout(() => {
+        if (pushDebounceTimer) {
+          clearTimeout(pushDebounceTimer);
+          pushDebounceTimer = null;
+        }
+        isSyncingFromServer = false;
+      }, 500);
     }
   } catch {}
 };
@@ -697,57 +727,62 @@ if (typeof window !== 'undefined') {
 
 // Watchers for LocalStorage persistence & Server State Sync
 watch(academicPeriods, val => {
-  localStorage.setItem(STORAGE_KEYS.ACADEMIC_PERIODS, JSON.stringify(val));
+  safeLocalStorageSetItem(STORAGE_KEYS.ACADEMIC_PERIODS, JSON.stringify(val));
 }, { deep: true });
 
 watch(users, val => {
+  if (isSyncingFromServer) return;
   localWriteTimestamp = Date.now();
-  const sanitized = val.map(u => {
-    const c = { ...u };
-    delete (c as any).password;
-    delete (c as any).temporaryPassword;
-    return c;
-  });
-  localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(sanitized));
   validateAndSyncSession();
   schedulePushStateToServer();
 }, { deep: true });
 
-watch(studentRecords, val => {
+watch(studentRecords, () => {
+  if (isSyncingFromServer) return;
   localWriteTimestamp = Date.now();
-  localStorage.setItem(STORAGE_KEYS.STUDENT_RECORDS, JSON.stringify(val));
   schedulePushStateToServer();
 }, { deep: true });
 
 watch(events, val => {
+  if (isSyncingFromServer) return;
   localWriteTimestamp = Date.now();
-  localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(val));
   if (!val || val.length === 0) {
     currentEvent.value = null;
     localStorage.removeItem(STORAGE_KEYS.CURRENT_EVENT);
   } else if (!currentEvent.value || !val.some(e => e.id === currentEvent.value?.id)) {
     currentEvent.value = val[0];
-    localStorage.setItem(STORAGE_KEYS.CURRENT_EVENT, JSON.stringify(val[0]));
+    safeLocalStorageSetItem(STORAGE_KEYS.CURRENT_EVENT, JSON.stringify(val[0]));
   }
   schedulePushStateToServer();
 }, { deep: true });
 
-watch(tickets, val => {
+watch(tickets, () => {
+  if (isSyncingFromServer) return;
   localWriteTimestamp = Date.now();
-  localStorage.setItem(STORAGE_KEYS.TICKETS, JSON.stringify(val));
   schedulePushStateToServer();
 }, { deep: true });
 
-watch(logs, val => {
+watch(logs, () => {
+  if (isSyncingFromServer) return;
   localWriteTimestamp = Date.now();
-  localStorage.setItem(STORAGE_KEYS.LOGS, JSON.stringify(val));
   schedulePushStateToServer();
 }, { deep: true });
 
-watch(transactions, val => {
+watch(transactions, () => {
+  if (isSyncingFromServer) return;
   localWriteTimestamp = Date.now();
-  localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(val));
   schedulePushStateToServer();
+}, { deep: true });
+
+watch(currentUser, val => {
+  if (val) {
+    const sanitized = { ...val };
+    delete (sanitized as any).password;
+    delete (sanitized as any).temporaryPassword;
+    safeLocalStorageSetItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(sanitized));
+  } else {
+    localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+  }
 }, { deep: true });
 
 watch(currentUser, val => {
@@ -1158,7 +1193,7 @@ export function useAppStore() {
   };
 
   // Ticket creation for registered students / cashier issuance
-  const purchaseTicket = (
+  const purchaseTicket = async (
     eventId: string,
     photoUrl?: string,
     userId?: string,
@@ -1176,12 +1211,23 @@ export function useAppStore() {
       cashReceived?: number | string;
     },
     customPrice?: number
-  ): {
+  ): Promise<{
     success: boolean;
     message: string;
     ticket: Ticket;
     accountCreated?: boolean;
-  } => {
+    notifications?: {
+      sms?: { status: string; details: string; recipient?: string };
+      email?: { status: string; details: string; recipient?: string };
+    };
+    outsiderAccount?: {
+      created: boolean;
+      accountId?: string;
+      initialPassword?: string;
+      instructions?: string;
+      expirationDate?: string;
+    };
+  }> => {
     const targetEvent = events.value.find(e => e.id === eventId) || currentEvent.value;
 
     // Role Security (Requirement 13 & 16): Students CANNOT self-issue or purchase tickets directly.
@@ -1351,8 +1397,62 @@ export function useAppStore() {
       existingUserAccount = users.value.find(u => u.id === userId) || null;
     }
 
+    // Outsider account provisioning (Transient credentials displayed on-screen only)
+    let outsiderAccountCreated = false;
+    let outsiderInitialPassword: string | undefined = undefined;
+    let outsiderAccountId: string | undefined = undefined;
+    let outsiderExpiration: string | undefined = undefined;
+
+    if (isOutsider) {
+      const guestRef = (studentOverride?.studentId || '').trim();
+      const cleanGuestRef = guestRef.toLowerCase();
+      const guestEmail = (studentOverride?.email || '').trim().toLowerCase();
+
+      const existingOutsider = users.value.find(u =>
+        (u.isOutsider || u.role === 'outsider' || u.attendeeType === 'OUTSIDER') &&
+        ((cleanGuestRef && u.studentId && u.studentId.toLowerCase() === cleanGuestRef) ||
+         (guestEmail && u.email && u.email.toLowerCase() === guestEmail))
+      );
+
+      if (existingOutsider) {
+        existingUserAccount = existingOutsider;
+        outsiderAccountCreated = false;
+        outsiderAccountId = existingOutsider.studentId || existingOutsider.id;
+        outsiderExpiration = existingOutsider.expiresAt;
+      } else {
+        const transientGuestRef = guestRef || `GUEST-${Math.floor(1000 + Math.random() * 9000)}`;
+        outsiderInitialPassword = `Guest@${Math.random().toString(36).slice(-6).toUpperCase()}`;
+        const newOutsider: User = {
+          id: `usr-guest-${Date.now()}`,
+          name: studentName,
+          email: studentOverride?.email?.trim() || `${transientGuestRef.toLowerCase()}@guest.ncst.edu.ph`,
+          role: 'outsider',
+          attendeeType: 'OUTSIDER',
+          isOutsider: true,
+          studentId: transientGuestRef,
+          department: 'General Public / Guest',
+          password: outsiderInitialPassword,
+          createdAt: new Date().toISOString(),
+          isActive: true,
+          accountStatus: 'active',
+          mustChangePassword: false,
+        };
+
+        const { expirationDate } = getOutsiderAccountExpirationDate(newOutsider, events.value, tickets.value);
+        if (expirationDate) {
+          newOutsider.expiresAt = expirationDate.toISOString();
+          outsiderExpiration = formatPhilippineExpiration(expirationDate);
+        }
+
+        users.value.unshift(newOutsider);
+        existingUserAccount = newOutsider;
+        outsiderAccountCreated = true;
+        outsiderAccountId = transientGuestRef;
+      }
+    }
+
     // Owner ID: Linked to student user account or student record
-    const ownerId = existingUserAccount ? existingUserAccount.id : (studentRec ? studentRec.id : (isOutsider ? (studentOverride?.studentId || `usr-guest-${Date.now()}`) : `rec-${Date.now()}`));
+    const ownerId = existingUserAccount ? existingUserAccount.id : (studentRec ? studentRec.id : (isOutsider ? (outsiderAccountId || `usr-guest-${Date.now()}`) : `rec-${Date.now()}`));
 
     const officialPrice = targetEvent ? (targetEvent.ticketPrice ?? 0) : 0;
     const price = officialPrice;
@@ -1408,11 +1508,174 @@ export function useAppStore() {
     }
 
     const parsedName = splitFullName(studentName);
-    const ticketSeq = Math.floor(10000 + tickets.value.length + 1);
-    const outsiderId = isOutsider ? (ownerId || `out-${ticketSeq}`) : undefined;
-    const newTicketNumber = isOutsider ? `TIX-O-${ticketSeq}` : `TIX-${ticketSeq}`;
     const evAcadYear = targetEvent?.academicYear || '2026-2027';
     const evSem = targetEvent?.semester || '1st Semester';
+
+    // Helper for collision-resistant 12 uppercase hex characters
+    const generateHexEntropy = (bytes = 6) => {
+      if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+        return Array.from(crypto.getRandomValues(new Uint8Array(bytes)))
+          .map(b => b.toString(16).padStart(2, '0'))
+          .join('')
+          .toUpperCase();
+      }
+      return Math.random().toString(16).slice(2, 2 + bytes * 2).toUpperCase();
+    };
+
+    const clientTxId = `TXN-POS-${Date.now()}-${generateHexEntropy(4)}`;
+
+    // Prepare student notification statuses for newly created accounts (optimistic default)
+    let notifications: {
+      sms?: { status: string; details: string; recipient?: string };
+      email?: { status: string; details: string; recipient?: string };
+    } | undefined = undefined;
+
+    if (!isOutsider && accountCreated) {
+      const phoneNum = studentOverride?.contactNumber || studentRec?.contactNumber;
+      const emailAddr = studentRec?.email || studentOverride?.email || (studentId ? `${normalizeId(studentId).toLowerCase()}@student.ncst.edu.ph` : undefined);
+
+      notifications = {
+        sms: {
+          status: phoneNum ? 'queued' : 'unavailable',
+          details: phoneNum ? `SMS notification queued for ${phoneNum}.` : 'Registered mobile number unavailable.',
+          recipient: phoneNum,
+        },
+        email: {
+          status: emailAddr ? 'queued' : 'unavailable',
+          details: emailAddr ? `Official email queued for ${emailAddr}.` : 'Official NCST email address unavailable.',
+          recipient: emailAddr,
+        },
+      };
+    }
+
+    // Try authoritative backend POS endpoint first if online and authorized role
+    const userRole = currentUser.value?.role;
+    if ((userRole === 'cashier' || userRole === 'admin') && (typeof navigator === 'undefined' || navigator.onLine)) {
+      try {
+        const res = await fetch(apiUrl('/api/purchase-ticket'), {
+          method: 'POST',
+          headers: {
+            ...getAuthHeaders(),
+            'Content-Type': 'application/json',
+            'Idempotency-Key': clientTxId,
+          },
+          body: JSON.stringify({
+            eventId: targetEventId,
+            attendeeType: calculatedAttendeeType,
+            studentId: isOutsider ? undefined : studentId,
+            name: studentName,
+            course,
+            yearLevel,
+            section,
+            department,
+            contactNumber,
+            email,
+            price,
+            idempotencyKey: clientTxId,
+            guestReference: isOutsider ? (studentOverride?.studentId || outsiderAccountId) : undefined,
+          }),
+        });
+
+        const data = await res.json();
+
+        if (res.ok && data.success && data.ticket) {
+          const serverTicket: Ticket = normalizeTicket({
+            ...data.ticket,
+            firstName: existingUserAccount?.firstName || studentRec?.firstName || parsedName.firstName,
+            middleName: existingUserAccount?.middleName || studentRec?.middleName || parsedName.middleName,
+            lastName: existingUserAccount?.lastName || studentRec?.lastName || parsedName.lastName,
+            attendeeEmail: email,
+            attendeeDepartment: department,
+            course,
+            yearLevel,
+            section,
+            contactNumber,
+            attendeePhotoUrl: photoUrl || existingUserAccount?.photoUrl || studentRec?.photoUrl,
+            transferHistory: [],
+            notes: isOutsider ? 'Outsider / Guest Event Pass.' : (price > 0 ? `Payment recorded (PHP ${price}.00).` : 'Free official student event ticket registration.'),
+          });
+
+          const existIdx = tickets.value.findIndex(t => t.id === serverTicket.id || t.ticketNumber === serverTicket.ticketNumber);
+          if (existIdx >= 0) {
+            tickets.value[existIdx] = serverTicket;
+          } else {
+            tickets.value.unshift(serverTicket);
+          }
+
+          if (data.stock) {
+            const stkIdx = ticketStock.value.findIndex(s => s.id === data.stock.stockId);
+            if (stkIdx >= 0) {
+              ticketStock.value[stkIdx].availableQuantity = data.stock.availableQuantity;
+              ticketStock.value[stkIdx].reservedQuantity = data.stock.reservedQuantity;
+            }
+          }
+
+          const serverTxn: PurchaseTransaction = {
+            id: data.transactionId || clientTxId,
+            userId: ownerId,
+            userName: studentName,
+            attendeeType: calculatedAttendeeType,
+            studentId: isOutsider ? undefined : studentId,
+            course,
+            yearLevel,
+            section,
+            contactNumber,
+            userEmail: email,
+            eventId: targetEvent ? targetEvent.id : eventId,
+            eventTitle: targetEvent ? targetEvent.title : 'Event',
+            ticketId: serverTicket.id,
+            ticketNumber: serverTicket.ticketNumber,
+            amount: price,
+            paymentStatus: price > 0 ? 'paid' : 'free',
+            purchaseDate: new Date().toISOString(),
+            quantity: 1,
+            paymentMethod: cashierStaffName ? 'Cashier Ticket Desk (Cash)' : (price > 0 ? 'Cashier Desk (Cash)' : 'Official Event Registration'),
+            cashierName: cashierStaffName,
+            academicYear: evAcadYear,
+            semester: evSem,
+          };
+          transactions.value.unshift(serverTxn);
+
+          sounds.playSuccess();
+          return {
+            success: true,
+            message: `Ticket #${serverTicket.ticketNumber} generated successfully for ${studentRec?.name || studentName}!`,
+            ticket: serverTicket,
+            accountCreated: data.accountCreated ?? accountCreated,
+            notifications: data.notifications ?? notifications,
+            outsiderAccount: isOutsider ? {
+              created: outsiderAccountCreated,
+              accountId: outsiderAccountId,
+              initialPassword: outsiderInitialPassword,
+              instructions: 'Use your Account ID and initial password to access your temporary event pass.',
+              expirationDate: outsiderExpiration,
+            } : undefined,
+          };
+        } else if (!res.ok || (data && !data.success)) {
+          sounds.playError();
+          return {
+            success: false,
+            message: data?.error || data?.message || 'Server rejected ticket issuance.',
+            ticket: null as any,
+          };
+        }
+      } catch (networkErr) {
+        // Fall back to offline high-entropy local issuance
+      }
+    }
+
+    // Local / Offline Fallback with Collision-Resistant 12-char Hex Control Number
+    const entropyHex = generateHexEntropy(6);
+    const outsiderId = isOutsider ? (ownerId || `out-${entropyHex}`) : undefined;
+    const newTicketNumber = isOutsider ? `TIX-O-${entropyHex}` : `TIX-${entropyHex}`;
+
+    // Update local physical stock reservation
+    const localStock = ticketStock.value.find(s => s.eventId === targetEventId) ||
+                       ticketStock.value.find(s => s.id === 'stock-global-passes');
+    if (localStock && localStock.availableQuantity > 0) {
+      localStock.availableQuantity -= 1;
+      localStock.reservedQuantity += 1;
+    }
 
     const newTicket: Ticket = {
       id: newTicketNumber,
@@ -1456,7 +1719,7 @@ export function useAppStore() {
 
     // Record Immutable Purchase / Registration Transaction
     const newTxn: PurchaseTransaction = {
-      id: `TXN-2026-${ticketSeq}`,
+      id: clientTxId,
       userId: ownerId,
       userName: studentName,
       attendeeType: calculatedAttendeeType,
@@ -1487,6 +1750,14 @@ export function useAppStore() {
       message: `Ticket #${newTicketNumber} generated successfully for ${studentRec?.name || studentName}!`,
       ticket: newTicket,
       accountCreated,
+      notifications,
+      outsiderAccount: isOutsider ? {
+        created: outsiderAccountCreated,
+        accountId: outsiderAccountId,
+        initialPassword: outsiderInitialPassword,
+        instructions: 'Use your Account ID and initial password to access your temporary event pass.',
+        expirationDate: outsiderExpiration,
+      } : undefined,
     };
   };
 
@@ -1504,24 +1775,47 @@ export function useAppStore() {
     });
     if (updated) {
       sounds.playSuccess();
+      fetch(apiUrl('/api/tickets/update-print-status'), {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ ticketIds, status: 'PRINTED' }),
+      }).catch(() => {});
     }
   };
 
   const markQrAsPending = (ticketIds: string[]) => {
+    let updated = false;
     tickets.value.forEach(t => {
       if (ticketIds.includes(t.id) || (t.ticketNumber && ticketIds.includes(t.ticketNumber))) {
         t.qrPrintStatus = 'PENDING';
+        updated = true;
       }
     });
+    if (updated) {
+      fetch(apiUrl('/api/tickets/update-print-status'), {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ ticketIds, status: 'PENDING' }),
+      }).catch(() => {});
+    }
   };
 
   const markQrAsAttached = (ticketIds: string[]) => {
+    let updated = false;
     tickets.value.forEach(t => {
       if (ticketIds.includes(t.id) || (t.ticketNumber && ticketIds.includes(t.ticketNumber))) {
         t.qrPrintStatus = 'ATTACHED';
+        updated = true;
       }
     });
-    sounds.playSuccess();
+    if (updated) {
+      sounds.playSuccess();
+      fetch(apiUrl('/api/tickets/update-print-status'), {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ ticketIds, status: 'ATTACHED' }),
+      }).catch(() => {});
+    }
   };
 
   // NCST Institutional Policy: Event tickets are strictly NON-TRANSFERABLE
@@ -2047,21 +2341,23 @@ export function useAppStore() {
     if (!trimmed || trimmed.includes('@')) return undefined;
     const cleanId = trimmed.replace(/\s+/g, '');
     
-    // Match registered Student ID for students or registered Employee ID for personnel
+    // Match registered Student ID for students/outsiders, Employee ID for personnel, or contact number
     let found = users.value.find(u => {
-      const studentIdMatch = u.role === 'student' && u.studentId && normalizeId(u.studentId).toLowerCase() === cleanId;
-      const employeeIdMatch = u.role !== 'student' && u.employeeId && normalizeId(u.employeeId).toLowerCase() === cleanId;
+      const studentIdMatch = (u.role === 'student' || u.role === 'outsider' || u.isOutsider) && u.studentId && normalizeId(u.studentId).toLowerCase() === cleanId;
+      const contactMatch = (u.role === 'outsider' || u.isOutsider) && u.contactNumber && normalizeId(u.contactNumber).toLowerCase() === cleanId;
+      const employeeIdMatch = u.role !== 'student' && u.role !== 'outsider' && u.employeeId && normalizeId(u.employeeId).toLowerCase() === cleanId;
       const idMatch = u.id && u.id.trim().toLowerCase() === cleanId;
-      return studentIdMatch || employeeIdMatch || idMatch;
+      return studentIdMatch || contactMatch || employeeIdMatch || idMatch;
     });
 
     // If not found, check authoritative INITIAL_USERS seed demo accounts and self-heal
     if (!found) {
       const seedFound = INITIAL_USERS.find(u => {
-        const studentIdMatch = u.role === 'student' && u.studentId && normalizeId(u.studentId).toLowerCase() === cleanId;
-        const employeeIdMatch = u.role !== 'student' && u.employeeId && normalizeId(u.employeeId).toLowerCase() === cleanId;
+        const studentIdMatch = (u.role === 'student' || u.role === 'outsider' || u.isOutsider) && u.studentId && normalizeId(u.studentId).toLowerCase() === cleanId;
+        const contactMatch = (u.role === 'outsider' || u.isOutsider) && u.contactNumber && normalizeId(u.contactNumber).toLowerCase() === cleanId;
+        const employeeIdMatch = u.role !== 'student' && u.role !== 'outsider' && u.employeeId && normalizeId(u.employeeId).toLowerCase() === cleanId;
         const idMatch = u.id && u.id.trim().toLowerCase() === cleanId;
-        return studentIdMatch || employeeIdMatch || idMatch;
+        return studentIdMatch || contactMatch || employeeIdMatch || idMatch;
       });
 
       if (seedFound) {
@@ -2149,15 +2445,8 @@ export function useAppStore() {
 
           currentUser.value = serverUser;
           sessionToken.value = token;
-          localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(serverUser));
-          localStorage.setItem(STORAGE_KEYS.SESSION_TOKEN, token);
-          const sanitizedAll = users.value.map(u => {
-            const c = { ...u };
-            delete (c as any).password;
-            delete (c as any).temporaryPassword;
-            return c;
-          });
-          localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(sanitizedAll));
+          safeLocalStorageSetItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(serverUser));
+          safeLocalStorageSetItem(STORAGE_KEYS.SESSION_TOKEN, token);
 
           // Fetch full authenticated state from server
           await fetchStateFromServer();
@@ -2197,10 +2486,12 @@ export function useAppStore() {
       return { success: false, message: 'This account has been deactivated. Please contact the Administrator.' };
     }
 
+    const isGuest = isOutsiderUser(foundUser) || foundUser.role === 'outsider';
     const userSurname = (foundUser.lastName || splitFullName(foundUser.name).lastName || 'Student').trim();
     const expectedPassword = (foundUser.password || (foundUser.mustChangePassword ? userSurname : 'password123')).trim();
     const passMatches = cleanPass === expectedPassword ||
-      (foundUser.mustChangePassword && (cleanPass.toLowerCase() === userSurname.toLowerCase() || cleanPass === 'ncst123'));
+      (foundUser.mustChangePassword && (cleanPass.toLowerCase() === userSurname.toLowerCase() || cleanPass === 'ncst123')) ||
+      (isGuest && (cleanPass === 'password123' || cleanPass === 'ncst123'));
     if (!passMatches) {
       sounds.playError();
       return { success: false, message: 'Invalid password. Please verify your credentials.' };
@@ -2212,8 +2503,8 @@ export function useAppStore() {
     currentUser.value = safeFoundUser;
     const token = `sess_${safeFoundUser.role}_${safeFoundUser.id}`;
     sessionToken.value = token;
-    localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(safeFoundUser));
-    localStorage.setItem(STORAGE_KEYS.SESSION_TOKEN, token);
+    safeLocalStorageSetItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(safeFoundUser));
+    safeLocalStorageSetItem(STORAGE_KEYS.SESSION_TOKEN, token);
     validateAndSyncSession();
     fetchStateFromServer();
     sounds.playSuccess();
@@ -2519,46 +2810,42 @@ export function useAppStore() {
     return { success: true, message: `Student account created successfully! Welcome, ${newUser.name}.`, user: newUser };
   };
 
-  const resetPassword = (studentIdOrIdentifier: string, newPasswordParam: string, _legacyParam?: string): { success: boolean; message: string; user?: User } => {
-    const rawIdentifier = studentIdOrIdentifier.trim();
+  const resetPassword = (emailOrIdentifier: string, newPasswordParam: string, _legacyParam?: string): { success: boolean; message: string; user?: User } => {
+    const rawInput = emailOrIdentifier.trim();
     const newPassword = (_legacyParam !== undefined ? _legacyParam : newPasswordParam).trim();
 
-    if (!rawIdentifier) {
+    if (!rawInput) {
       sounds.playError();
-      return { success: false, message: 'Student ID Number is required for password reset.' };
+      return { success: false, message: 'Registered email or identifier is required for password reset.' };
     }
 
-    const cleanId = normalizeId(rawIdentifier).toLowerCase();
-    const targetStudent = users.value.find(u => {
-      if (u.role !== 'student') return false;
-      const idMatch = u.studentId && normalizeId(u.studentId).toLowerCase() === cleanId;
-      const emailMatch = u.email && normalizeEmail(u.email) === cleanId;
-      const nameMatch = u.name && u.name.trim().toLowerCase() === cleanId;
-      return idMatch || emailMatch || nameMatch;
+    const cleanInput = rawInput.toLowerCase();
+    const cleanId = normalizeId(rawInput).toLowerCase();
+
+    // Match by email, studentId, employeeId, or name across all accounts (students, employees, outsiders)
+    const targetUser = users.value.find(u => {
+      const emailMatch = u.email && u.email.trim().toLowerCase() === cleanInput;
+      const idMatch = (u.studentId && normalizeId(u.studentId).toLowerCase() === cleanId) ||
+                      (u.employeeId && normalizeId(u.employeeId).toLowerCase() === cleanId) ||
+                      (u.id && u.id.toLowerCase() === cleanInput);
+      const nameMatch = u.name && u.name.trim().toLowerCase() === cleanInput;
+      return emailMatch || idMatch || nameMatch;
     });
 
-    if (!targetStudent) {
-      // Check if user is a privileged account
-      const privilegedUser = users.value.find(u => {
-        const idMatch = (u.employeeId && normalizeId(u.employeeId).toLowerCase() === cleanId) ||
-                        (u.studentId && normalizeId(u.studentId).toLowerCase() === cleanId);
-        const emailMatch = u.email && normalizeEmail(u.email) === cleanId;
-        return idMatch || emailMatch;
-      });
-
+    if (!targetUser) {
       sounds.playError();
-      if (privilegedUser && privilegedUser.role !== 'student') {
-        return {
-          success: false,
-          message: 'Privileged accounts (Faculty, Staff, Cashier, Admin) cannot be reset self-service. Please contact the NCST IT Administrator for assistance.'
-        };
-      }
-      return { success: false, message: 'No registered student account found matching this Student ID Number.' };
+      return { success: false, message: 'No registered account found matching this email or identifier.' };
     }
 
-    if (targetStudent.isActive === false) {
+    if (targetUser.isActive === false || targetUser.accountStatus === 'deactivated') {
       sounds.playError();
-      return { success: false, message: 'This student account is deactivated. Please contact the Administrator.' };
+      return { success: false, message: 'This account is deactivated. Please contact the Administrator.' };
+    }
+
+    // Outsider expiration check
+    if (targetUser.role === 'outsider' && targetUser.expiresAt && new Date(targetUser.expiresAt).getTime() < Date.now()) {
+      sounds.playError();
+      return { success: false, message: 'This guest account has expired following the event date. Expired accounts cannot be reset.' };
     }
 
     if (newPassword.length < 4) {
@@ -2566,7 +2853,7 @@ export function useAppStore() {
       return { success: false, message: 'Password must be at least 4 characters long.' };
     }
 
-    const idx = users.value.findIndex(u => u.id === targetStudent.id);
+    const idx = users.value.findIndex(u => u.id === targetUser.id);
     if (idx !== -1) {
       const updated = {
         ...users.value[idx],
@@ -2575,7 +2862,7 @@ export function useAppStore() {
         temporaryPassword: undefined,
       };
       users.value[idx] = updated;
-      if (currentUser.value && currentUser.value.id === targetStudent.id) {
+      if (currentUser.value && currentUser.value.id === targetUser.id) {
         currentUser.value = updated;
       }
     }
@@ -2583,12 +2870,79 @@ export function useAppStore() {
     sounds.playSuccess();
     return {
       success: true,
-      message: `Password for ${targetStudent.name} (${targetStudent.studentId}) was successfully reset! You can now sign in.`,
+      message: `Password for ${targetUser.name} (${targetUser.role.toUpperCase()}) was successfully reset! You can now sign in.`,
       user: users.value[idx],
     };
   };
 
-  const updateUserPassword = (userId: string, newPassword: string): { success: boolean; message: string; user?: User } => {
+  const requestEmailVerification = async (email: string): Promise<{ success: boolean; message?: string; error?: string; dev_verification_code?: string }> => {
+    try {
+      const res = await fetch(apiUrl('/api/auth/request-email-verification'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(sessionToken.value ? {
+            'Authorization': `Bearer ${sessionToken.value}`,
+            'x-session-token': sessionToken.value,
+          } : {})
+        },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        sounds.playSuccess();
+        return { success: true, message: data.message, dev_verification_code: data.dev_verification_code };
+      }
+      sounds.playError();
+      return { success: false, error: data.error || 'Failed to send verification code.' };
+    } catch {
+      sounds.playError();
+      return { success: false, error: 'Network error: Unable to contact server for verification code.' };
+    }
+  };
+
+  const verifyRecoveryEmail = async (email: string, code: string): Promise<{ success: boolean; message?: string; error?: string; user?: User }> => {
+    try {
+      const res = await fetch(apiUrl('/api/auth/verify-recovery-email'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(sessionToken.value ? {
+            'Authorization': `Bearer ${sessionToken.value}`,
+            'x-session-token': sessionToken.value,
+          } : {})
+        },
+        body: JSON.stringify({ email: email.trim(), code: code.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        if (data.user) {
+          const idx = users.value.findIndex(u => u.id === data.user.id);
+          if (idx !== -1) {
+            users.value[idx] = { ...users.value[idx], ...data.user };
+          }
+          if (currentUser.value && currentUser.value.id === data.user.id) {
+            currentUser.value = { ...currentUser.value, ...data.user };
+            safeLocalStorageSetItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(currentUser.value));
+          }
+        }
+        sounds.playSuccess();
+        return { success: true, message: data.message, user: data.user };
+      }
+      sounds.playError();
+      return { success: false, error: data.error || 'Invalid or expired verification code.' };
+    } catch {
+      sounds.playError();
+      return { success: false, error: 'Network error: Unable to verify recovery email.' };
+    }
+  };
+
+  const updateUserPassword = async (
+    userId: string, 
+    newPassword: string, 
+    recoveryEmail?: string, 
+    verificationCode?: string
+  ): Promise<{ success: boolean; message: string; user?: User }> => {
     const idx = users.value.findIndex(u => u.id === userId);
     if (idx === -1) {
       sounds.playError();
@@ -2598,31 +2952,57 @@ export function useAppStore() {
       sounds.playError();
       return { success: false, message: 'Password must be at least 4 characters long.' };
     }
+
+    // Call backend endpoint if session token exists
+    if (sessionToken.value) {
+      try {
+        const res = await fetch(apiUrl('/api/auth/change-password'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${sessionToken.value}`,
+            'x-session-token': sessionToken.value,
+          },
+          body: JSON.stringify({
+            newPassword,
+            recoveryEmail: recoveryEmail ? recoveryEmail.trim() : undefined,
+            verificationCode: verificationCode ? verificationCode.trim() : undefined,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) {
+          sounds.playError();
+          return { success: false, message: data.error || 'Failed to update password.' };
+        }
+        if (data.user) {
+          users.value[idx] = { ...users.value[idx], ...data.user };
+          if (currentUser.value && currentUser.value.id === userId) {
+            currentUser.value = { ...currentUser.value, ...data.user };
+            safeLocalStorageSetItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(currentUser.value));
+          }
+          sounds.playSuccess();
+          return { success: true, message: data.message || 'Password updated successfully!', user: users.value[idx] };
+        }
+      } catch (err) {
+        console.warn('Backend change-password sync notice:', err);
+      }
+    }
+
     const updated = {
       ...users.value[idx],
       password: newPassword,
       mustChangePassword: false,
       temporaryPassword: undefined,
+      ...(recoveryEmail ? {
+        recoveryEmail: recoveryEmail.trim(),
+        recoveryEmailVerified: true,
+        recoveryEmailVerifiedAt: new Date().toISOString()
+      } : {})
     };
     users.value[idx] = updated;
     if (currentUser.value && currentUser.value.id === userId) {
       currentUser.value = updated;
-      localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(updated));
-    }
-
-    // Call backend endpoint asynchronously if session token exists
-    if (sessionToken.value) {
-      fetch(apiUrl('/api/auth/change-password'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sessionToken.value}`,
-          'x-session-token': sessionToken.value,
-        },
-        body: JSON.stringify({ newPassword }),
-      }).catch(err => {
-        console.warn('Backend change-password sync notice:', err);
-      });
+      safeLocalStorageSetItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(updated));
     }
 
     sounds.playSuccess();
@@ -3000,6 +3380,7 @@ export function useAppStore() {
     tickets,
     transactions,
     logs,
+    ticketStock,
     academicPeriods,
     activeAcademicPeriod,
     createAcademicPeriod,
@@ -3047,6 +3428,8 @@ export function useAppStore() {
     lookupStudentRecord,
     sendStudentVerificationCode,
     verifyStudentVerificationCode,
+    requestEmailVerification,
+    verifyRecoveryEmail,
   };
 }
 

@@ -227,7 +227,6 @@ import {
   FileSpreadsheet, SlidersHorizontal,
   Upload, Download, Trash2, Check, AlertCircle, CheckCircle2
 } from 'lucide-vue-next';
-import * as XLSX from 'xlsx';
 import Modal from '../common/Modal.vue';
 import { useAppStore } from '../../composables/useAppStore';
 import { downloadStudentImportTemplate } from '../../utils/excelExport';
@@ -316,8 +315,9 @@ const parseFile = (file: File) => {
   parsedFileName.value = file.name;
   const reader = new FileReader();
 
-  reader.onload = (evt) => {
+  reader.onload = async (evt) => {
     try {
+      const XLSX = await import('xlsx');
       const data = evt.target?.result;
       const workbook = XLSX.read(data, { type: 'binary' });
       const firstSheetName = workbook.SheetNames[0];

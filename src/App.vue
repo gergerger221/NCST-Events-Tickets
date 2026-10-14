@@ -106,7 +106,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onErrorCaptured } from 'vue';
+import { ref, computed, watch, onErrorCaptured, onMounted, onBeforeUnmount } from 'vue';
 import { useAppStore } from './composables/useAppStore';
 import { useOfflineScanner } from './composables/useOfflineScanner';
 import { WifiOff, AlertTriangle } from 'lucide-vue-next';
@@ -200,6 +200,24 @@ const roleAllowedTabs: Record<string, string[]> = {
   student: ['calendar', 'student_dashboard'],
 };
 
+const getCleanHash = () => {
+  if (typeof window === 'undefined') return '';
+  return window.location.hash.replace(/^#\/?/, '').trim();
+};
+
+const syncFromHash = () => {
+  const hash = getCleanHash();
+  if (!hash) return;
+  const role = currentUser.value?.role || 'student';
+  let allowed = roleAllowedTabs[role] || ['student_dashboard', 'calendar'];
+  if (role === 'student' && currentUser.value?.mustChangePassword) {
+    allowed = ['student_dashboard'];
+  }
+  if (allowed.includes(hash) && activeTab.value !== hash) {
+    activeTab.value = hash;
+  }
+};
+
 const enforceRouteGuards = () => {
   const role = currentUser.value?.role || 'student';
   let allowed = roleAllowedTabs[role] || ['student_dashboard', 'calendar'];
@@ -209,6 +227,10 @@ const enforceRouteGuards = () => {
 
   if (!allowed.includes(activeTab.value)) {
     activeTab.value = defaultTab.value;
+  }
+
+  if (typeof window !== 'undefined' && getCleanHash() !== activeTab.value) {
+    window.location.hash = activeTab.value;
   }
 };
 
@@ -220,7 +242,25 @@ watch(
   { immediate: true }
 );
 
-window.addEventListener('hashchange', enforceRouteGuards);
+watch(
+  () => activeTab.value,
+  (newTab) => {
+    if (typeof window !== 'undefined' && getCleanHash() !== newTab) {
+      window.location.hash = newTab;
+    }
+  }
+);
+
+onMounted(() => {
+  syncFromHash();
+  window.addEventListener('hashchange', syncFromHash);
+  window.addEventListener('popstate', syncFromHash);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('hashchange', syncFromHash);
+  window.removeEventListener('popstate', syncFromHash);
+});
 
 watch(
   () => currentUser.value?.role,
