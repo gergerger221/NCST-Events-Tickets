@@ -12,6 +12,11 @@
 
 require_once __DIR__ . '/auth_helper.php';
 
+$vendorAutoload = __DIR__ . '/../vendor/autoload.php';
+if (file_exists($vendorAutoload)) {
+    require_once $vendorAutoload;
+}
+
 /**
  * Normalizes and validates Philippine mobile phone numbers.
  * Converts formats such as 09XXXXXXXXX, 639XXXXXXXXX, +639XXXXXXXXX into canonical form (+639XXXXXXXXX).
@@ -161,7 +166,55 @@ function ncst_send_email(string $toEmail, string $subject, string $bodyText): ar
         }
     }
 
-    // 5. Native Sockets SMTP Sender with TLS validation and timeouts
+    // 5. If PHPMailer is available via Composer, use it for standard RFC-compliant SMTP delivery
+    if (class_exists('\\PHPMailer\\PHPMailer\\PHPMailer')) {
+        try {
+            $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
+            $mail->isSMTP();
+            $mail->Host       = $host;
+            $mail->Port       = $port;
+            $mail->SMTPAuth   = (!empty($username) && !empty($password));
+            if ($mail->SMTPAuth) {
+                $mail->Username = $username;
+                $mail->Password = $password;
+            }
+            if ($encryption === 'ssl') {
+                $mail->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
+            } elseif ($encryption === 'tls') {
+                $mail->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+            } else {
+                $mail->SMTPSecure = '';
+                $mail->SMTPAutoTLS = false;
+            }
+            $mail->Timeout = 8;
+            $mail->CharSet = 'UTF-8';
+
+            $mail->setFrom($cleanFromAddress, $cleanFromName);
+            $mail->addAddress($cleanTo);
+            if (!empty($cleanReplyTo)) {
+                $mail->addReplyTo($cleanReplyTo);
+            }
+
+            $mail->isHTML(false);
+            $mail->Subject = $cleanSubject;
+            $mail->Body    = $bodyText;
+
+            $mail->send();
+            return [
+                'success' => true,
+                'status'  => 'submitted',
+                'details' => "Official email delivered via PHPMailer to {$cleanTo}."
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'success' => false,
+                'status'  => 'failed',
+                'details' => "PHPMailer SMTP Error: " . $e->getMessage()
+            ];
+        }
+    }
+
+    // 6. Native Sockets SMTP Sender with TLS validation and timeouts (fallback)
     try {
         $socketHost = ($encryption === 'ssl') ? "ssl://{$host}" : "tcp://{$host}";
         $timeout = 8;
@@ -304,6 +357,37 @@ function ncst_send_email(string $toEmail, string $subject, string $bodyText): ar
             'details' => 'SMTP delivery exception: ' . $e->getMessage()
         ];
     }
+}
+
+/**
+ * Returns safe diagnostic metadata about current SMTP configuration without exposing passwords.
+ */
+function ncst_get_smtp_diagnostic_config(): array {
+    $host = trim((string)(ncst_env('SMTP_HOST') ?: ncst_env('MAIL_HOST', '')));
+    $port = (int)(ncst_env('SMTP_PORT') ?: ncst_env('MAIL_PORT', 587));
+    $username = trim((string)(ncst_env('SMTP_USERNAME') ?: ncst_env('SMTP_USER', ncst_env('MAIL_USERNAME', ''))));
+    $encryption = strtolower(trim((string)(ncst_env('SMTP_ENCRYPTION') ?: ncst_env('MAIL_ENCRYPTION', 'tls'))));
+    $driver = strtolower(trim((string)ncst_env('MAIL_DRIVER', 'smtp')));
+    $fromAddress = trim((string)(ncst_env('SMTP_FROM_ADDRESS') ?: ncst_env('MAIL_FROM_ADDRESS', 'no-reply@student.ncst.edu.ph')));
+    $fromName = trim((string)(ncst_env('SMTP_FROM_NAME') ?: ncst_env('MAIL_FROM_NAME', 'NCST Student Portal')));
+    $replyTo = trim((string)(ncst_env('SMTP_REPLY_TO') ?: ncst_env('MAIL_REPLY_TO', 'support@ncst.edu.ph')));
+    $appEnv = strtolower(trim((string)ncst_env('APP_ENV', 'development')));
+    $hasPassword = !empty(ncst_env('SMTP_PASSWORD') ?: ncst_env('SMTP_PASS', ncst_env('MAIL_PASSWORD', '')));
+
+    return [
+        'driver' => $driver,
+        'host' => $host ?: '(not configured)',
+        'port' => $port,
+        'encryption' => $encryption ?: 'none',
+        'from_address' => $fromAddress,
+        'from_name' => $fromName,
+        'reply_to' => $replyTo,
+        'has_credentials' => (!empty($username) && $hasPassword),
+        'username_masked' => !empty($username) ? ncst_mask_email($username) : '(none)',
+        'mailer_engine' => class_exists('\\PHPMailer\\PHPMailer\\PHPMailer') ? 'PHPMailer v7' : 'Native Sockets',
+        'is_mock' => ($driver === 'mock' || $driver === 'log' || (empty($host) && $appEnv !== 'production')),
+        'environment' => $appEnv
+    ];
 }
 
 /**

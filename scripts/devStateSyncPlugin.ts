@@ -1,4 +1,7 @@
 import type { Plugin } from 'vite'
+import { execFile } from 'node:child_process'
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import { INITIAL_USERS, INITIAL_STUDENT_RECORDS, INITIAL_EVENTS, INITIAL_TICKETS, INITIAL_LOGS, INITIAL_TRANSACTIONS } from '../src/utils/seedData.ts'
 import {
   getOutsiderAccountExpirationDate,
@@ -171,6 +174,81 @@ export function stateSyncPlugin(): Plugin {
     name: 'state-sync-plugin',
     configureServer(server) {
       server.middlewares.use((req: any, res: any, next: any) => {
+        // Backend API Endpoint: GET & POST /api/auth/smtp-test (SMTP Connection Diagnostic Tester)
+        const rawUrl = req.url || '';
+        const urlPath = rawUrl.split('?')[0];
+        if ((urlPath === '/api/auth/smtp-test' || urlPath === '/api/smtp-test') && (req.method === 'GET' || req.method === 'POST')) {
+          const phpBinary = existsSync('C:\\xampp\\php\\php.exe') ? 'C:\\xampp\\php\\php.exe' : 'php';
+          const cliScript = join(process.cwd(), 'scripts', 'smtp-cli.php');
+
+          const runCli = (args: string[]): Promise<{ status: number, body: any }> => {
+            return new Promise((resolve) => {
+              execFile(phpBinary, [cliScript, ...args], { cwd: process.cwd(), timeout: 20000 }, (err, stdout, stderr) => {
+                const trimmed = (stdout || '').trim();
+                try {
+                  const parsed = JSON.parse(trimmed);
+                  return resolve({ status: parsed.success ? 200 : 400, body: parsed });
+                } catch {
+                  const errorMsg = stderr?.trim() || err?.message || 'SMTP diagnostic execution failed.';
+                  return resolve({
+                    status: 500,
+                    body: {
+                      success: false,
+                      status: 'failed',
+                      details: errorMsg,
+                    }
+                  });
+                }
+              });
+            });
+          };
+
+          if (req.method === 'GET') {
+            runCli(['config']).then(({ status, body }) => {
+              res.statusCode = status;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify(body));
+            });
+            return;
+          }
+
+          if (req.method === 'POST') {
+            let body = '';
+            req.on('data', (chunk: any) => { body += chunk; });
+            req.on('end', async () => {
+              try {
+                const payload = JSON.parse(body || '{}');
+                const recipient = (payload.recipient || '').trim();
+                const subject = (payload.subject || '').trim();
+
+                if (!recipient || !recipient.includes('@')) {
+                  res.statusCode = 400;
+                  res.setHeader('Content-Type', 'application/json');
+                  return res.end(JSON.stringify({
+                    success: false,
+                    status: 'failed',
+                    details: 'A valid recipient email address is required for testing SMTP.'
+                  }));
+                }
+
+                const result = await runCli(['test', recipient, subject]);
+                res.statusCode = result.status;
+                res.setHeader('Content-Type', 'application/json');
+                return res.end(JSON.stringify(result.body));
+              } catch (err: any) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json');
+                return res.end(JSON.stringify({
+                  success: false,
+                  status: 'failed',
+                  details: err?.message || 'Invalid request payload.'
+                }));
+              }
+            });
+            return;
+          }
+        }
+
         // Backend API Endpoint: POST /api/auth/login
         if (req.url === '/api/auth/login' && req.method === 'POST') {
           let body = '';

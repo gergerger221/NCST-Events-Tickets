@@ -78,7 +78,7 @@
                 v-model="loginIdentifier"
                 type="text"
                 required
-                placeholder="Enter Student ID, Employee ID, or Guest Reference"
+                placeholder="Enter your ID (Student ID, Employee ID, or 2026-)"
                 class="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-xl text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
               />
             </div>
@@ -644,8 +644,30 @@
             </div>
           </div>
         </div>
+
+        <!-- System Utilities / SMTP Diagnostics -->
+        <div class="mt-5 pt-3.5 border-t border-slate-200/70 dark:border-[#333333] flex items-center justify-between text-[11px] text-slate-400 dark:text-slate-500">
+          <span class="flex items-center gap-1.5 font-medium">
+            <span class="w-1.5 h-1.5 rounded-full bg-blue-500" />
+            <span>NCST System Diagnostics</span>
+          </span>
+          <button
+            type="button"
+            @click="isSmtpTesterOpen = true"
+            class="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-bold transition cursor-pointer hover:underline"
+          >
+            <Mail class="w-3.5 h-3.5" />
+            <span>SMTP Diagnostics &rarr;</span>
+          </button>
+        </div>
       </div>
     </div>
+
+    <!-- SMTP Connection Tester Modal -->
+    <SmtpTesterModal
+      :is-open="isSmtpTesterOpen"
+      @close="isSmtpTesterOpen = false"
+    />
 
     <!-- Verified Forgot Password Modal -->
     <div
@@ -1026,6 +1048,7 @@ import {
 import { useAppStore } from '../../composables/useAppStore';
 import { apiUrl } from '../../utils/apiUrl';
 import ThemeToggle from '../common/ThemeToggle.vue';
+import SmtpTesterModal from './SmtpTesterModal.vue';
 import { UserRole, StudentRecord } from '../../types';
 import {
   NCST_DEPARTMENTS,
@@ -1298,8 +1321,16 @@ const onStudentIdBlur = () => {
   }
 };
 
+// SMTP Diagnostics State
+const isSmtpTesterOpen = ref(false);
+
 onMounted(() => {
   document.addEventListener('click', handleClickOutsideSection);
+  // Auto-open SMTP tester if ?smtp=test or #smtp-test is present in URL
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('smtp') === 'test' || window.location.hash === '#smtp-test') {
+    isSmtpTesterOpen.value = true;
+  }
 });
 
 onUnmounted(() => {

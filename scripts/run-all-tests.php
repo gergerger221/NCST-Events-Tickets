@@ -20,6 +20,7 @@ $testFiles = [
     'test-recovery-email-registration.php' => 'First-Login Recovery Email Registration & Verification (Students, Employees, Outsiders)',
     'test-unique-control-numbers-and-shared-stock.php' => 'Unique Control Numbers, Shared Ticket Stock, Row-Locking & Idempotency',
     'test-excel-class-list-attendance.php' => 'Excel Class List Attendance Reconciliation, Scoping, and Zero-Mutation Integrity',
+    'test-smtp-diagnostics.php' => 'SMTP Diagnostics & PHPMailer Integration',
 ];
 
 $totalTests = count($testFiles);

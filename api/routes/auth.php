@@ -1291,5 +1291,70 @@ if (($path === '/api/admin/verify-student' || str_ends_with($path, 'verify-stude
 }
 
 // -------------------------------------------------------------
+// ROUTE: GET & POST /api/auth/smtp-test (Diagnostic SMTP Tester)
+// -------------------------------------------------------------
+if (($path === '/api/auth/smtp-test' || $path === '/api/smtp-test' || str_ends_with($path, 'smtp-test')) && in_array($method, ['GET', 'POST'])) {
+    if ($method === 'GET') {
+        echo json_encode([
+            'success' => true,
+            'config' => ncst_get_smtp_diagnostic_config()
+        ]);
+        exit;
+    }
+
+    // POST: Send diagnostic test message
+    $recipient = trim((string)($body['recipient'] ?? ''));
+    if (empty($recipient) || !filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
+        http_response_code(400);
+        echo json_encode([
+            'success' => false,
+            'error' => 'A valid recipient email address is required for testing SMTP.'
+        ]);
+        exit;
+    }
+
+    // Rate Limit: 5 test transmissions per 60 seconds per IP
+    $clientIp = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+    $rl = ncst_check_rate_limit('smtp_test_' . $clientIp, 5, 60);
+    if (!$rl['allowed']) {
+        http_response_code(429);
+        echo json_encode([
+            'success' => false,
+            'error' => "Rate limit exceeded. Please wait {$rl['retry_after']}s before sending another diagnostic test email."
+        ]);
+        exit;
+    }
+
+    $startTime = microtime(true);
+    $subject = 'NCST Portal — SMTP Diagnostic Test (' . date('M d, Y H:i:s') . ')';
+    $customSubject = trim((string)($body['subject'] ?? ''));
+    if (!empty($customSubject)) {
+        $subject = 'NCST Portal Test: ' . substr($customSubject, 0, 80);
+    }
+
+    $message = "Hello,\r\n\r\n"
+             . "This is an automated diagnostic test message from the NCST Events & Attendance System to verify SMTP configuration.\r\n\r\n"
+             . "If you are reading this email, your SMTP server settings and authentication credentials are correct and operational.\r\n\r\n"
+             . "— Transmission Details —\r\n"
+             . "Server Timestamp: " . date('Y-m-d H:i:s T') . "\r\n"
+             . "Dispatcher Engine: " . (class_exists('\\PHPMailer\\PHPMailer\\PHPMailer') ? 'PHPMailer' : 'Native Sockets') . "\r\n"
+             . "System Environment: " . ncst_env('APP_ENV', 'development') . "\r\n\r\n"
+             . "National College of Science and Technology\r\n"
+             . "NCST Events & Attendance System";
+
+    $dispatch = ncst_send_email($recipient, $subject, $message);
+    $elapsedMs = round((microtime(true) - $startTime) * 1000);
+
+    echo json_encode([
+        'success' => $dispatch['success'],
+        'status' => $dispatch['status'] ?? ($dispatch['success'] ? 'submitted' : 'failed'),
+        'details' => $dispatch['details'] ?? '',
+        'latency_ms' => $elapsedMs,
+        'config' => ncst_get_smtp_diagnostic_config()
+    ]);
+    exit;
+}
+
+// -------------------------------------------------------------
 // ROUTE 6: GET & POST /api/state
 // -------------------------------------------------------------
