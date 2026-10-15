@@ -228,12 +228,11 @@
                 v-model="sortCriteria"
                 class="px-2.5 py-1.5 bg-white dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#383838] rounded-xl text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-500 cursor-pointer"
               >
-                <option value="name_asc">Student Name (A–Z) [Default]</option>
+                <option value="name_asc">Student Name (A–Z)</option>
                 <option value="name_desc">Student Name (Z–A)</option>
-                <option value="id_asc">Student ID (Ascending)</option>
-                <option value="id_desc">Student ID (Descending)</option>
-                <option value="status_present">Attendance (Present First)</option>
-                <option value="status_absent">Attendance (Absent First)</option>
+                <option value="id_asc">Student ID (Lowest first)</option>
+                <option value="status_present">Present Students First</option>
+                <option value="status_absent">Not Yet Entered / Absent First</option>
               </select>
             </div>
 

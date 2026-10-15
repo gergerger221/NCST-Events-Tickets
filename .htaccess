@@ -32,6 +32,7 @@ Options -Indexes
     AddType font/woff2 .woff2
     AddType image/svg+xml .svg
     AddType application/json .json
+    AddType application/x-x509-ca-cert .crt .der
 </IfModule>
 
 # 5. Security Headers
@@ -54,8 +55,8 @@ Options -Indexes
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 
-    # Prevent direct access to internal development folders and setup scripts
-    RewriteRule ^(scripts|src|\.git|\.env)(/.*)?$ - [F,L]
+    # Prevent direct access to internal development folders, runtime storage, and setup scripts
+    RewriteRule ^(scripts|src|storage|\.git|\.env)(/.*)?$ - [F,L]
     RewriteRule ^api/setup\.php$ - [F,L]
 
     # Route all API requests to api/index.php

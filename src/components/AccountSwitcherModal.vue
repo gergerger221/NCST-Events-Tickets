@@ -40,9 +40,8 @@
                 <p class="text-xs font-bold text-slate-900 dark:text-white truncate">{{ user.name }}</p>
                 <CheckCircle2 v-if="currentUser.id === user.id" class="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400 flex-shrink-0" />
               </div>
-              <p class="text-[11px] text-slate-500 dark:text-[#b3b3b3] truncate">{{ user.email }}</p>
-              <p v-if="user.studentId" class="text-[10px] text-blue-600 dark:text-blue-400 font-mono">
-                ID: {{ user.studentId }}
+              <p class="text-[11px] font-mono text-slate-500 dark:text-[#b3b3b3] truncate">
+                {{ user.studentId ? `ID: ${user.studentId}` : (user.employeeId ? `ID: ${user.employeeId}` : user.role.toUpperCase()) }}
               </p>
             </div>
           </div>

@@ -20,6 +20,7 @@ dist-ssr
 database_backup*.sql
 *.zip
 scripts/inspect_data.php
+scratch/
 
 
 # Editor directories and files

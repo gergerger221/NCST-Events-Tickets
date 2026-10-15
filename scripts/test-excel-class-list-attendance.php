@@ -97,8 +97,8 @@ it("Reconciliation accurately categorizes PRESENT, ABSENT, and NOT_IN_ROSTER stu
     $stmt->execute();
 
     // Create student 1: Enrolled in BSIT 3-A, has ticket and is scanned in (PRESENT)
-    $stmt = $pdo->prepare("INSERT INTO student_records (id, student_id, name, email, course, year_level, section, department) 
-                           VALUES ('sr-rec-001', 'REC-STU-001', 'Juan Dela Cruz', 'juan@test.com', 'BSIT', '3rd Year', '31M1', 'CSD')");
+    $stmt = $pdo->prepare("INSERT INTO student_records (id, student_id, name, course, year_level, section, department) 
+                           VALUES ('sr-rec-001', 'REC-STU-001', 'Juan Dela Cruz', 'BSIT', '3rd Year', '31M1', 'CSD')");
     $stmt->execute();
 
     $stmt = $pdo->prepare("INSERT INTO tickets (id, ticket_number, qr_token, event_id, attendee_student_id, current_attendee_name, attendee_type, ticket_status, payment_status, attendance_status, time_in, time_in_iso, academic_year, semester) 
@@ -106,8 +106,8 @@ it("Reconciliation accurately categorizes PRESENT, ABSENT, and NOT_IN_ROSTER stu
     $stmt->execute();
 
     // Create student 2: Enrolled in BSIT 3-A, has ticket but NOT scanned in (ABSENT for completed event)
-    $stmt = $pdo->prepare("INSERT INTO student_records (id, student_id, name, email, course, year_level, section, department) 
-                           VALUES ('sr-rec-002', 'REC-STU-002', 'Maria Santos', 'maria@test.com', 'BSIT', '3rd Year', '31M1', 'CSD')");
+    $stmt = $pdo->prepare("INSERT INTO student_records (id, student_id, name, course, year_level, section, department) 
+                           VALUES ('sr-rec-002', 'REC-STU-002', 'Maria Santos', 'BSIT', '3rd Year', '31M1', 'CSD')");
     $stmt->execute();
 
     $stmt = $pdo->prepare("INSERT INTO tickets (id, ticket_number, qr_token, event_id, attendee_student_id, current_attendee_name, attendee_type, ticket_status, payment_status, attendance_status, time_in, time_in_iso, academic_year, semester) 
@@ -115,8 +115,8 @@ it("Reconciliation accurately categorizes PRESENT, ABSENT, and NOT_IN_ROSTER stu
     $stmt->execute();
 
     // Create student 3: Enrolled in BSIT 3-A, NO ticket purchased (ABSENT)
-    $stmt = $pdo->prepare("INSERT INTO student_records (id, student_id, name, email, course, year_level, section, department) 
-                           VALUES ('sr-rec-003', 'REC-STU-003', 'Carlos Reyes', 'carlos@test.com', 'BSIT', '3rd Year', '31M1', 'CSD')");
+    $stmt = $pdo->prepare("INSERT INTO student_records (id, student_id, name, course, year_level, section, department) 
+                           VALUES ('sr-rec-003', 'REC-STU-003', 'Carlos Reyes', 'BSIT', '3rd Year', '31M1', 'CSD')");
     $stmt->execute();
 
     // Student 4: Not in student_records (NOT_IN_ROSTER) -> 'REC-STU-999'
@@ -302,8 +302,8 @@ it("Reconciliation accurately categorizes PRESENT, ABSENT, and NOT_IN_ROSTER stu
 // -------------------------------------------------------------
 it("Enforces teacher class assignment scoping (detects unauthorized sections)", function() use ($pdo) {
     // Add student belonging to BSCS 4-B
-    $stmt = $pdo->prepare("INSERT INTO student_records (id, student_id, name, email, course, year_level, section, department) 
-                           VALUES ('sr-rec-outscope', 'REC-STU-OUTSCOPE', 'Alien Student', 'alien@test.com', 'BSCS', '4th Year', '41A1', 'CSD')");
+    $stmt = $pdo->prepare("INSERT INTO student_records (id, student_id, name, course, year_level, section, department) 
+                           VALUES ('sr-rec-outscope', 'REC-STU-OUTSCOPE', 'Alien Student', 'BSCS', '4th Year', '41A1', 'CSD')");
     $stmt->execute();
 
     $assignedClasses = [

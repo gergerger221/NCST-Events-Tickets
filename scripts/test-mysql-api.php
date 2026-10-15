@@ -9,10 +9,10 @@ echo "TESTING MYSQL DATABASE INTEGRATION & REST API ENDPOINTS\n";
 echo "=======================================================\n\n";
 
 // TEST 1: Query Users from MySQL
-$stmt = $pdo->query("SELECT id, name, role, email FROM users WHERE role = 'admin'");
+$stmt = $pdo->query("SELECT id, name, role FROM users WHERE role = 'admin'");
 $admin = $stmt->fetch();
 assert($admin !== false, "Admin user should exist in MySQL");
-echo "✅ TEST 1 PASSED: Found Admin in MySQL -> {$admin['name']} ({$admin['email']})\n";
+echo "✅ TEST 1 PASSED: Found Admin in MySQL -> {$admin['name']} ({$admin['role']})\n";
 
 // TEST 2: Query Student Records from MySQL
 $rosterStmt = $pdo->query("SELECT student_id, name, course, section FROM student_records WHERE student_id = '2024-58566'");

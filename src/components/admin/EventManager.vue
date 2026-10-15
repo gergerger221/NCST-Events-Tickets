@@ -1323,12 +1323,12 @@
     <!-- Delete Confirmation Modal -->
     <ConfirmModal
       :is-open="!!eventToDelete"
-      title="Delete Event"
-      :message="`Are you sure you want to delete event &quot;${eventToDelete?.title}&quot;? All associated ticket references will be permanently removed.`"
-      confirm-text="Delete Event"
-      variant="danger"
+      :title="deleteError ? 'Deletion Notice' : 'Delete Event'"
+      :message="deleteError ? deleteError : `Are you sure you want to delete event &quot;${eventToDelete?.title}&quot;? If the event has existing ticket sales or attendance logs, historical records will be safely preserved for auditing while the event is removed from active listings.`"
+      :confirm-text="deleteError ? 'Retry Deletion' : (isDeleting ? 'Deleting...' : 'Delete Event')"
+      :variant="deleteError ? 'warning' : 'danger'"
       @confirm="confirmDeleteEvent"
-      @cancel="eventToDelete = null"
+      @cancel="() => { if (!isDeleting) { eventToDelete = null; deleteError = ''; } }"
     />
 
     <!-- Academic Period Management Modal (Admin Authoritative Control) -->
@@ -1969,14 +1969,30 @@ const handleSubmit = async () => {
   }
 };
 
+const isDeleting = ref(false);
+const deleteError = ref('');
+
 const handleDelete = (id: string, evTitle: string) => {
   eventToDelete.value = { id, title: evTitle };
+  deleteError.value = '';
 };
 
-const confirmDeleteEvent = () => {
-  if (eventToDelete.value) {
-    deleteEvent(eventToDelete.value.id);
-    eventToDelete.value = null;
+const confirmDeleteEvent = async () => {
+  if (!eventToDelete.value || isDeleting.value) return;
+  isDeleting.value = true;
+  deleteError.value = '';
+  try {
+    const res = await deleteEvent(eventToDelete.value.id);
+    if (res.success) {
+      eventToDelete.value = null;
+      deleteError.value = '';
+    } else {
+      deleteError.value = res.message || 'Failed to delete event.';
+    }
+  } catch (err: any) {
+    deleteError.value = err?.message || 'Network error: Failed to communicate with server.';
+  } finally {
+    isDeleting.value = false;
   }
 };
 </script>

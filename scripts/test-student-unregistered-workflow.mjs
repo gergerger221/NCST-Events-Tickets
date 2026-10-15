@@ -1,6 +1,6 @@
 import assert from 'assert';
 import { INITIAL_USERS, INITIAL_STUDENT_RECORDS, INITIAL_EVENTS, INITIAL_TICKETS, INITIAL_TRANSACTIONS, INITIAL_LOGS } from '../src/utils/seedData.ts';
-import { normalizeId, normalizeEmail, checkUserIdentityConflict } from '../src/utils/userValidation.ts';
+import { normalizeId, checkUserIdentityConflict } from '../src/utils/userValidation.ts';
 import { splitFullName } from '../src/utils/nameUtils.ts';
 
 console.log('================================================================');
@@ -37,7 +37,6 @@ const saveStudentRecord = (data) => {
       yearLevel: data.yearLevel?.trim() || existing.yearLevel,
       section: data.section?.trim() || existing.section,
       department: data.department?.trim() || existing.department,
-      email: data.email?.trim() || existing.email,
       photoUrl: data.photoUrl || existing.photoUrl,
       userId: data.userId || existing.userId,
     };
@@ -56,7 +55,6 @@ const saveStudentRecord = (data) => {
     yearLevel: data.yearLevel?.trim() || '3rd Year',
     section: data.section?.trim() || 'M1',
     department: data.department?.trim() || `College of ${data.course?.trim() || 'Computer Studies'}`,
-    email: data.email?.trim() || `${data.name.toLowerCase().replace(/[^a-z0-9]/g, '.')}@student.edu.ph`,
     photoUrl: data.photoUrl,
     createdAt: new Date().toISOString(),
     userId: data.userId,
@@ -69,10 +67,9 @@ const findUserByIdentifier = (identifier) => {
   const trimmed = identifier.trim().toLowerCase();
   if (!trimmed) return undefined;
   return users.find(u => {
-    const emailMatch = u.email && normalizeEmail(u.email) === trimmed;
     const studentIdMatch = u.role === 'student' && u.studentId && normalizeId(u.studentId).toLowerCase() === trimmed;
     const employeeIdMatch = u.role !== 'student' && u.employeeId && normalizeId(u.employeeId).toLowerCase() === trimmed;
-    return emailMatch || studentIdMatch || employeeIdMatch;
+    return studentIdMatch || employeeIdMatch;
   });
 };
 
@@ -81,7 +78,7 @@ const login = (identifier, password) => {
   const cleanPass = password.trim();
   const foundUser = findUserByIdentifier(trimmed);
   if (!foundUser) {
-    return { success: false, message: 'No account found with this Institutional Email or Student/Employee ID.' };
+    return { success: false, message: 'No account found with this Student/Employee ID.' };
   }
   if (foundUser.isActive === false) {
     return { success: false, message: 'This account has been deactivated.' };
@@ -105,7 +102,6 @@ const purchaseTicket = (eventId, photoUrl, userId, cashierStaffName, studentOver
   const yearLevel = isOutsider ? undefined : (studentOverride?.yearLevel || '3rd Year');
   const section = isOutsider ? undefined : (studentOverride?.section || 'M1');
   const department = isOutsider ? 'General Public / Guest' : (studentOverride?.department || 'College of Computer Studies');
-  const email = studentOverride?.email || (isOutsider ? undefined : `${studentName.toLowerCase().replace(/[^a-z0-9]/g, '.')}@student.edu.ph`);
 
   let studentRec = null;
   let existingUserAccount = null;
@@ -118,7 +114,6 @@ const purchaseTicket = (eventId, photoUrl, userId, cashierStaffName, studentOver
       course: course || 'BSIT',
       yearLevel: yearLevel || '3rd Year',
       section: section || 'M1',
-      email,
       department,
     });
     existingUserAccount = users.find(u => u.studentId && normalizeId(u.studentId).toLowerCase() === cleanStudentId.toLowerCase()) || null;
@@ -152,7 +147,6 @@ const purchaseTicket = (eventId, photoUrl, userId, cashierStaffName, studentOver
     middleName: existingUserAccount?.middleName || studentRec?.middleName || parsedName.middleName,
     lastName: existingUserAccount?.lastName || studentRec?.lastName || parsedName.lastName,
     attendeeStudentId: isOutsider ? undefined : (studentId ? normalizeId(studentId) : undefined),
-    attendeeEmail: email,
     attendeeDepartment: department,
     course,
     yearLevel,
@@ -172,7 +166,6 @@ const purchaseTicket = (eventId, photoUrl, userId, cashierStaffName, studentOver
 };
 
 const register = (data) => {
-  const cleanEmail = normalizeEmail(data.email);
   const cleanStudentId = normalizeId(data.studentId);
   const assignedRole = 'student';
 
@@ -192,7 +185,6 @@ const register = (data) => {
     firstName: parsedRegName.firstName || matchedStudentRecord?.firstName,
     middleName: parsedRegName.middleName || matchedStudentRecord?.middleName,
     lastName: parsedRegName.lastName || matchedStudentRecord?.lastName,
-    email: cleanEmail,
     role: 'student',
     password: data.password,
     studentId: cleanStudentId,
@@ -206,7 +198,6 @@ const register = (data) => {
 
   if (matchedStudentRecord) {
     matchedStudentRecord.userId = newUser.id;
-    matchedStudentRecord.email = cleanEmail;
   }
 
   // Bind existing tickets to this newly registered account
@@ -218,7 +209,6 @@ const register = (data) => {
         originalOwnerId: (t.originalOwnerId && (t.originalOwnerId.startsWith('rec-') || t.originalOwnerId.startsWith('usr-guest-') || t.originalOwnerId === t.attendeeStudentId))
           ? newUser.id
           : (t.originalOwnerId || newUser.id),
-        attendeeEmail: cleanEmail,
         firstName: newUser.firstName || t.firstName,
         lastName: newUser.lastName || t.lastName,
       };
@@ -321,7 +311,6 @@ const originalQrToken = issuedTicket.qrToken;
 
 const regResult = register({
   name: 'Christian Bautista',
-  email: 'christian.bautista@student.edu.ph',
   studentId: '2026-00129',
   course: 'BSIT',
   yearLevel: '3rd Year',

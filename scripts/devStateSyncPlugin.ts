@@ -581,8 +581,7 @@ export function stateSyncPlugin(): Plugin {
                 return res.end(JSON.stringify({
                   success: true,
                   step: 'code_sent',
-                  message: `A 6-digit verification code has been dispatched to ${cleanEmail}. Please enter it along with your new password.`,
-                  dev_verification_code: code
+                  message: `A 6-digit verification code has been dispatched to ${cleanEmail}. Please enter it along with your new password.`
                 }));
               }
 
@@ -813,7 +812,6 @@ export function stateSyncPlugin(): Plugin {
                 success: true,
                 message: `Verification code sent to institutional email (${maskedEmail}).`,
                 maskedEmail,
-                demoCode: otpCode, // Provided for easy development / evaluation testing
                 expiresInSeconds: 600,
               }));
             } catch (err: any) {
@@ -1023,7 +1021,9 @@ export function stateSyncPlugin(): Plugin {
                 attendance_status: 'PRESENT',
                 time_in: phtTime,
                 time_in_iso: isoTimestamp,
-                verified_by: authUser.name
+                verified_by: authUser.name,
+                ticket,
+                log: newLog
               }));
             } catch (err: any) {
               res.statusCode = 400;

@@ -43,8 +43,8 @@ export function checkSecureContext(): { isSecure: boolean; error?: CameraErrorIn
         type: 'insecure_context',
         title: 'HTTPS or Localhost Required',
         message: 'Camera hardware access is restricted on unencrypted HTTP connections.',
-        tip: 'Modern web browsers strictly require HTTPS or localhost (127.0.0.1) to access video devices. If accessing across your local network (e.g. 192.168.x.x), you must enable HTTPS or access via localhost.',
-        actionLabel: 'Learn More',
+        tip: 'Modern mobile browsers strictly require HTTPS or localhost (127.0.0.1) to access camera hardware. If accessing across your local network (e.g. 10.x.x.x or 192.168.x.x), please switch to HTTPS and ensure the local development certificate is trusted.',
+        actionLabel: 'Switch to HTTPS',
         canRetry: false
       }
     };
@@ -55,11 +55,11 @@ export function checkSecureContext(): { isSecure: boolean; error?: CameraErrorIn
       isSecure: false,
       error: {
         type: 'insecure_context',
-        title: 'Camera API Unavailable',
-        message: 'Your browser environment does not support the MediaDevices camera API.',
-        tip: 'Please ensure you are using a modern browser (Chrome, Edge, Safari, or Firefox) and accessing via HTTPS or localhost.',
-        actionLabel: 'Retry',
-        canRetry: false
+        title: 'Camera API Blocked or Unavailable',
+        message: 'Your browser environment does not support or has blocked the MediaDevices camera API.',
+        tip: 'If accessing over HTTPS on mobile, ensure the NCST Root CA certificate is installed and trusted on this device (Settings > Security > Install CA certificate). Also verify camera permissions.',
+        actionLabel: 'Retry Camera',
+        canRetry: true
       }
     };
   }
@@ -168,7 +168,7 @@ export function parseCameraError(err: any): CameraErrorInfo {
       type: 'insecure_context',
       title: 'Camera Security Restriction',
       message: 'Camera access is blocked by browser security restrictions.',
-      tip: 'Ensure the NCST system is running over HTTPS or through localhost.',
+      tip: 'Ensure the NCST system is running over trusted HTTPS or localhost with the development CA certificate installed.',
       actionLabel: 'Retry',
       canRetry: false
     };

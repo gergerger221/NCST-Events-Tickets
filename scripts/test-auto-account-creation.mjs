@@ -1,6 +1,6 @@
 import assert from 'assert';
 import { INITIAL_USERS, INITIAL_STUDENT_RECORDS, INITIAL_EVENTS, INITIAL_TICKETS, INITIAL_TRANSACTIONS, INITIAL_LOGS } from '../src/utils/seedData.ts';
-import { normalizeId, normalizeEmail } from '../src/utils/userValidation.ts';
+import { normalizeId } from '../src/utils/userValidation.ts';
 import { splitFullName } from '../src/utils/nameUtils.ts';
 
 console.log('================================================================');
@@ -34,7 +34,6 @@ const saveStudentRecord = (data) => {
       yearLevel: data.yearLevel?.trim() || existing.yearLevel,
       section: data.section?.trim() || existing.section,
       department: data.department?.trim() || existing.department,
-      email: data.email?.trim() || existing.email,
       photoUrl: data.photoUrl || existing.photoUrl,
       userId: data.userId || existing.userId,
     };
@@ -53,7 +52,6 @@ const saveStudentRecord = (data) => {
     yearLevel: data.yearLevel?.trim() || '3rd Year',
     section: data.section?.trim() || '31M1',
     department: data.department?.trim() || `College of ${data.course?.trim() || 'Computer Studies'}`,
-    email: data.email?.trim() || `${data.name.toLowerCase().replace(/[^a-z0-9]/g, '.')}@student.edu.ph`,
     photoUrl: data.photoUrl,
     createdAt: new Date().toISOString(),
     userId: data.userId,
@@ -73,7 +71,6 @@ const purchaseTicket = (eventId, photoUrl, userId, cashierStaffName, studentOver
   const yearLevel = isOutsider ? undefined : (studentOverride?.yearLevel || '3rd Year');
   const section = isOutsider ? undefined : (studentOverride?.section || '31M1');
   const department = isOutsider ? 'General Public / Guest' : (studentOverride?.department || 'College of Computer Studies');
-  const email = studentOverride?.email || (isOutsider ? undefined : `${studentName.toLowerCase().replace(/[^a-z0-9]/g, '.')}@student.edu.ph`);
 
   let studentRec = null;
   let existingUserAccount = null;
@@ -97,7 +94,6 @@ const purchaseTicket = (eventId, photoUrl, userId, cashierStaffName, studentOver
         course: course || 'BSIT',
         yearLevel: yearLevel || '3rd Year',
         section: section || '31M1',
-        email,
         department,
       });
     }
@@ -110,7 +106,6 @@ const purchaseTicket = (eventId, photoUrl, userId, cashierStaffName, studentOver
     if (!existingUserAccount) {
       // Automatically create ONE Student login account using authoritative StudentRecord!
       const parsedName = splitFullName(studentRec.name.trim());
-      const cleanEmail = studentRec.email || email || `${cleanStudentId.toLowerCase()}@student.ncst.edu.ph`;
       const tempPassword = 'ncst123';
 
       const newUser = {
@@ -119,7 +114,6 @@ const purchaseTicket = (eventId, photoUrl, userId, cashierStaffName, studentOver
         firstName: studentRec.firstName || parsedName.firstName,
         middleName: studentRec.middleName || parsedName.middleName,
         lastName: studentRec.lastName || parsedName.lastName,
-        email: cleanEmail,
         role: 'student',
         password: tempPassword,
         studentId: cleanStudentId,
@@ -139,7 +133,6 @@ const purchaseTicket = (eventId, photoUrl, userId, cashierStaffName, studentOver
       accountCreated = true;
       temporaryCredentials = {
         studentId: cleanStudentId,
-        email: cleanEmail,
         tempPassword,
       };
     } else {
@@ -172,7 +165,6 @@ const purchaseTicket = (eventId, photoUrl, userId, cashierStaffName, studentOver
     middleName: existingUserAccount?.middleName || studentRec?.middleName || parsedName.middleName,
     lastName: existingUserAccount?.lastName || studentRec?.lastName || parsedName.lastName,
     attendeeStudentId: isOutsider ? undefined : (studentId ? normalizeId(studentId) : undefined),
-    attendeeEmail: studentRec?.email || email,
     attendeeDepartment: studentRec?.department || department,
     course: studentRec?.course || course,
     yearLevel: studentRec?.yearLevel || yearLevel,
@@ -201,9 +193,8 @@ const login = (identifier, password) => {
   const trimmed = identifier.trim().toLowerCase();
   const cleanPass = password.trim();
   const foundUser = users.find(u => {
-    const emailMatch = u.email && normalizeEmail(u.email) === trimmed;
     const studentIdMatch = u.role === 'student' && u.studentId && normalizeId(u.studentId).toLowerCase() === trimmed;
-    return emailMatch || studentIdMatch;
+    return studentIdMatch;
   });
 
   if (!foundUser) {
@@ -330,7 +321,6 @@ const resD = purchaseTicket('evt-juans-2026', undefined, undefined, 'Cashier Des
   name: 'John Guest Doe',
   attendeeType: 'OUTSIDER',
   contactNumber: '09171234567',
-  email: 'guest.john@gmail.com',
 });
 
 assert.strictEqual(resD.success, true);

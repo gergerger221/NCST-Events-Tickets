@@ -16,11 +16,18 @@ $testFiles = [
     'test-security-patches.php' => 'Vulnerability & Access Control Hardening Patches',
     'test-priority-fixes.php'  => 'Priority 1-3 Fixes: Concurrency, Collision Resistance, SQL Scoping, Rate Limiting',
     'test-notifications-and-outsider-accounts.php' => 'Student SMS/Email Outbox & Outsider On-Screen Credentials',
-    'test-forgot-password-universal.php' => 'Universal Forgot Password (Institutional/Personal Emails, Outsiders, Disambiguation, Session Revocation)',
-    'test-recovery-email-registration.php' => 'First-Login Recovery Email Registration & Verification (Students, Employees, Outsiders)',
     'test-unique-control-numbers-and-shared-stock.php' => 'Unique Control Numbers, Shared Ticket Stock, Row-Locking & Idempotency',
     'test-excel-class-list-attendance.php' => 'Excel Class List Attendance Reconciliation, Scoping, and Zero-Mutation Integrity',
-    'test-smtp-diagnostics.php' => 'SMTP Diagnostics & PHPMailer Integration',
+    'test-smtp-diagnostics.php' => 'SMTP Disabled Verification & Safe Diagnostics',
+    'test-pos-ticket-sales-totals.php' => 'NCST Cashier POS Ticket Sales Totals by Attendee Type (Student + Outsider = Total)',
+    'test-cashier-student-identity-display.php' => 'Cashier Student Identity Display & Surname Separation',
+    'test-admin-reports-sales-revenue.php' => 'Admin Reports Ticket Sales, Revenue, Multi-Criteria Scoping, and Security',
+    'test-unified-student-identity-cashier-lookup.php' => 'Unified Student Self-Registration, Admin Account Creation, and Cashier POS Lookup',
+    'test-no-smtp-account-lifecycle.php' => 'No-SMTP Student Onboarding, Surname Auth, Admin Assisted Reset & Integrity',
+    'test-event-deletion-persistence.php' => 'Admin Event Deletion Persistence, Soft/Hard Deletion, Anti-Resurrection & Audit',
+    'test-user-deletion-persistence.php'  => 'Admin User Deletion Persistence, Soft/Hard Deletion, Anti-Resurrection & Audit',
+    'test-guest-initial-password-and-mandatory-change.php' => 'Guest Initial Password, Surname Resolution, and Mandatory Password Change (10 Scenarios)',
+    'test-recovery-pin-and-forgot-password.php' => 'NCST Self-Service Forgot Password + 4-Digit Recovery PIN (12 Scenarios)',
 ];
 
 $totalTests = count($testFiles);

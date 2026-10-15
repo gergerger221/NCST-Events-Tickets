@@ -73,8 +73,8 @@ $pdo->prepare("
 it("Test 1: Existing account with personal password preserves password hash upon ticket purchase", function() use ($pdo, $testEventId, $testStudent1) {
     // 1. Create StudentRecord
     $pdo->prepare("
-        INSERT INTO `student_records` (id, student_id, name, course, year_level, section, department, email)
-        VALUES (?, ?, 'Juan Santos', 'BSIT', '2nd Year', '21M1', 'CSD', 'juan.santos@student.ncst.edu.ph')
+        INSERT INTO `student_records` (id, student_id, name, course, year_level, section, department)
+        VALUES (?, ?, 'Juan Santos', 'BSIT', '2nd Year', '21M1', 'CSD')
     ")->execute(["rec-{$testStudent1}", $testStudent1]);
 
     // 2. Student registers via portal and sets custom password
@@ -83,8 +83,8 @@ it("Test 1: Existing account with personal password preserves password hash upon
     $userId = "usr-test-{$testStudent1}";
 
     $pdo->prepare("
-        INSERT INTO `users` (id, name, email, role, password, student_id, department, course, year_level, section, account_status, verification_status, is_verified, is_active, must_change_password)
-        VALUES (?, 'Juan Santos', 'juan.santos@student.ncst.edu.ph', 'student', ?, ?, 'CSD', 'BSIT', '2nd Year', '21M1', 'active', 'verified', 1, 1, 0)
+        INSERT INTO `users` (id, name, role, password, student_id, department, course, year_level, section, account_status, verification_status, is_verified, is_active, must_change_password)
+        VALUES (?, 'Juan Santos', 'student', ?, ?, 'CSD', 'BSIT', '2nd Year', '21M1', 'active', 'verified', 1, 1, 0)
     ")->execute([$userId, $personalHash, $testStudent1]);
 
     // Link in student_records
@@ -174,8 +174,8 @@ it("Test 1: Existing account with personal password preserves password hash upon
 it("Test 2: Existing account with no prior ticket does not have password reset upon first purchase", function() use ($pdo, $testEventId, $testStudent2) {
     // 1. Create StudentRecord and portal account
     $pdo->prepare("
-        INSERT INTO `student_records` (id, student_id, name, course, year_level, section, department, email)
-        VALUES (?, ?, 'Maria Clara', 'BSCS', '1st Year', '11M1', 'CSD', 'maria.clara@student.ncst.edu.ph')
+        INSERT INTO `student_records` (id, student_id, name, course, year_level, section, department)
+        VALUES (?, ?, 'Maria Clara', 'BSCS', '1st Year', '11M1', 'CSD')
     ")->execute(["rec-{$testStudent2}", $testStudent2]);
 
     $personalPassword = 'MariaPersonalPassword99#';
@@ -183,8 +183,8 @@ it("Test 2: Existing account with no prior ticket does not have password reset u
     $userId = "usr-test-{$testStudent2}";
 
     $pdo->prepare("
-        INSERT INTO `users` (id, name, email, role, password, student_id, department, course, year_level, section, account_status, verification_status, is_verified, is_active, must_change_password)
-        VALUES (?, 'Maria Clara', 'maria.clara@student.ncst.edu.ph', 'student', ?, ?, 'CSD', 'BSCS', '1st Year', '11M1', 'active', 'verified', 1, 1, 0)
+        INSERT INTO `users` (id, name, role, password, student_id, department, course, year_level, section, account_status, verification_status, is_verified, is_active, must_change_password)
+        VALUES (?, 'Maria Clara', 'student', ?, ?, 'CSD', 'BSCS', '1st Year', '11M1', 'active', 'verified', 1, 1, 0)
     ")->execute([$userId, $personalHash, $testStudent2]);
 
     // Confirm 0 tickets before purchase
@@ -219,8 +219,8 @@ it("Test 2: Existing account with no prior ticket does not have password reset u
 it("Test 3: StudentRecord without portal account triggers automatic creation with temporary policy", function() use ($pdo, $testEventId, $testStudent3) {
     // 1. Create StudentRecord without linked user account
     $pdo->prepare("
-        INSERT INTO `student_records` (id, student_id, name, course, year_level, section, department, email)
-        VALUES (?, ?, 'New Student Record', 'BSEMC', '3rd Year', '31A1', 'CSD', 'new.student@student.ncst.edu.ph')
+        INSERT INTO `student_records` (id, student_id, name, course, year_level, section, department)
+        VALUES (?, ?, 'New Student Record', 'BSEMC', '3rd Year', '31A1', 'CSD')
     ")->execute(["rec-{$testStudent3}", $testStudent3]);
 
     // Confirm no account exists
@@ -234,8 +234,8 @@ it("Test 3: StudentRecord without portal account triggers automatic creation wit
     $initialHash = ncst_hash_password('ncst123');
 
     $pdo->prepare("
-        INSERT INTO `users` (id, name, email, role, password, student_id, department, course, year_level, section, account_status, verification_status, is_verified, is_active, must_change_password)
-        VALUES (?, 'New Student Record', 'new.student@student.ncst.edu.ph', 'student', ?, ?, 'CSD', 'BSEMC', '3rd Year', '31A1', 'active', 'verified', 1, 1, 1)
+        INSERT INTO `users` (id, name, role, password, student_id, department, course, year_level, section, account_status, verification_status, is_verified, is_active, must_change_password)
+        VALUES (?, 'New Student Record', 'student', ?, ?, 'CSD', 'BSEMC', '3rd Year', '31A1', 'active', 'verified', 1, 1, 1)
         ON DUPLICATE KEY UPDATE id = id
     ")->execute([$newUserId, $initialHash, $testStudent3]);
 
@@ -256,8 +256,8 @@ it("Test 3: StudentRecord without portal account triggers automatic creation wit
 it("Test 4: Repeated Cashier request prevents duplicate User Accounts and duplicate tickets", function() use ($pdo, $testEventId, $testStudent4) {
     // 1. Create StudentRecord
     $pdo->prepare("
-        INSERT INTO `student_records` (id, student_id, name, course, year_level, section, department, email)
-        VALUES (?, ?, 'Retry Student', 'BSIT', '1st Year', '11M1', 'CSD', 'retry.student@student.ncst.edu.ph')
+        INSERT INTO `student_records` (id, student_id, name, course, year_level, section, department)
+        VALUES (?, ?, 'Retry Student', 'BSIT', '1st Year', '11M1', 'CSD')
     ")->execute(["rec-{$testStudent4}", $testStudent4]);
 
     $cleanStdId = preg_replace('/\s+/', '', strtolower($testStudent4));
@@ -271,8 +271,8 @@ it("Test 4: Repeated Cashier request prevents duplicate User Accounts and duplic
         if (!$existing) {
             $newUserId = "usr-test-{$testStudent4}";
             $pdo->prepare("
-                INSERT INTO `users` (id, name, email, role, password, student_id, department, course, year_level, section, account_status, verification_status, is_verified, is_active, must_change_password)
-                VALUES (?, 'Retry Student', 'retry.student@student.ncst.edu.ph', 'student', ?, ?, 'CSD', 'BSIT', '1st Year', '11M1', 'active', 'verified', 1, 1, 1)
+                INSERT INTO `users` (id, name, role, password, student_id, department, course, year_level, section, account_status, verification_status, is_verified, is_active, must_change_password)
+                VALUES (?, 'Retry Student', 'student', ?, ?, 'CSD', 'BSIT', '1st Year', '11M1', 'active', 'verified', 1, 1, 1)
                 ON DUPLICATE KEY UPDATE id = id
             ")->execute([$newUserId, ncst_hash_password('ncst123'), $testStudent4]);
             $ownerId = $newUserId;
@@ -320,8 +320,8 @@ it("Test 5: Outsider ticket issuance does not create a student portal account", 
 it("Test 6: Student who already changed password preserves credentials upon second purchase", function() use ($pdo, $testEventId, $testStudent6) {
     // 1. Create StudentRecord & account with changed password
     $pdo->prepare("
-        INSERT INTO `student_records` (id, student_id, name, course, year_level, section, department, email)
-        VALUES (?, ?, 'Alex Santos', 'BSIT', '4th Year', '41M1', 'CSD', 'alex.santos@student.ncst.edu.ph')
+        INSERT INTO `student_records` (id, student_id, name, course, year_level, section, department)
+        VALUES (?, ?, 'Alex Santos', 'BSIT', '4th Year', '41M1', 'CSD')
     ")->execute(["rec-{$testStudent6}", $testStudent6]);
 
     $permanentPassword = 'SuperStrongNewPassword999!';
@@ -329,8 +329,8 @@ it("Test 6: Student who already changed password preserves credentials upon seco
     $userId = "usr-test-{$testStudent6}";
 
     $pdo->prepare("
-        INSERT INTO `users` (id, name, email, role, password, student_id, department, course, year_level, section, account_status, verification_status, is_verified, is_active, must_change_password)
-        VALUES (?, 'Alex Santos', 'alex.santos@student.ncst.edu.ph', 'student', ?, ?, 'CSD', 'BSIT', '4th Year', '41M1', 'active', 'verified', 1, 1, 0)
+        INSERT INTO `users` (id, name, role, password, student_id, department, course, year_level, section, account_status, verification_status, is_verified, is_active, must_change_password)
+        VALUES (?, 'Alex Santos', 'student', ?, ?, 'CSD', 'BSIT', '4th Year', '41M1', 'active', 'verified', 1, 1, 0)
     ")->execute([$userId, $permanentHash, $testStudent6]);
 
     // 2. Buy another ticket

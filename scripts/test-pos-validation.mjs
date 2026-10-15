@@ -5,7 +5,6 @@ import {
   validateSection,
   validateAttendeeName,
   validatePhoneNumber,
-  validateEmail,
   validateCashPayment,
   validateGuestReference,
   generateUniqueGuestReference,

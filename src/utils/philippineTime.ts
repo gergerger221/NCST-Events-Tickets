@@ -20,111 +20,188 @@ export function getPhilippineNow(): Date {
 /**
  * Extracts YYYY-MM-DD in Philippine timezone
  */
+export type ParsedDateResult =
+  | { kind: 'date'; value: Date }
+  | { kind: 'time_only'; value: string }
+  | null;
+
+/**
+ * Safely parses any date/time input into a validated Date object, a preformatted time-only marker, or null.
+ * Never throws RangeError: Invalid time value.
+ */
+export function parsePhilippineDateInput(date?: Date | string | number | null): ParsedDateResult {
+  if (date === null || date === undefined || date === '' || date === '---' || date === '—' || date === 'N/A') {
+    return null;
+  }
+  if (date instanceof Date) {
+    return isNaN(date.getTime()) ? null : { kind: 'date', value: date };
+  }
+  if (typeof date === 'number') {
+    if (!Number.isFinite(date)) return null;
+    const d = new Date(date);
+    return isNaN(d.getTime()) ? null : { kind: 'date', value: d };
+  }
+  if (typeof date !== 'string') return null;
+
+  const s = date.trim();
+  if (!s || s === 'null' || s === 'undefined' || s === 'Invalid Date') return null;
+
+  // 12-hour or 24-hour time-only string (e.g. '08:48 AM', '8:48 AM', '08:48:46 AM', '14:30', '14:30:00')
+  if (/^\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM)?$/i.test(s)) {
+    return { kind: 'time_only', value: s.toUpperCase() };
+  }
+
+  // Date-only string 'YYYY-MM-DD'
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const [y, m, d] = s.split('-').map(Number);
+    const dateObj = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+    return isNaN(dateObj.getTime()) ? null : { kind: 'date', value: dateObj };
+  }
+
+  // SQL datetime without timezone (e.g. 'YYYY-MM-DD HH:mm:ss' or 'YYYY-MM-DDTHH:mm:ss')
+  const sqlMatch = s.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})(?:\.\d+)?$/);
+  if (sqlMatch) {
+    // Treat explicitly as Asia/Manila (UTC+8)
+    const isoWithTz = `${sqlMatch[1]}T${sqlMatch[2]}+08:00`;
+    const d = new Date(isoWithTz);
+    if (!isNaN(d.getTime())) return { kind: 'date', value: d };
+  }
+
+  // General ISO or RFC strings
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : { kind: 'date', value: d };
+}
+
 export function getPhilippineDateString(date: Date | string | number = new Date()): string {
-  const d = typeof date === 'string' || typeof date === 'number' ? new Date(date) : date;
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: PHILIPPINE_TIMEZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(d); // returns 'YYYY-MM-DD'
+  const parsed = parsePhilippineDateInput(date);
+  if (!parsed || parsed.kind !== 'date') return '';
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: PHILIPPINE_TIMEZONE,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(parsed.value); // returns 'YYYY-MM-DD'
+  } catch {
+    return '';
+  }
 }
 
 /**
  * Extracts year, month (0-11), day, hour, minute, second in Asia/Manila
  */
 export function getPhilippineParts(date: Date | string | number = new Date()) {
-  const d = typeof date === 'string' || typeof date === 'number' ? new Date(date) : date;
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: PHILIPPINE_TIMEZONE,
-    year: 'numeric',
-    month: 'numeric',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: 'numeric',
-    second: 'numeric',
-    hour12: false,
-    weekday: 'short',
-  });
+  const parsed = parsePhilippineDateInput(date);
+  const d = parsed && parsed.kind === 'date' ? parsed.value : new Date();
 
-  const parts = formatter.formatToParts(d);
-  const map: Record<string, string> = {};
-  for (const part of parts) {
-    if (part.type !== 'literal') {
-      map[part.type] = part.value;
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: PHILIPPINE_TIMEZONE,
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      second: 'numeric',
+      hour12: false,
+      weekday: 'short',
+    });
+
+    const parts = formatter.formatToParts(d);
+    const map: Record<string, string> = {};
+    for (const part of parts) {
+      if (part.type !== 'literal') {
+        map[part.type] = part.value;
+      }
     }
-  }
 
-  return {
-    year: parseInt(map.year || '2026', 10),
-    month: parseInt(map.month || '1', 10) - 1, // 0-indexed month
-    day: parseInt(map.day || '1', 10),
-    hour: parseInt(map.hour || '0', 10),
-    minute: parseInt(map.minute || '0', 10),
-    second: parseInt(map.second || '0', 10),
-    weekday: map.weekday || 'Sun',
-  };
+    return {
+      year: parseInt(map.year || '2026', 10),
+      month: parseInt(map.month || '1', 10) - 1, // 0-indexed month
+      day: parseInt(map.day || '1', 10),
+      hour: parseInt(map.hour || '0', 10),
+      minute: parseInt(map.minute || '0', 10),
+      second: parseInt(map.second || '0', 10),
+      weekday: map.weekday || 'Sun',
+    };
+  } catch {
+    return {
+      year: 2026,
+      month: 0,
+      day: 1,
+      hour: 0,
+      minute: 0,
+      second: 0,
+      weekday: 'Sun',
+    };
+  }
 }
 
 /**
  * Format full Philippine date and time with PHT indicator
  * Example: "Thursday, October 1, 2026 at 09:45 AM PHT"
  */
-export function formatPhilippineFull(date: Date | string | number = new Date()): string {
-  const d = typeof date === 'string' || typeof date === 'number' ? new Date(date) : date;
-  const dateStr = new Intl.DateTimeFormat('en-US', {
-    timeZone: PHILIPPINE_TIMEZONE,
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: true,
-  }).format(d);
-  return dateStr;
+export function formatPhilippineFull(date?: Date | string | number | null): string {
+  const parsed = parsePhilippineDateInput(date);
+  if (!parsed) return '—';
+  if (parsed.kind === 'time_only') {
+    return `${parsed.value} PHT`;
+  }
+  try {
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone: PHILIPPINE_TIMEZONE,
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true,
+    }).format(parsed.value);
+  } catch {
+    return '—';
+  }
 }
 
 /**
  * Format date in friendly Philippine format
  * Example: "October 5, 2026"
  */
-export function formatPhilippineDate(date: Date | string | number): string {
-  if (!date) return '---';
-  // If string is YYYY-MM-DD, parse year, month, day explicitly to avoid UTC shift
-  if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    const [y, m, d] = date.split('-').map(Number);
-    const dateObj = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+export function formatPhilippineDate(date?: Date | string | number | null): string {
+  const parsed = parsePhilippineDateInput(date);
+  if (!parsed || parsed.kind !== 'date') return '—';
+  try {
     return new Intl.DateTimeFormat('en-US', {
       timeZone: PHILIPPINE_TIMEZONE,
       month: 'long',
       day: 'numeric',
       year: 'numeric',
-    }).format(dateObj);
+    }).format(parsed.value);
+  } catch {
+    return '—';
   }
-
-  const d = typeof date === 'string' || typeof date === 'number' ? new Date(date) : date;
-  return new Intl.DateTimeFormat('en-US', {
-    timeZone: PHILIPPINE_TIMEZONE,
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(d);
 }
 
 /**
  * Format time in Philippine 12-hour AM/PM format
  */
-export function formatPhilippineTime(date: Date | string | number): string {
-  if (!date) return '---';
-  const d = typeof date === 'string' || typeof date === 'number' ? new Date(date) : date;
-  return new Intl.DateTimeFormat('en-US', {
-    timeZone: PHILIPPINE_TIMEZONE,
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true,
-  }).format(d);
+export function formatPhilippineTime(date?: Date | string | number | null): string {
+  const parsed = parsePhilippineDateInput(date);
+  if (!parsed) return '—';
+  if (parsed.kind === 'time_only') {
+    return parsed.value;
+  }
+  try {
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone: PHILIPPINE_TIMEZONE,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    }).format(parsed.value);
+  } catch {
+    return '—';
+  }
 }
 
 /**
@@ -276,16 +353,14 @@ export function getOutsiderAccountExpirationDate(
   }
 
   // Check tickets owned or held by this user
-  const userEmail = (user.email || '').trim().toLowerCase();
   const userId = user.id;
   const userGuestId = (user.studentId || '').trim();
 
   tickets.forEach(t => {
     const isOwner = t.originalOwnerId === userId || t.currentAttendeeId === userId;
-    const isEmailMatch = userEmail && t.attendeeEmail && t.attendeeEmail.trim().toLowerCase() === userEmail;
     const isGuestRefMatch = userGuestId && (t.attendeeStudentId === userGuestId || t.outsiderId === userGuestId);
     
-    if ((isOwner || isEmailMatch || isGuestRefMatch) && t.eventId) {
+    if ((isOwner || isGuestRefMatch) && t.eventId) {
       eventIds.add(t.eventId);
     }
   });
@@ -347,25 +422,28 @@ export function isOutsiderAccountExpired(
  * Example: "November 6, 2026 at 12:00:00 AM PHT"
  */
 export function formatPhilippineExpiration(date: Date | string | number): string {
-  if (!date) return '---';
-  const d = typeof date === 'string' || typeof date === 'number' ? new Date(date) : date;
-  if (isNaN(d.getTime())) return '---';
+  const parsed = parsePhilippineDateInput(date);
+  if (!parsed || parsed.kind !== 'date') return '---';
 
-  const datePart = new Intl.DateTimeFormat('en-US', {
-    timeZone: PHILIPPINE_TIMEZONE,
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(d);
+  try {
+    const datePart = new Intl.DateTimeFormat('en-US', {
+      timeZone: PHILIPPINE_TIMEZONE,
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    }).format(parsed.value);
 
-  const timePart = new Intl.DateTimeFormat('en-US', {
-    timeZone: PHILIPPINE_TIMEZONE,
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: true,
-  }).format(d);
+    const timePart = new Intl.DateTimeFormat('en-US', {
+      timeZone: PHILIPPINE_TIMEZONE,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true,
+    }).format(parsed.value);
 
-  return `${datePart} at ${timePart} PHT`;
+    return `${datePart} at ${timePart} PHT`;
+  } catch {
+    return '---';
+  }
 }
 

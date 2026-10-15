@@ -134,8 +134,8 @@ it("Direct MariaDB verification: Matched StudentRecord gets verified, un-matched
     $pdo->exec("DELETE FROM student_records WHERE student_id = '{$testStdId}'");
 
     $pdo->prepare("
-        INSERT INTO users (id, name, email, role, student_id, department, course, year_level, section, account_status, verification_status, is_verified, is_active)
-        VALUES (?, 'Test Unverified Student', 'test.pending@ncst.edu.ph', 'student', ?, 'CSD', 'BSIT', '1st Year', '11M1', 'pending_verification', 'pending', 0, 1)
+        INSERT INTO users (id, name, role, student_id, department, course, year_level, section, account_status, verification_status, is_verified, is_active)
+        VALUES (?, 'Test Unverified Student', 'student', ?, 'CSD', 'BSIT', '1st Year', '11M1', 'pending_verification', 'pending', 0, 1)
     ")->execute([$testId, $testStdId]);
 
     $saved = $pdo->query("SELECT verification_status, is_verified FROM users WHERE id = '{$testId}'")->fetch();

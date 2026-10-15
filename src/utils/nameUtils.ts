@@ -25,16 +25,21 @@ const SURNAME_PREFIXES = [
   'st.'
 ];
 
+// Common generational and name suffixes
+const NAME_SUFFIXES = ['jr', 'jr.', 'sr', 'sr.', 'ii', 'iii', 'iv', 'v'];
+
 export interface ParsedName {
   firstName: string;
   middleName?: string;
   lastName: string;
+  suffix?: string;
   fullName: string;
 }
 
 /**
- * Splits a full name string into First, Middle, and Last name components.
- * Intelligently recognizes multi-word surnames (e.g. "Juan Dela Cruz" -> First: "Juan", Last: "Dela Cruz").
+ * Splits a full name string into First, Middle, Last name, and Suffix components.
+ * Intelligently recognizes multi-word surnames (e.g. "Juan Dela Cruz" -> First: "Juan", Last: "Dela Cruz")
+ * and generational suffixes (e.g. "Jr.", "Sr.", "II", "III").
  */
 export function splitFullName(fullName: string): ParsedName {
   const clean = (fullName || '').trim().replace(/\s+/g, ' ');
@@ -42,29 +47,39 @@ export function splitFullName(fullName: string): ParsedName {
     return { firstName: '', lastName: '', fullName: '' };
   }
 
-  // If name has a comma (e.g. "Dela Cruz, Juan M."), parse as Last, First Middle
+  // If name has a comma (e.g. "Dela Cruz, Juan M. Jr."), parse as Last, First Middle Suffix
   if (clean.includes(',')) {
     const parts = clean.split(',').map(p => p.trim());
     const lastName = parts[0] || '';
     const remainder = parts[1] || '';
-    const remParts = remainder.split(' ').filter(Boolean);
+    let remParts = remainder.split(' ').filter(Boolean);
+    let suffix: string | undefined = undefined;
+    if (remParts.length > 1 && NAME_SUFFIXES.includes(remParts[remParts.length - 1].toLowerCase())) {
+      suffix = remParts.pop();
+    }
     const firstName = remParts[0] || '';
     const middleName = remParts.slice(1).join(' ') || undefined;
     return {
       firstName,
       middleName,
       lastName,
+      suffix,
       fullName: clean,
     };
   }
 
-  const parts = clean.split(' ').filter(Boolean);
+  let parts = clean.split(' ').filter(Boolean);
+  let suffix: string | undefined = undefined;
+  if (parts.length > 1 && NAME_SUFFIXES.includes(parts[parts.length - 1].toLowerCase())) {
+    suffix = parts.pop();
+  }
+
   if (parts.length === 1) {
-    return { firstName: parts[0], lastName: parts[0], fullName: clean };
+    return { firstName: parts[0], lastName: parts[0], suffix, fullName: clean };
   }
 
   if (parts.length === 2) {
-    return { firstName: parts[0], lastName: parts[1], fullName: clean };
+    return { firstName: parts[0], lastName: parts[1], suffix, fullName: clean };
   }
 
   // For 3 or more parts, check for multi-word surname prefixes
@@ -76,13 +91,13 @@ export function splitFullName(fullName: string): ParsedName {
     if (SURNAME_PREFIXES.includes(twoWordPrefix)) {
       const firstName = parts.slice(0, i).join(' ');
       const lastName = parts.slice(i).join(' ');
-      return { firstName, lastName, fullName: clean };
+      return { firstName, lastName, suffix, fullName: clean };
     }
 
     if (SURNAME_PREFIXES.includes(oneWordPrefix)) {
       const firstName = parts.slice(0, i).join(' ');
       const lastName = parts.slice(i).join(' ');
-      return { firstName, lastName, fullName: clean };
+      return { firstName, lastName, suffix, fullName: clean };
     }
   }
 
@@ -93,6 +108,7 @@ export function splitFullName(fullName: string): ParsedName {
       firstName: parts[0],
       middleName: parts[1],
       lastName: parts[2],
+      suffix,
       fullName: clean,
     };
   }
@@ -106,6 +122,7 @@ export function splitFullName(fullName: string): ParsedName {
     firstName,
     middleName,
     lastName,
+    suffix,
     fullName: clean,
   };
 }
@@ -170,5 +187,99 @@ export function sortByLastName<T>(
     if (firstA > firstB) return 1;
 
     return 0;
+  });
+}
+
+export type TeacherRosterSortCriteria =
+  | 'name_asc'
+  | 'name_desc'
+  | 'id_asc'
+  | 'status_present'
+  | 'status_not_entered'
+  | 'time_in_earliest';
+
+export interface RosterSortableItem {
+  student: {
+    name?: string;
+    studentId?: string;
+    [key: string]: any;
+  };
+  isPresent?: boolean;
+  timeIn?: string | null;
+  [key: string]: any;
+}
+
+/**
+ * Centrally sorts an attendance roster with plain-language criteria:
+ * - 'name_asc': Student Name (A–Z) [Default: Surname A-Z, given name tie-breaker]
+ * - 'name_desc': Student Name (Z–A)
+ * - 'id_asc': Student ID (Lowest first, numeric comparison)
+ * - 'status_present': Present Students First (Tie-breaker: Surname A-Z)
+ * - 'status_not_entered': Not Yet Entered First (Tie-breaker: Surname A-Z)
+ * - 'time_in_earliest': Time In (Earliest first; missing time values placed at end)
+ */
+export function sortAttendanceRoster<T extends RosterSortableItem>(
+  list: T[],
+  criteria: TeacherRosterSortCriteria = 'name_asc'
+): T[] {
+  const compareSurnameAsc = (a: T, b: T): number => {
+    const lastA = getLastName(a.student).toLowerCase();
+    const lastB = getLastName(b.student).toLowerCase();
+    if (lastA < lastB) return -1;
+    if (lastA > lastB) return 1;
+
+    const firstA = getFirstName(a.student).toLowerCase();
+    const firstB = getFirstName(b.student).toLowerCase();
+    if (firstA < firstB) return -1;
+    if (firstA > firstB) return 1;
+
+    return (a.student.studentId || '').localeCompare(b.student.studentId || '', undefined, { numeric: true });
+  };
+
+  const compareSurnameDesc = (a: T, b: T): number => compareSurnameAsc(b, a);
+
+  return [...list].sort((a, b) => {
+    switch (criteria) {
+      case 'name_desc':
+        return compareSurnameDesc(a, b);
+
+      case 'id_asc': {
+        const idA = (a.student.studentId || '').trim();
+        const idB = (b.student.studentId || '').trim();
+        const cmp = idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' });
+        return cmp !== 0 ? cmp : compareSurnameAsc(a, b);
+      }
+
+      case 'status_present': {
+        const presA = Boolean(a.isPresent);
+        const presB = Boolean(b.isPresent);
+        if (presA !== presB) {
+          return presA ? -1 : 1;
+        }
+        return compareSurnameAsc(a, b);
+      }
+
+      case 'status_not_entered': {
+        const presA = Boolean(a.isPresent);
+        const presB = Boolean(b.isPresent);
+        if (presA !== presB) {
+          return !presA ? -1 : 1;
+        }
+        return compareSurnameAsc(a, b);
+      }
+
+      case 'time_in_earliest': {
+        const timeA = a.timeIn ? new Date(a.timeIn).getTime() : Infinity;
+        const timeB = b.timeIn ? new Date(b.timeIn).getTime() : Infinity;
+        if (timeA !== timeB) {
+          return timeA - timeB;
+        }
+        return compareSurnameAsc(a, b);
+      }
+
+      case 'name_asc':
+      default:
+        return compareSurnameAsc(a, b);
+    }
   });
 }

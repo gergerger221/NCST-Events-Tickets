@@ -30,7 +30,7 @@ $secret = ncst_env('APP_SECRET');
 assertTest("1. Environment variables loaded from .env", !empty($dbHost) && $dbName === 'event_attendance_db' && !empty($secret));
 
 // 2. Verify all database user passwords are valid Bcrypt hashes
-$stmt = $pdo->query("SELECT id, email, password FROM users");
+$stmt = $pdo->query("SELECT id, name, password FROM users");
 $allUsers = $stmt->fetchAll();
 $allBcrypt = true;
 $plaintextFound = 0;
@@ -46,7 +46,7 @@ assertTest("2. All MySQL passwords are real Bcrypt hashes (Zero plaintext)", $al
 // 3. Test Bcrypt Verification & Login
 $testUser = null;
 foreach ($allUsers as $u) {
-    if ($u['id'] === 'usr-admin-001' || $u['email'] === 'admin@ncst.edu.ph') {
+    if ($u['id'] === 'usr-admin-001') {
         $testUser = $u;
         break;
     }

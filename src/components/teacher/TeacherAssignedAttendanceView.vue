@@ -152,20 +152,48 @@
           </select>
         </div>
 
-        <!-- 2. Roster Count -->
-        <div>
-          <label class="block text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider mb-1">
-            Roster
-          </label>
-          <div class="px-3.5 py-2 rounded-xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-900 text-blue-700 dark:text-blue-300 font-extrabold text-xs flex items-center gap-1.5">
+        <!-- 2. Attendance Summary Pills -->
+        <div class="flex items-center gap-2 flex-wrap">
+          <div class="px-3 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-900 text-blue-700 dark:text-blue-300 font-extrabold text-xs flex items-center gap-1.5" title="Total Scoped Students">
             <Users class="w-3.5 h-3.5" />
             <span>{{ displayedRoster.length }} Students</span>
+          </div>
+
+          <div class="px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-900 text-emerald-700 dark:text-emerald-300 font-extrabold text-xs flex items-center gap-1.5" title="Students Present">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>{{ assignedStudentsPresent.length }} Present</span>
+          </div>
+
+          <div class="px-3 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-900 text-amber-700 dark:text-amber-300 font-extrabold text-xs flex items-center gap-1.5" title="Pending Event Entry">
+            <span class="w-2 h-2 rounded-full bg-amber-500" />
+            <span>{{ assignedStudentsNotPresent.length }} {{ isEventClosed ? 'Absent' : 'Pending' }}</span>
           </div>
         </div>
       </div>
 
-      <!-- Quick Search & Status Filter -->
+      <!-- Quick Search, Status Filter & Centralized Sort Control -->
       <div class="flex flex-wrap items-center gap-3">
+        <!-- Centralized Sort Control -->
+        <div>
+          <label class="block text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider mb-1">
+            Sort students by
+          </label>
+          <div class="relative">
+            <ArrowUpDown class="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <select
+              v-model="sortCriteria"
+              class="pl-8 pr-3 py-2 bg-slate-50 dark:bg-[#252525] border border-slate-300 dark:border-[#3a3a3a] rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 cursor-pointer min-w-[195px]"
+            >
+              <option value="name_asc">Student Name (A–Z)</option>
+              <option value="name_desc">Student Name (Z–A)</option>
+              <option value="id_asc">Student ID (Lowest first)</option>
+              <option value="status_present">Present Students First</option>
+              <option value="status_not_entered">Not Yet Entered First</option>
+              <option value="time_in_earliest">Time In (Earliest first)</option>
+            </select>
+          </div>
+        </div>
+
         <!-- Attendance Status Filter -->
         <div>
           <label class="block text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider mb-1">
@@ -199,79 +227,126 @@
       </div>
     </div>
 
-    <!-- Attendance Table -->
-    <div class="overflow-x-auto rounded-2xl border border-slate-200 dark:border-[#333333] bg-white dark:bg-[#1e1e1e] shadow-sm">
-      <table class="w-full text-left text-xs border-collapse">
-        <thead>
-          <tr class="bg-slate-50 dark:bg-[#242424] text-slate-600 dark:text-[#a0a0a0] uppercase text-[10px] font-extrabold border-b border-slate-200 dark:border-[#333333] tracking-wider">
-            <th class="py-3 px-4">Student Name</th>
-            <th class="py-3 px-4">Student ID</th>
-            <th class="py-3 px-4">Course</th>
-            <th class="py-3 px-4">Year Level</th>
-            <th class="py-3 px-4">Section</th>
-            <th class="py-3 px-4">Attendance Status</th>
-            <th class="py-3 px-4">Time In (PHT)</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-100 dark:divide-[#282828]">
-          <tr
-            v-for="item in displayedRoster"
-            :key="item.student.id || item.student.studentId"
-            class="hover:bg-slate-50 dark:hover:bg-[#242424] transition"
-          >
-            <!-- 1. Student Name -->
-            <td class="py-3 px-4 font-bold text-slate-900 dark:text-white whitespace-nowrap">
-              <div class="flex items-center gap-2.5">
-                <UserAvatar :src="item.student.photoUrl" :alt="item.student.name" size="xs" shape="circle" />
-                <span>{{ item.student.name }}</span>
-              </div>
-            </td>
+    <!-- Attendance Table Container -->
+    <div class="rounded-2xl border border-slate-200 dark:border-[#333333] bg-white dark:bg-[#1e1e1e] shadow-sm overflow-hidden flex flex-col">
+      <div class="overflow-x-auto overflow-y-auto max-h-[560px] custom-scrollbar">
+        <table class="w-full text-left text-xs border-collapse">
+          <thead class="sticky top-0 z-10 bg-slate-50 dark:bg-[#242424] shadow-xs">
+            <tr class="bg-slate-50 dark:bg-[#242424] text-slate-600 dark:text-[#a0a0a0] uppercase text-[10px] font-extrabold border-b border-slate-200 dark:border-[#333333] tracking-wider">
+              <th class="py-3 px-4 bg-slate-50 dark:bg-[#242424]">Student &amp; Class</th>
+              <th class="py-3 px-4 bg-slate-50 dark:bg-[#242424]">Student ID</th>
+              <th class="py-3 px-4 bg-slate-50 dark:bg-[#242424]">Attendance Status</th>
+              <th class="py-3 px-4 bg-slate-50 dark:bg-[#242424]">Time In (PHT)</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 dark:divide-[#282828]">
+            <tr
+              v-for="item in paginatedRoster"
+              :key="item.student.id || item.student.studentId"
+              class="hover:bg-slate-50 dark:hover:bg-[#242424] transition"
+            >
+              <!-- 1. Student Name & Academic Details Subtitle -->
+              <td class="py-2.5 px-4 whitespace-nowrap">
+                <div class="flex items-center gap-3">
+                  <UserAvatar :src="item.student.photoUrl" :alt="item.student.name" size="xs" shape="circle" />
+                  <div class="min-w-0">
+                    <span class="font-bold text-slate-900 dark:text-white block truncate text-xs">{{ item.student.name }}</span>
+                    <span class="text-[10px] text-slate-500 dark:text-[#8e8e8e] font-medium block truncate">
+                      {{ item.student.course || 'BSIT' }} • {{ item.student.yearLevel || '1st Year' }} • Sec {{ item.student.section || '—' }}
+                    </span>
+                  </div>
+                </div>
+              </td>
 
-            <!-- 2. Student ID -->
-            <td class="py-3 px-4 font-mono font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">
-              {{ item.student.studentId || 'N/A' }}
-            </td>
+              <!-- 2. Student ID -->
+              <td class="py-2.5 px-4 font-mono font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">
+                {{ (item.student as any).studentId || (item.student as any).student_id || (item.student as any).id || 'N/A' }}
+              </td>
 
-            <!-- 3. Course -->
-            <td class="py-3 px-4 text-slate-800 dark:text-slate-200 font-semibold whitespace-nowrap">
-              {{ item.student.course || 'BSIT' }}
-            </td>
+              <!-- 3. Attendance Status -->
+              <td class="py-2.5 px-4 whitespace-nowrap">
+                <StatusBadge
+                  type="attendance"
+                  :status="item.isPresent ? 'present' : (isEventClosed ? 'absent' : 'not_entered')"
+                />
+              </td>
 
-            <!-- 4. Year Level -->
-            <td class="py-3 px-4 text-slate-600 dark:text-[#a0a0a0] whitespace-nowrap">
-              {{ item.student.yearLevel || '3rd Year' }}
-            </td>
+              <!-- 4. Time In (PHT) -->
+              <td class="py-2.5 px-4 font-mono font-bold whitespace-nowrap" :class="item.isPresent ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'">
+                {{ item.timeInFormatted || '—' }}
+              </td>
+            </tr>
 
-            <!-- 5. Section -->
-            <td class="py-3 px-4 font-mono font-bold text-slate-800 dark:text-slate-200 whitespace-nowrap">
-              {{ item.student.section || 'N/A' }}
-            </td>
+            <tr v-if="displayedRoster.length === 0">
+              <td colspan="4" class="text-center py-12 text-slate-400 dark:text-slate-500">
+                <Users class="w-8 h-8 mx-auto mb-2 opacity-40" />
+                <p class="font-bold text-sm text-slate-700 dark:text-slate-300">No students found</p>
+                <p class="text-[11px] text-slate-500 mt-0.5">
+                  No authoritative student records match the selected section ({{ selectedClassLabel }}).
+                </p>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
-            <!-- 6. Attendance Status -->
-            <td class="py-3 px-4 whitespace-nowrap">
-              <StatusBadge
-                type="attendance"
-                :status="item.isPresent ? 'present' : (isEventClosed ? 'absent' : 'not_entered')"
-              />
-            </td>
+      <!-- Pagination Footer -->
+      <div
+        v-if="displayedRoster.length > 0"
+        class="px-4 py-3 bg-slate-50/70 dark:bg-[#202020] border-t border-slate-200 dark:border-[#333333] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400"
+      >
+        <div class="flex items-center gap-1.5">
+          <span>Showing</span>
+          <span class="font-bold text-slate-800 dark:text-slate-200 font-mono">{{ paginationStart }}</span>
+          <span>to</span>
+          <span class="font-bold text-slate-800 dark:text-slate-200 font-mono">{{ paginationEnd }}</span>
+          <span>of</span>
+          <span class="font-bold text-slate-800 dark:text-slate-200 font-mono">{{ displayedRoster.length }}</span>
+          <span>students</span>
+        </div>
 
-            <!-- 7. Time In (PHT) -->
-            <td class="py-3 px-4 font-mono font-bold whitespace-nowrap" :class="item.isPresent ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'">
-              {{ item.timeInFormatted || '—' }}
-            </td>
-          </tr>
+        <div class="flex items-center gap-3">
+          <!-- Page Size Selector -->
+          <div class="flex items-center gap-1.5">
+            <span class="text-[11px]">Per page:</span>
+            <select
+              v-model="pageSize"
+              class="px-2 py-1 bg-white dark:bg-[#1a1a1a] border border-slate-300 dark:border-[#3a3a3a] rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-500 cursor-pointer"
+            >
+              <option :value="10">10</option>
+              <option :value="15">15</option>
+              <option :value="25">25</option>
+              <option :value="50">50</option>
+              <option :value="1000">All</option>
+            </select>
+          </div>
 
-          <tr v-if="displayedRoster.length === 0">
-            <td colspan="7" class="text-center py-12 text-slate-400 dark:text-slate-500">
-              <Users class="w-8 h-8 mx-auto mb-2 opacity-40" />
-              <p class="font-bold text-sm text-slate-700 dark:text-slate-300">No students found</p>
-              <p class="text-[11px] text-slate-500 mt-0.5">
-                No authoritative student records match the selected section ({{ selectedClassLabel }}).
-              </p>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+          <!-- Page Navigation Buttons -->
+          <div v-if="totalPages > 1" class="flex items-center gap-1">
+            <button
+              type="button"
+              @click="currentPage--"
+              :disabled="currentPage <= 1"
+              class="p-1 rounded-lg border border-slate-200 dark:border-[#3a3a3a] bg-white dark:bg-[#1a1a1a] text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#2a2a2a] disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+              title="Previous Page"
+            >
+              <ChevronLeft class="w-4 h-4" />
+            </button>
+            <span class="px-2.5 py-0.5 rounded-md bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#333333] font-mono font-bold text-slate-800 dark:text-slate-200 text-xs">
+              {{ currentPage }} / {{ totalPages }}
+            </span>
+            <button
+              type="button"
+              @click="currentPage++"
+              :disabled="currentPage >= totalPages"
+              class="p-1 rounded-lg border border-slate-200 dark:border-[#3a3a3a] bg-white dark:bg-[#1a1a1a] text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#2a2a2a] disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+              title="Next Page"
+            >
+              <ChevronRight class="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Student Import Excel Modal -->
@@ -296,7 +371,7 @@
 import { ref, computed, watch } from 'vue';
 import {
   Users, CalendarDays, Search, Download, Copy, Check, Upload, FileSpreadsheet,
-  CheckCircle2, AlertCircle
+  CheckCircle2, AlertCircle, ArrowUpDown, ChevronLeft, ChevronRight
 } from 'lucide-vue-next';
 import { useAppStore } from '../../composables/useAppStore';
 import UserAvatar from '../common/UserAvatar.vue';
@@ -304,7 +379,7 @@ import StatusBadge from '../common/StatusBadge.vue';
 import StudentImportModal from './StudentImportModal.vue';
 import ClassListAttendanceModal from './ClassListAttendanceModal.vue';
 import { exportRosterAttendanceToExcel } from '../../utils/excelExport';
-import { splitFullName, sortByLastName } from '../../utils/nameUtils';
+import { splitFullName, sortByLastName, sortAttendanceRoster, TeacherRosterSortCriteria } from '../../utils/nameUtils';
 import { formatPhilippineTime } from '../../utils/philippineTime';
 import { User, Ticket, StudentRecord, TeacherClassAssignment } from '../../types';
 
@@ -325,6 +400,7 @@ const {
 } = useAppStore();
 
 const selectedPeriodId = ref<string>(activeAcademicPeriod.value?.id || 'all');
+const sortCriteria = ref<TeacherRosterSortCriteria>('name_asc');
 
 const selectedPeriod = computed(() => {
   if (selectedPeriodId.value === 'all') return null;
@@ -432,14 +508,19 @@ const allUniqueStudents = computed<(StudentRecord | User)[]>(() => {
   const map = new Map<string, StudentRecord | User>();
 
   studentRecords.value.forEach(rec => {
-    const key = rec.studentId?.toLowerCase().trim() || rec.id;
+    const sId = rec.studentId || (rec as any).student_id || (rec.id && !rec.id.startsWith('rec-') ? rec.id : '');
+    const key = (sId || rec.id || '').toLowerCase().trim();
+    if (!key) return;
+
     // Keep name in sync with registered user account if one exists
     const matchingUser = users.value.find(
-      u => u.role === 'student' && u.studentId && u.studentId.toLowerCase().trim() === key
+      u => u.role === 'student' && ((u.studentId || (u as any).student_id) || '').toLowerCase().trim() === (sId ? sId.toLowerCase().trim() : key)
     );
     if (matchingUser) {
+      const finalId = sId || matchingUser.studentId || (matchingUser as any).student_id || matchingUser.id;
       map.set(key, {
         ...rec,
+        studentId: finalId,
         name: matchingUser.name || rec.name,
         firstName: matchingUser.firstName || rec.firstName,
         lastName: matchingUser.lastName || rec.lastName,
@@ -451,15 +532,22 @@ const allUniqueStudents = computed<(StudentRecord | User)[]>(() => {
         userId: matchingUser.id,
       });
     } else {
-      map.set(key, rec);
+      map.set(key, {
+        ...rec,
+        studentId: sId || rec.id,
+      });
     }
   });
 
   users.value.forEach(u => {
-    if (u.role === 'student' && u.studentId) {
-      const key = u.studentId.toLowerCase().trim();
+    const sId = u.studentId || (u as any).student_id;
+    if (u.role === 'student' && sId) {
+      const key = sId.toLowerCase().trim();
       if (!map.has(key)) {
-        map.set(key, u);
+        map.set(key, {
+          ...u,
+          studentId: sId,
+        });
       }
     }
   });
@@ -522,7 +610,7 @@ const sectionAttendanceRoster = computed<StudentAttendanceItem[]>(() => {
   });
 
   return scopedStudents.value.map(student => {
-    const sId = student.studentId?.toLowerCase().trim();
+    const sId = (student.studentId || (student as any).student_id || student.id)?.toLowerCase().trim();
     const uId = (student as any).userId || student.id;
 
     const matchedTicket = (sId ? tixMapByStudentId.get(sId) : undefined) || (uId ? tixMapByUserId.get(uId) : undefined);
@@ -545,7 +633,7 @@ const sectionAttendanceRoster = computed<StudentAttendanceItem[]>(() => {
 // Filtered & Sorted Display Roster
 const displayedRoster = computed<StudentAttendanceItem[]>(() => {
   // 1. Filter by status & search query
-  let result = sectionAttendanceRoster.value.filter(item => {
+  const result = sectionAttendanceRoster.value.filter(item => {
     if (filterStatus.value === 'present' && !item.isPresent) return false;
     if (filterStatus.value === 'not_entered' && item.isPresent) return false;
 
@@ -559,12 +647,42 @@ const displayedRoster = computed<StudentAttendanceItem[]>(() => {
     return true;
   });
 
-  // 2. Automatically sort roster alphabetically by student last name (A–Z)
-  return sortByLastName([...result], item => item.student.name || '');
+  // 2. Centralized Roster Sorting using selected plain-language sortCriteria
+  return sortAttendanceRoster(result, sortCriteria.value);
 });
 
 const assignedStudentsPresent = computed(() => sectionAttendanceRoster.value.filter(i => i.isPresent));
 const assignedStudentsNotPresent = computed(() => sectionAttendanceRoster.value.filter(i => !i.isPresent));
+
+// Pagination State & Computations
+const currentPage = ref(1);
+const pageSize = ref(15);
+
+const totalPages = computed(() => {
+  if (pageSize.value >= 1000) return 1;
+  return Math.max(1, Math.ceil(displayedRoster.value.length / pageSize.value));
+});
+
+const paginatedRoster = computed(() => {
+  if (pageSize.value >= 1000) return displayedRoster.value;
+  const start = (currentPage.value - 1) * pageSize.value;
+  return displayedRoster.value.slice(start, start + pageSize.value);
+});
+
+const paginationStart = computed(() => {
+  if (displayedRoster.value.length === 0) return 0;
+  return (currentPage.value - 1) * pageSize.value + 1;
+});
+
+const paginationEnd = computed(() => {
+  if (pageSize.value >= 1000) return displayedRoster.value.length;
+  return Math.min(currentPage.value * pageSize.value, displayedRoster.value.length);
+});
+
+// Auto-reset page when filtering, sorting or page size changes
+watch([searchQuery, filterStatus, selectedClassKey, sortCriteria, pageSize], () => {
+  currentPage.value = 1;
+});
 
 const onEventChange = (e: Event) => {
   const target = e.target as HTMLSelectElement;

@@ -79,7 +79,7 @@ export const NCST_DEPARTMENTS: NCSTDepartment[] = [
  */
 export const deriveYearLevelFromSection = (sectionCode?: string): string => {
   if (!sectionCode || typeof sectionCode !== 'string') return '1st Year';
-  const clean = sectionCode.trim();
+  const clean = sectionCode.trim().toUpperCase().replace(/\s+/g, '');
   const firstChar = clean.charAt(0);
   switch (firstChar) {
     case '1': return '1st Year';

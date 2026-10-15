@@ -38,6 +38,43 @@ function sanitizeUser($u) {
 // Core Helpers & Route Modules
 // -------------------------------------------------------------
 require_once __DIR__ . '/notification_helper.php';
+
+// Server-Enforced Guard: Accounts requiring mandatory password change are blocked from accessing protected features
+$authUserPreCheck = ncst_get_auth_user($pdo);
+if ($authUserPreCheck && (int)($authUserPreCheck['must_change_password'] ?? 0) === 1) {
+    $exemptRoutes = [
+        '/api/auth/login',
+        '/api/auth/change-password',
+        '/api/change-password',
+        '/api/auth/set-recovery-pin',
+        '/api/auth/setup-pin',
+        '/api/auth/logout',
+        '/api/auth/me',
+        '/api/auth/user',
+    ];
+    $isExempt = false;
+    foreach ($exemptRoutes as $er) {
+        if ($path === $er || str_ends_with($path, basename($er))) {
+            $isExempt = true;
+            break;
+        }
+    }
+    // GET /api/state is permitted because it safely returns scoped empty state with mustChangePassword: true
+    if (($path === '/api/state' || str_ends_with($path, '/state')) && $method === 'GET') {
+        $isExempt = true;
+    }
+
+    if (!$isExempt) {
+        http_response_code(403);
+        echo json_encode([
+            'success' => false,
+            'error' => '403 Forbidden: Mandatory password change required before accessing protected features.',
+            'mustChangePassword' => true
+        ]);
+        exit;
+    }
+}
+
 require_once __DIR__ . '/routes/auth.php';
 require_once __DIR__ . '/routes/periods.php';
 require_once __DIR__ . '/routes/tickets.php';

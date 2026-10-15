@@ -74,6 +74,7 @@
           <StudentRosterImportView v-else-if="activeTab === 'student_roster_import'" />
           <StudentDashboard v-else-if="activeTab === 'student_dashboard'" @navigate="activeTab = $event" />
           <CashierDashboard v-else-if="activeTab === 'cashier_pos'" @navigate="activeTab = $event" />
+          <CashierSalesSummaryView v-else-if="activeTab === 'sales_summary'" @navigate="activeTab = $event" />
           <QRPrintQueue v-else-if="activeTab === 'qr_print_queue'" />
           <EventManager v-else-if="activeTab === 'events'" @navigate="activeTab = $event" />
           <TicketManager v-else-if="activeTab === 'tickets'" />
@@ -116,6 +117,7 @@ import NavigationSidebar from './components/NavigationSidebar.vue';
 import AdminDashboard from './components/admin/AdminDashboard.vue';
 import RealTimeAttendanceView from './components/admin/RealTimeAttendanceView.vue';
 import CashierDashboard from './components/cashier/CashierDashboard.vue';
+import CashierSalesSummaryView from './components/cashier/CashierSalesSummaryView.vue';
 import QRPrintQueue from './components/cashier/QRPrintQueue.vue';
 import EventManager from './components/admin/EventManager.vue';
 import TicketManager from './components/admin/TicketManager.vue';
@@ -179,6 +181,7 @@ const defaultTab = computed(() => {
     case 'cashier': return 'cashier_pos';
     case 'teacher': return 'teacher_dashboard';
     case 'student': return currentUser.value.mustChangePassword ? 'student_dashboard' : 'calendar';
+    case 'outsider': return 'student_dashboard';
     default: return 'dashboard';
   }
 });
@@ -193,11 +196,12 @@ watch(isMobileNavOpen, (isOpen) => {
 
 // Direct URL Hash and Tab Access Guard (Role-Based Authorization Guard)
 const roleAllowedTabs: Record<string, string[]> = {
-  admin: ['dashboard', 'events', 'attendance', 'attendance_archive', 'tickets', 'users', 'reports', 'calendar'],
-  cashier: ['cashier_pos', 'qr_print_queue', 'tickets', 'calendar'],
+  admin: ['dashboard', 'events', 'attendance', 'attendance_archive', 'tickets', 'users', 'reports', 'calendar', 'sales_summary'],
+  cashier: ['cashier_pos', 'sales_summary', 'qr_print_queue', 'tickets', 'calendar'],
   event_staff: ['staff_dashboard', 'staff_logs', 'staff_lookup', 'calendar'],
   teacher: ['teacher_dashboard', 'teacher_attendance', 'student_roster_import', 'reports', 'calendar'],
   student: ['calendar', 'student_dashboard'],
+  outsider: ['student_dashboard'],
 };
 
 const getCleanHash = () => {
@@ -210,7 +214,7 @@ const syncFromHash = () => {
   if (!hash) return;
   const role = currentUser.value?.role || 'student';
   let allowed = roleAllowedTabs[role] || ['student_dashboard', 'calendar'];
-  if (role === 'student' && currentUser.value?.mustChangePassword) {
+  if ((role === 'student' || role === 'outsider') && currentUser.value?.mustChangePassword) {
     allowed = ['student_dashboard'];
   }
   if (allowed.includes(hash) && activeTab.value !== hash) {
@@ -221,7 +225,7 @@ const syncFromHash = () => {
 const enforceRouteGuards = () => {
   const role = currentUser.value?.role || 'student';
   let allowed = roleAllowedTabs[role] || ['student_dashboard', 'calendar'];
-  if (role === 'student' && currentUser.value?.mustChangePassword) {
+  if ((role === 'student' || role === 'outsider') && currentUser.value?.mustChangePassword) {
     allowed = ['student_dashboard'];
   }
 

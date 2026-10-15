@@ -29,7 +29,6 @@ try {
             `first_name` VARCHAR(100) NULL,
             `middle_name` VARCHAR(100) NULL,
             `last_name` VARCHAR(100) NULL,
-            `email` VARCHAR(150) NOT NULL,
             `role` ENUM('admin', 'teacher', 'student', 'cashier', 'event_staff', 'outsider') NOT NULL DEFAULT 'student',
             `password` VARCHAR(255) NULL,
             `student_id` VARCHAR(50) NULL,
@@ -49,7 +48,6 @@ try {
             `is_active` TINYINT(1) NOT NULL DEFAULT 1,
             `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (`id`),
-            UNIQUE KEY `uq_users_email` (`email`),
             UNIQUE KEY `uq_users_student_id` (`student_id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ");
@@ -75,11 +73,9 @@ try {
         "contact_number" => "VARCHAR(50) NULL",
         "expires_at" => "DATETIME NULL",
         "password_changed_at" => "DATETIME NULL",
-        "recovery_email" => "VARCHAR(150) NULL",
-        "recovery_email_verified" => "TINYINT(1) NOT NULL DEFAULT 0",
-        "recovery_email_verified_at" => "DATETIME NULL",
+        "is_deleted" => "TINYINT(1) NOT NULL DEFAULT 0",
+        "deleted_at" => "DATETIME NULL",
     ];
-    $pdo->exec("ALTER TABLE `users` MODIFY COLUMN `email` VARCHAR(150) NULL");
     foreach ($userCols as $col => $type) {
         $stmt = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = ?");
         $stmt->execute([$col]);
@@ -99,6 +95,18 @@ try {
         }
     }
 
+    $eventCols = [
+        "is_deleted" => "TINYINT(1) NOT NULL DEFAULT 0",
+        "deleted_at" => "DATETIME NULL",
+    ];
+    foreach ($eventCols as $col => $type) {
+        $stmt = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'events' AND COLUMN_NAME = ?");
+        $stmt->execute([$col]);
+        if (!$stmt->fetch()) {
+            $pdo->exec("ALTER TABLE `events` ADD COLUMN `$col` $type");
+        }
+    }
+
 
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS `student_records` (
@@ -112,7 +120,6 @@ try {
             `year_level` VARCHAR(50) NOT NULL DEFAULT '1st Year',
             `section` VARCHAR(50) NOT NULL DEFAULT '11M1',
             `department` VARCHAR(150) NOT NULL DEFAULT 'Computer Studies Department',
-            `email` VARCHAR(150) NULL,
             `user_id` VARCHAR(64) NULL,
             `photo_url` TEXT NULL,
             `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -140,9 +147,40 @@ try {
             `banner_url` TEXT NULL,
             `ticket_design_url` TEXT NULL,
             `organizer` VARCHAR(150) NOT NULL,
+            `is_deleted` TINYINT(1) NOT NULL DEFAULT 0,
+            `deleted_at` DATETIME NULL,
             `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (`id`),
-            INDEX `idx_events_status` (`status`)
+            INDEX `idx_events_status` (`status`),
+            INDEX `idx_events_is_deleted` (`is_deleted`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ");
+
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS `deleted_event_tombstones` (
+            `event_id` VARCHAR(64) NOT NULL,
+            `event_title` VARCHAR(255) NULL,
+            `deletion_type` ENUM('permanent', 'archived') NOT NULL DEFAULT 'permanent',
+            `deleted_by` VARCHAR(64) NULL,
+            `deleted_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (`event_id`),
+            INDEX `idx_tombstones_deleted_at` (`deleted_at`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ");
+
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS `deleted_user_tombstones` (
+            `user_id` VARCHAR(64) NOT NULL,
+            `user_name` VARCHAR(150) NULL,
+            `user_role` VARCHAR(50) NULL,
+            `student_id` VARCHAR(50) NULL,
+            `employee_id` VARCHAR(50) NULL,
+            `deletion_type` ENUM('permanent', 'soft_delete') NOT NULL DEFAULT 'permanent',
+            `deleted_by` VARCHAR(64) NULL,
+            `deleted_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (`user_id`),
+            INDEX `idx_user_tombstones_deleted_at` (`deleted_at`),
+            INDEX `idx_user_tombstones_student_id` (`student_id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ");
 
@@ -164,7 +202,6 @@ try {
             `last_name` VARCHAR(100) NULL,
             `attendee_student_id` VARCHAR(50) NULL,
             `outsider_id` VARCHAR(50) NULL,
-            `attendee_email` VARCHAR(150) NULL,
             `attendee_department` VARCHAR(150) NULL,
             `course` VARCHAR(50) NULL,
             `year_level` VARCHAR(50) NULL,
@@ -280,7 +317,6 @@ try {
             `year_level` VARCHAR(50) NULL,
             `section` VARCHAR(50) NULL,
             `contact_number` VARCHAR(50) NULL,
-            `user_email` VARCHAR(150) NULL,
             `event_id` VARCHAR(64) NOT NULL,
             `event_title` VARCHAR(255) NOT NULL,
             `ticket_id` VARCHAR(64) NOT NULL,
@@ -427,116 +463,7 @@ try {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ");
 
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS `password_resets` (
-            `id` VARCHAR(64) NOT NULL,
-            `user_id` VARCHAR(64) NOT NULL,
-            `student_id` VARCHAR(50) NULL,
-            `account_identifier` VARCHAR(100) NULL,
-            `email` VARCHAR(150) NOT NULL,
-            `reset_code` VARCHAR(64) NULL,
-            `reset_code_hash` VARCHAR(255) NULL,
-            `expires_at` DATETIME NOT NULL,
-            `used_at` DATETIME NULL,
-            `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (`id`),
-            INDEX `idx_pwd_reset_student` (`student_id`),
-            INDEX `idx_pwd_reset_email` (`email`),
-            INDEX `idx_pwd_reset_user` (`user_id`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-    ");
 
-    // Safe column migrations for password_resets
-    $pdo->exec("ALTER TABLE `password_resets` MODIFY COLUMN `student_id` VARCHAR(50) NULL");
-    $pdo->exec("ALTER TABLE `password_resets` MODIFY COLUMN `reset_code` VARCHAR(64) NULL");
-    $pdo->exec("ALTER TABLE `password_resets` MODIFY COLUMN `reset_code_hash` VARCHAR(255) NULL");
-    $prCols = [
-        "account_identifier" => "VARCHAR(100) NULL",
-        "reset_code_hash" => "VARCHAR(255) NULL",
-        "used_at" => "DATETIME NULL",
-        "attempts" => "INT(11) NOT NULL DEFAULT 0"
-    ];
-    foreach ($prCols as $col => $type) {
-        $stmt = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'password_resets' AND COLUMN_NAME = ?");
-        $stmt->execute([$col]);
-        if (!$stmt->fetch()) {
-            $pdo->exec("ALTER TABLE `password_resets` ADD COLUMN `$col` $type");
-        }
-    }
-
-    // Safe index migration for password_resets(email)
-    $stmtPrIdx = $pdo->prepare("SELECT INDEX_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'password_resets' AND INDEX_NAME = 'idx_pwd_reset_email'");
-    $stmtPrIdx->execute();
-    if (!$stmtPrIdx->fetch()) {
-        $pdo->exec("ALTER TABLE `password_resets` ADD INDEX `idx_pwd_reset_email` (`email`)");
-    }
-
-    // Backfill outsider account emails from authoritative tickets if missing in users table
-    $pdo->exec("
-        UPDATE `users` u
-        JOIN `tickets` t ON (t.current_attendee_id = u.id OR t.original_owner_id = u.id)
-        SET u.email = t.attendee_email
-        WHERE u.role = 'outsider'
-          AND (u.email IS NULL OR u.email = '')
-          AND (t.attendee_email IS NOT NULL AND t.attendee_email != '')
-    ");
-
-    // Email verifications table for self-service recovery email registration
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS `email_verifications` (
-            `id` VARCHAR(64) NOT NULL,
-            `user_id` VARCHAR(64) NOT NULL,
-            `email` VARCHAR(150) NOT NULL,
-            `verification_code_hash` VARCHAR(255) NOT NULL,
-            `expires_at` DATETIME NOT NULL,
-            `used_at` DATETIME NULL,
-            `attempts` INT(11) NOT NULL DEFAULT 0,
-            `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (`id`),
-            INDEX `idx_ev_user` (`user_id`),
-            INDEX `idx_ev_email` (`email`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-    ");
-
-    // Audited Verified Recovery Email Migration:
-    // Only establish verified status when supported by a trusted authoritative directory or confirmed OTP proof.
-    // Do not automatically treat an email as verified solely because it matches an institutional domain.
-    // 1. Populate candidate recovery_email from user email if not set
-    $pdo->exec("
-        UPDATE `users`
-        SET `recovery_email` = `email`
-        WHERE `email` IS NOT NULL 
-          AND `email` != '' 
-          AND `recovery_email` IS NULL
-    ");
-
-    // 2. Mark verified ONLY for authoritative system seed accounts in trusted directory
-    $pdo->exec("
-        UPDATE `users`
-        SET `recovery_email_verified` = 1,
-            `recovery_email_verified_at` = COALESCE(`recovery_email_verified_at`, NOW())
-        WHERE `id` IN ('usr-admin-001', 'usr-cashier-001', 'usr-staff-001', 'usr-teacher-001')
-          AND `email` LIKE '%@ncst.edu.ph'
-    ");
-
-    // 3. Mark verified for accounts with confirmed OTP proof in email_verifications table
-    $pdo->exec("
-        UPDATE `users` u
-        JOIN `email_verifications` ev ON ev.user_id = u.id AND ev.used_at IS NOT NULL
-        SET u.recovery_email = ev.email,
-            u.recovery_email_verified = 1,
-            u.recovery_email_verified_at = COALESCE(u.recovery_email_verified_at, ev.used_at)
-    ");
-
-    // 4. Strictly mark all other accounts (students, outsiders, unverified staff) as UNVERIFIED (requiring OTP confirmation)
-    $pdo->exec("
-        UPDATE `users`
-        SET `recovery_email_verified` = 0,
-            `recovery_email_verified_at` = NULL
-        WHERE `recovery_email_verified` = 1
-          AND `id` NOT IN (SELECT DISTINCT `user_id` FROM `email_verifications` WHERE `used_at` IS NOT NULL)
-          AND `id` NOT IN ('usr-admin-001', 'usr-cashier-001', 'usr-staff-001', 'usr-teacher-001')
-    ");
 
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS `notification_queue` (
@@ -653,7 +580,6 @@ try {
             'first_name' => 'System',
             'middle_name' => '',
             'last_name' => 'Administrator',
-            'email' => 'admin@ncst.edu.ph',
             'role' => 'admin',
             'password' => $defaultHashedPassword,
             'employee_id' => 'ADM-001',
@@ -667,7 +593,6 @@ try {
             'first_name' => 'Maria Clara',
             'middle_name' => '',
             'last_name' => 'Santos',
-            'email' => 'cashier@ncst.edu.ph',
             'role' => 'cashier',
             'password' => $defaultHashedPassword,
             'employee_id' => 'CSH-001',
@@ -681,7 +606,6 @@ try {
             'first_name' => 'Juan',
             'middle_name' => '',
             'last_name' => 'Staff',
-            'email' => 'staff@ncst.edu.ph',
             'role' => 'event_staff',
             'password' => $defaultHashedPassword,
             'employee_id' => 'STF-001',
@@ -696,7 +620,6 @@ try {
             'first_name' => 'Roberto',
             'middle_name' => 'D.',
             'last_name' => 'Reyes',
-            'email' => 'teacher@ncst.edu.ph',
             'role' => 'teacher',
             'password' => $defaultHashedPassword,
             'employee_id' => 'TCH-001',
@@ -717,7 +640,6 @@ try {
             'first_name' => 'Juan',
             'middle_name' => '',
             'last_name' => 'Dela Cruz',
-            'email' => '2024-58566@student.ncst.edu.ph',
             'role' => 'student',
             'password' => $defaultHashedPassword,
             'student_id' => '2024-58566',
@@ -734,7 +656,6 @@ try {
             'first_name' => 'Mark',
             'middle_name' => '',
             'last_name' => 'Santos',
-            'email' => 'admin.santos@school.edu.ph',
             'role' => 'admin',
             'password' => $defaultHashedPassword,
             'employee_id' => 'EMP-00101',
@@ -748,7 +669,6 @@ try {
             'first_name' => 'Carla',
             'middle_name' => '',
             'last_name' => 'Gomez',
-            'email' => 'cashier.gomez@school.edu.ph',
             'role' => 'cashier',
             'password' => $defaultHashedPassword,
             'employee_id' => 'EMP-00102',
@@ -762,7 +682,6 @@ try {
             'first_name' => 'Alex',
             'middle_name' => '',
             'last_name' => 'Rivera',
-            'email' => 'staff.alex@school.edu.ph',
             'role' => 'event_staff',
             'password' => $defaultHashedPassword,
             'employee_id' => 'EMP-00103',
@@ -777,7 +696,6 @@ try {
             'first_name' => 'Ramon',
             'middle_name' => '',
             'last_name' => 'Reyes',
-            'email' => 'ramon.reyes@school.edu.ph',
             'role' => 'teacher',
             'password' => $defaultHashedPassword,
             'employee_id' => 'EMP-00125',
@@ -796,7 +714,6 @@ try {
             'first_name' => 'Juan',
             'middle_name' => '',
             'last_name' => 'Dela Cruz',
-            'email' => 'juan.delacruz@student.edu.ph',
             'role' => 'student',
             'password' => $defaultHashedPassword,
             'student_id' => '2026-00125',
@@ -811,8 +728,8 @@ try {
 
     foreach ($seedUsers as $u) {
         $stmt = $pdo->prepare("
-            INSERT INTO `users` (id, name, first_name, middle_name, last_name, email, role, password, student_id, employee_id, department, course, year_level, section, assigned_classes, assigned_event_ids, account_status, is_active)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO `users` (id, name, first_name, middle_name, last_name, role, password, student_id, employee_id, department, course, year_level, section, assigned_classes, assigned_event_ids, account_status, is_active)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE
                 name = VALUES(name),
                 first_name = VALUES(first_name),
@@ -828,7 +745,6 @@ try {
             $u['first_name'] ?? null,
             $u['middle_name'] ?? null,
             $u['last_name'] ?? null,
-            $u['email'],
             $u['role'],
             $u['password'],
             $u['student_id'] ?? null,
@@ -855,18 +771,22 @@ try {
 
     // 3. Seed Student Roster
     $seedRoster = [
-        ['rec-2024-58566', '2024-58566', 'Juan Dela Cruz', 'Juan', '', 'Dela Cruz', 'BSIT', '3rd Year', '31M1', 'Computer Studies Department', '2024-58566@student.ncst.edu.ph', 'usr-student-001'],
-        ['rec-2026-00125', '2026-00125', 'Maria Clara Santos', 'Maria Clara', '', 'Santos', 'BSIT', '1st Year', '11M1', 'Computer Studies Department', '2026-00125@student.ncst.edu.ph', null],
-        ['rec-2026-00126', '2026-00126', 'Jose Rizal Mercado', 'Jose Rizal', '', 'Mercado', 'BSIT', '1st Year', '11M1', 'Computer Studies Department', '2026-00126@student.ncst.edu.ph', null],
-        ['rec-2026-00127', '2026-00127', 'Andres Bonifacio Castro', 'Andres', 'Bonifacio', 'Castro', 'BSIT', '1st Year', '11M1', 'Computer Studies Department', '2026-00127@student.ncst.edu.ph', null],
-        ['rec-2026-00128', '2026-00128', 'Gabriela Silang Diaz', 'Gabriela', 'Silang', 'Diaz', 'BSIT', '1st Year', '11M1', 'Computer Studies Department', '2026-00128@student.ncst.edu.ph', null],
-        ['rec-2026-00129', '2026-00129', 'Christian Bautista', 'Christian', '', 'Bautista', 'BSIT', '3rd Year', '31M1', 'Computer Studies Department', '2026-00129@student.ncst.edu.ph', null],
+        ['rec-2024-58566', '2024-58566', 'Juan Dela Cruz', 'Juan', '', 'Dela Cruz', 'BSIT', '3rd Year', '31M1', 'Computer Studies Department', 'usr-student-001'],
+        ['rec-2026-00125', '2026-00125', 'Maria Clara Santos', 'Maria Clara', '', 'Santos', 'BSIT', '1st Year', '11M1', 'Computer Studies Department', null],
+        ['rec-2026-00126', '2026-00126', 'Jose Rizal Mercado', 'Jose Rizal', '', 'Mercado', 'BSIT', '1st Year', '11M1', 'Computer Studies Department', null],
+        ['rec-2026-00127', '2026-00127', 'Andres Bonifacio Castro', 'Andres', 'Bonifacio', 'Castro', 'BSIT', '1st Year', '11M1', 'Computer Studies Department', null],
+        ['rec-2026-00128', '2026-00128', 'Gabriela Silang Diaz', 'Gabriela', 'Silang', 'Diaz', 'BSIT', '1st Year', '11M1', 'Computer Studies Department', null],
+        ['rec-2026-00129', '2026-00129', 'Christian Bautista', 'Christian', '', 'Bautista', 'BSIT', '3rd Year', '31M1', 'Computer Studies Department', null],
+        ['rec-2026-00140', '2026-00140', 'Antonio De Los Santos', 'Antonio', '', 'De Los Santos', 'BSIT', '2nd Year', '21M1', 'Computer Studies Department', null],
+        ['rec-2026-00141', '2026-00141', 'Roberto Dela Cruz Jr.', 'Roberto', '', 'Dela Cruz', 'BSIT', '1st Year', '11M1', 'Computer Studies Department', null],
+        ['rec-2026-00142', '2026-00142', 'Juan Santos III', 'Juan', '', 'Santos', 'BSIT', '4th Year', '41M1', 'Computer Studies Department', null],
+        ['rec-2026-00143', '2026-00143', 'Cherilyn', 'Cherilyn', '', '', 'BSBA', '1st Year', '11M1', 'Business Administration Department', null],
     ];
 
     foreach ($seedRoster as $r) {
         $stmt = $pdo->prepare("
-            INSERT INTO `student_records` (id, student_id, name, first_name, middle_name, last_name, course, year_level, section, department, email, user_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO `student_records` (id, student_id, name, first_name, middle_name, last_name, course, year_level, section, department, user_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE
                 name = VALUES(name),
                 first_name = VALUES(first_name),
@@ -875,7 +795,6 @@ try {
                 year_level = VALUES(year_level),
                 section = VALUES(section),
                 department = VALUES(department),
-                email = VALUES(email),
                 user_id = VALUES(user_id)
         ");
         $stmt->execute($r);

@@ -315,6 +315,15 @@
                   <span>{{ cameraErrorInfo.actionLabel || 'Retry Camera' }}</span>
                 </button>
                 <button
+                  v-else-if="cameraErrorInfo.type === 'insecure_context' && isHttpProtocol"
+                  type="button"
+                  @click="handleSwitchToHttps"
+                  class="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-md cursor-pointer flex items-center gap-1.5"
+                >
+                  <Lock class="w-3.5 h-3.5" />
+                  <span>Switch to HTTPS</span>
+                </button>
+                <button
                   type="button"
                   @click="fileInputRef?.click()"
                   class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition border border-slate-700 cursor-pointer flex items-center gap-1.5"
@@ -322,6 +331,18 @@
                   <Upload class="w-3.5 h-3.5 text-blue-400" />
                   <span>Upload Image</span>
                 </button>
+              </div>
+
+              <!-- Mobile Certificate Trust Helper Link -->
+              <div v-if="cameraErrorInfo.type === 'insecure_context'" class="mt-2.5 text-[10px] text-slate-400 flex items-center justify-center gap-1">
+                <span>First time on phone?</span>
+                <a
+                  href="./ncst-ca.crt"
+                  download="ncst-dev-ca.crt"
+                  class="text-blue-400 hover:text-blue-300 underline font-semibold cursor-pointer"
+                >
+                  Download CA Certificate
+                </a>
               </div>
             </div>
           </div>
@@ -426,7 +447,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onBeforeUnmount, nextTick } from 'vue';
+import { ref, computed, watch, onBeforeUnmount, nextTick } from 'vue';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import {
   Upload,
@@ -578,6 +599,16 @@ const stopCameraInternal = async () => {
   qrDetected.value = false;
   hasTorch.value = false;
   isTorchOn.value = false;
+};
+
+const isHttpProtocol = computed(() => {
+  return typeof window !== 'undefined' && window.location.protocol === 'http:';
+});
+
+const handleSwitchToHttps = () => {
+  if (typeof window !== 'undefined') {
+    window.location.href = window.location.href.replace(/^http:/i, 'https:');
+  }
 };
 
 const stopCamera = async () => {
@@ -798,11 +829,11 @@ const handleManualSubmit = () => {
   handleScannedCode(code);
 };
 
-const handleScannedCode = (decodedText: string) => {
+const handleScannedCode = async (decodedText: string) => {
   qrDetected.value = true;
 
   if (continuousScanMode.value) {
-    const result = validateAndRecordScan(decodedText.trim());
+    const result = await validateAndRecordScan(decodedText.trim());
     const isDup = !!(
       result.reason?.toLowerCase().includes('already') ||
       result.reason?.toLowerCase().includes('duplicate')
@@ -831,11 +862,9 @@ const handleScannedCode = (decodedText: string) => {
   }
 
   isScanningPaused.value = true;
-  setTimeout(() => {
-    const result = validateAndRecordScan(decodedText.trim());
-    scanResult.value = result;
-    showResultModal.value = true;
-  }, 200);
+  const result = await validateAndRecordScan(decodedText.trim());
+  scanResult.value = result;
+  showResultModal.value = true;
 };
 
 const closeResultModal = () => {

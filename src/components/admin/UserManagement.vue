@@ -173,6 +173,13 @@
                     <CheckCircle2 class="w-3.5 h-3.5" />
                   </button>
                   <button
+                    @click="openResetPasswordModal(u)"
+                    class="p-1.5 text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 rounded-lg hover:bg-slate-100 dark:hover:bg-[#282828] transition cursor-pointer"
+                    title="Reset Password (Admin Assisted)"
+                  >
+                    <KeyRound class="w-3.5 h-3.5" />
+                  </button>
+                  <button
                     @click="openEditModal(u)"
                     class="p-1.5 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg hover:bg-slate-100 dark:hover:bg-[#282828] transition cursor-pointer"
                     title="Edit Account / Update Role"
@@ -390,6 +397,12 @@
 
           <div class="flex items-center gap-2">
             <button
+              @click="openResetPasswordModal(selectedUserForDrawer); isDrawerOpen = false;"
+              class="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition cursor-pointer"
+            >
+              Reset Password
+            </button>
+            <button
               @click="openEditModal(selectedUserForDrawer); isDrawerOpen = false;"
               class="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition cursor-pointer"
             >
@@ -503,7 +516,7 @@
             :class="addConflict.hasConflict && (addConflict.conflictType === 'email')
               ? 'border-rose-500 ring-1 ring-rose-500/30'
               : 'border-slate-300 dark:border-[#3a3a3a] focus:border-blue-500'"
-            :required="role !== 'student'"
+            required
           />
         </div>
 
@@ -590,54 +603,131 @@
 
         <!-- 5. Dynamic Role Fields: Student -->
         <template v-if="role === 'student'">
-          <div class="p-3 bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/40 rounded-xl space-y-3">
-            <p class="text-[11px] font-bold text-blue-900 dark:text-blue-300 flex items-center gap-1.5">
-              <GraduationCap class="w-3.5 h-3.5 text-blue-600" />
-              <span>Student Academic Profile</span>
-            </p>
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div class="p-3.5 bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/40 rounded-xl space-y-3">
+            <div class="flex items-center justify-between">
+              <p class="text-[11px] font-bold text-blue-900 dark:text-blue-300 flex items-center gap-1.5">
+                <GraduationCap class="w-3.5 h-3.5 text-blue-600" />
+                <span>Student Academic Profile</span>
+              </p>
+              <span class="text-[10px] text-blue-700 dark:text-blue-400 font-semibold">Authoritative Roster Data</span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label class="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-1">Department</label>
                 <select
                   v-model="department"
-                  class="w-full bg-white dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-lg px-2 py-1.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                  class="w-full bg-white dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-lg px-2.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
                 >
                   <option v-for="d in NCST_DEPARTMENTS" :key="d.code" :value="d.code">
                     {{ d.code }} ({{ d.name }})
                   </option>
                 </select>
               </div>
+
               <div>
                 <label class="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-1">Course *</label>
                 <select
                   v-model="course"
-                  class="w-full bg-white dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-lg px-2 py-1.5 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                  class="w-full bg-white dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-lg px-2.5 py-2 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
                 >
                   <option v-for="c in getCoursesForDepartment(department)" :key="c.code" :value="c.code">
                     {{ c.code }} - {{ c.name }}
                   </option>
                 </select>
               </div>
-              <div>
-                <label class="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-1">Year Level</label>
-                <select
-                  v-model="yearLevel"
-                  class="w-full bg-white dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-lg px-2 py-1.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+
+              <!-- Authoritative Section Field with Searchable Autocomplete Dropdown -->
+              <div class="relative">
+                <div class="flex items-center justify-between mb-1">
+                  <label class="block text-[10px] font-bold text-slate-600 dark:text-slate-400">
+                    Section (NCST Format) *
+                  </label>
+                  <span v-if="isStudentSectionValid" class="text-[9px] font-mono font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5">
+                    <CheckCircle2 class="w-2.5 h-2.5" />
+                    <span>Valid</span>
+                  </span>
+                </div>
+
+                <div class="relative">
+                  <input
+                    type="text"
+                    v-model="sectionSearchInput"
+                    @focus="isSectionDropdownOpen = true"
+                    @blur="onSectionInputBlur"
+                    @input="onSectionInputChange"
+                    placeholder="Search section (e.g. 11M1)..."
+                    autocomplete="off"
+                    class="w-full bg-white dark:bg-[#1e1e1e] border rounded-lg pl-3 pr-8 py-2 text-xs font-mono font-bold text-slate-900 dark:text-white focus:outline-none transition uppercase"
+                    :class="!section.trim()
+                      ? 'border-slate-300 dark:border-[#3a3a3a] focus:border-blue-500'
+                      : (isStudentSectionValid ? 'border-emerald-500 ring-1 ring-emerald-500/20' : 'border-rose-400 ring-1 ring-rose-400/20')"
+                  />
+                  <button
+                    type="button"
+                    @mousedown.prevent="isSectionDropdownOpen = !isSectionDropdownOpen"
+                    class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition cursor-pointer"
+                    tabindex="-1"
+                  >
+                    <ChevronDown class="w-3.5 h-3.5 transition-transform" :class="{ 'rotate-180 text-blue-500': isSectionDropdownOpen }" />
+                  </button>
+                </div>
+
+                <!-- Searchable Autocomplete Dropdown Menu -->
+                <div
+                  v-if="isSectionDropdownOpen"
+                  class="absolute z-30 left-0 right-0 mt-1 max-h-44 overflow-y-auto bg-white dark:bg-[#202020] border border-slate-200 dark:border-[#333333] rounded-xl shadow-xl py-1 text-xs divide-y divide-slate-100 dark:divide-[#2d2d2d] custom-scrollbar"
                 >
-                  <option value="1st Year">1st Year</option>
-                  <option value="2nd Year">2nd Year</option>
-                  <option value="3rd Year">3rd Year</option>
-                  <option value="4th Year">4th Year</option>
-                </select>
+                  <div v-if="filteredPresetSections.length === 0" class="p-3 text-center text-[11px] text-slate-400 dark:text-slate-500 italic">
+                    No matching NCST section found
+                  </div>
+                  <button
+                    v-for="s in filteredPresetSections"
+                    :key="s"
+                    type="button"
+                    @mousedown.prevent="selectStudentSection(s)"
+                    class="w-full text-left px-3 py-2 flex items-center justify-between transition hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer"
+                    :class="section === s ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 font-bold' : 'text-slate-700 dark:text-slate-300'"
+                  >
+                    <div class="flex items-center gap-2">
+                      <span class="font-mono font-bold">{{ s }}</span>
+                      <span class="text-[10px] text-slate-500 dark:text-slate-400">
+                        {{ validateNCSTSection(s).description }}
+                      </span>
+                    </div>
+                    <Check v-if="section === s" class="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                  </button>
+                </div>
               </div>
+
+              <!-- Read-Only Derived Year Level Display -->
               <div>
-                <label class="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-1">Section (NCST Format)</label>
-                <input
-                  type="text"
-                  v-model="section"
-                  placeholder="e.g. 11M1"
-                  class="w-full bg-white dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
-                />
+                <div class="flex items-center justify-between mb-1">
+                  <label class="block text-[10px] font-bold text-slate-600 dark:text-slate-400">
+                    Year Level (Derived)
+                  </label>
+                  <span class="text-[9px] text-slate-400 dark:text-slate-500 font-medium">Auto-derived</span>
+                </div>
+                <div>
+                  <input
+                    type="text"
+                    :value="derivedYearLevelDisplay"
+                    readonly
+                    disabled
+                    class="w-full bg-slate-100 dark:bg-[#161616] border border-slate-200 dark:border-[#2e2e2e] rounded-lg px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-not-allowed select-none"
+                    title="Year level is automatically derived from the official NCST section code and cannot be manually modified."
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- Real-time Section Validation Feedback Strip (Only shown on invalid input) -->
+            <div v-if="section.trim() && !isStudentSectionValid" class="pt-0.5">
+              <div
+                class="text-[11px] flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/40"
+              >
+                <AlertTriangle class="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 shrink-0" />
+                <span>{{ studentSectionValidation.error || 'Please select a valid NCST section code from the list.' }}</span>
               </div>
             </div>
           </div>
@@ -855,9 +945,9 @@
           </button>
           <button
             type="submit"
-            :disabled="addConflict.hasConflict"
+            :disabled="addConflict.hasConflict || (role === 'student' && (!studentId.trim() || !isStudentSectionValid))"
             class="px-5 py-2 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            :class="addConflict.hasConflict ? 'bg-slate-400 dark:bg-slate-700' : 'bg-blue-600 hover:bg-blue-700'"
+            :class="addConflict.hasConflict || (role === 'student' && (!studentId.trim() || !isStudentSectionValid)) ? 'bg-slate-400 dark:bg-slate-700' : 'bg-blue-600 hover:bg-blue-700'"
           >
             Create Account
           </button>
@@ -890,7 +980,7 @@
             type="email"
             v-model="editEmail"
             class="w-full bg-slate-50 dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
-            :required="editRole !== 'student'"
+            required
           />
         </div>
 
@@ -1171,12 +1261,23 @@
     <!-- ==================== 7. DELETE CONFIRMATION MODAL ==================== -->
     <ConfirmModal
       :is-open="!!userToDelete"
-      title="Delete User Account"
-      :message="`Are you sure you want to delete the account for ${userToDelete?.name} (${userToDelete?.studentId || userToDelete?.employeeId || userToDelete?.email})? This action cannot be undone.`"
-      confirm-text="Delete Account"
-      variant="danger"
+      :title="deleteError ? 'Deletion Notice' : 'Delete User Account'"
+      :message="deleteError ? deleteError : `Are you sure you want to delete the account for ${userToDelete?.name} (${userToDelete?.studentId || userToDelete?.employeeId || userToDelete?.email})? If the account has historical ticket purchases, payment records, or attendance logs, records will be safely preserved for reporting integrity while the login account is removed.`"
+      :confirm-text="deleteError ? 'Retry Deletion' : (isDeleting ? 'Deleting...' : 'Delete Account')"
+      :variant="deleteError ? 'warning' : 'danger'"
       @confirm="confirmDeleteUser"
-      @cancel="userToDelete = null"
+      @cancel="() => { if (!isDeleting) { userToDelete = null; deleteError = ''; } }"
+    />
+
+    <!-- ==================== 8. RESET PASSWORD CONFIRMATION MODAL ==================== -->
+    <ConfirmModal
+      :is-open="!!userToResetPassword"
+      title="Administrator-Assisted Password Reset"
+      :message="`Reset password for ${userToResetPassword?.name} (${userToResetPassword?.studentId || userToResetPassword?.employeeId || userToResetPassword?.email}) to their temporary initial password? The user will be required to establish a new confidential password upon first login.`"
+      confirm-text="Reset to Initial Password"
+      variant="warning"
+      @confirm="confirmResetPassword"
+      @cancel="userToResetPassword = null"
     />
   </div>
 </template>
@@ -1197,7 +1298,10 @@ import {
   Plus,
   X,
   GraduationCap,
-  BookOpen
+  BookOpen,
+  ChevronDown,
+  Check,
+  KeyRound
 } from 'lucide-vue-next';
 import { useAppStore } from '../../composables/useAppStore';
 import { User, UserRole, TeacherClassAssignment } from '../../types';
@@ -1208,12 +1312,13 @@ import {
   deriveYearLevelFromSection,
   validateNCSTSection,
   extractActualSystemSections,
+  isValidNCSTSection,
 } from '../../utils/academicMasterData';
 import UserAvatar from '../common/UserAvatar.vue';
 import Modal from '../common/Modal.vue';
 import ConfirmModal from '../common/ConfirmModal.vue';
 
-const { users, events, studentRecords, addUser, updateUser, reactivateUser, deleteUser } = useAppStore();
+const { users, events, studentRecords, addUser, updateUser, reactivateUser, deleteUser, adminResetUserPassword } = useAppStore();
 
 // Filter & Search State
 const selectedRoleFilter = ref<'all' | UserRole>('all');
@@ -1225,6 +1330,9 @@ const isEditModalOpen = ref(false);
 const isDrawerOpen = ref(false);
 const selectedUserForDrawer = ref<User | null>(null);
 const userToDelete = ref<User | null>(null);
+const isDeleting = ref(false);
+const deleteError = ref('');
+const userToResetPassword = ref<User | null>(null);
 const editingUser = ref<User | null>(null);
 
 // Create Form State
@@ -1234,10 +1342,55 @@ const role = ref<UserRole>('student');
 const studentId = ref('');
 const employeeId = ref('');
 const course = ref('BSIT');
-const yearLevel = ref('3rd Year');
 const section = ref('11M1');
+const sectionSearchInput = ref('11M1');
+const isSectionDropdownOpen = ref(false);
 const department = ref('CSD');
 const assignedEventIds = ref<string[]>([]);
+
+// Derived Year Level (Read-Only) from authoritative section
+const yearLevel = computed(() => deriveYearLevelFromSection(section.value));
+
+const studentSectionValidation = computed(() => {
+  return validateNCSTSection(section.value);
+});
+
+const isStudentSectionValid = computed(() => {
+  if (!section.value.trim()) return false;
+  return studentSectionValidation.value.isValid && isValidNCSTSection(section.value, availablePresetSections.value);
+});
+
+const derivedYearLevelDisplay = computed(() => {
+  if (!section.value.trim() || !studentSectionValidation.value.isValid) {
+    return '— Select a valid section —';
+  }
+  return deriveYearLevelFromSection(section.value);
+});
+
+const filteredPresetSections = computed(() => {
+  const query = sectionSearchInput.value.trim().toUpperCase();
+  if (!query) return availablePresetSections.value;
+  return availablePresetSections.value.filter(s => s.toUpperCase().includes(query));
+});
+
+const onSectionInputChange = (e: Event) => {
+  const val = (e.target as HTMLInputElement).value.toUpperCase().replace(/\s+/g, '');
+  sectionSearchInput.value = val;
+  section.value = val;
+  isSectionDropdownOpen.value = true;
+};
+
+const onSectionInputBlur = () => {
+  setTimeout(() => {
+    isSectionDropdownOpen.value = false;
+  }, 200);
+};
+
+const selectStudentSection = (s: string) => {
+  section.value = s;
+  sectionSearchInput.value = s;
+  isSectionDropdownOpen.value = false;
+};
 
 // Teacher-Specific Assignment State (Add Modal)
 const teacherDepartment = ref('CSD');
@@ -1499,8 +1652,9 @@ const openAddModal = () => {
   studentId.value = '';
   employeeId.value = '';
   course.value = 'BSIT';
-  yearLevel.value = '1st Year';
   section.value = '11M1';
+  sectionSearchInput.value = '11M1';
+  isSectionDropdownOpen.value = false;
   department.value = 'CSD';
   assignedEventIds.value = [];
   teacherDepartment.value = 'CSD';
@@ -1528,11 +1682,17 @@ const handleCreateUser = () => {
   };
 
   if (role.value === 'student') {
+    if (!studentId.value.trim() || !isStudentSectionValid.value) return;
+
     userPayload.studentId = studentId.value.trim() || undefined;
     userPayload.department = department.value.trim() || 'CSD';
     userPayload.course = course.value;
     userPayload.yearLevel = yearLevel.value;
     userPayload.section = section.value.trim() || '11M1';
+    userPayload.accountStatus = 'active';
+    userPayload.mustChangePassword = true;
+    userPayload.verificationStatus = 'verified';
+    userPayload.isVerified = true;
   } else if (role.value === 'teacher') {
     userPayload.employeeId = employeeId.value.trim() || undefined;
     userPayload.department = teacherDepartment.value;
@@ -1642,16 +1802,43 @@ const handleReactivate = (u: User) => {
 
 const handleDeleteUser = (u: User) => {
   userToDelete.value = u;
+  deleteError.value = '';
 };
 
-const confirmDeleteUser = () => {
-  if (userToDelete.value) {
-    deleteUser(userToDelete.value.id);
-    if (selectedUserForDrawer.value && selectedUserForDrawer.value.id === userToDelete.value.id) {
-      isDrawerOpen.value = false;
-      selectedUserForDrawer.value = null;
+const confirmDeleteUser = async () => {
+  if (!userToDelete.value || isDeleting.value) return;
+  isDeleting.value = true;
+  deleteError.value = '';
+  try {
+    const res = await deleteUser(userToDelete.value.id);
+    if (res.success) {
+      if (selectedUserForDrawer.value && selectedUserForDrawer.value.id === userToDelete.value.id) {
+        isDrawerOpen.value = false;
+        selectedUserForDrawer.value = null;
+      }
+      userToDelete.value = null;
+      deleteError.value = '';
+    } else {
+      deleteError.value = res.message || 'Failed to delete user account.';
     }
-    userToDelete.value = null;
+  } catch (err: any) {
+    deleteError.value = err?.message || 'Network error: Failed to communicate with server.';
+  } finally {
+    isDeleting.value = false;
+  }
+};
+
+const openResetPasswordModal = (u: User) => {
+  userToResetPassword.value = u;
+};
+
+const confirmResetPassword = async () => {
+  if (userToResetPassword.value) {
+    const res = await adminResetUserPassword(userToResetPassword.value.id);
+    if (!res.success) {
+      alert(res.message);
+    }
+    userToResetPassword.value = null;
   }
 };
 </script>

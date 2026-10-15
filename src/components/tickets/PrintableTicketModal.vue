@@ -486,33 +486,33 @@ const handleDownload = async () => {
 <style scoped>
 @media print {
   #printable-ticket-badge {
-    width: 11.5cm !important;
-    min-width: 11.5cm !important;
-    max-width: 11.5cm !important;
-    height: 4.2cm !important;
-    min-height: 4.2cm !important;
-    max-height: 4.2cm !important;
+    width: 820px !important;
+    min-width: 820px !important;
+    max-width: 820px !important;
+    height: 310px !important;
+    min-height: 310px !important;
+    max-height: 310px !important;
     box-sizing: border-box !important;
-    border-radius: 0 !important;
+    border-radius: 24px !important;
     overflow: hidden !important;
   }
 
   .qr-target-container {
-    width: 3.4cm !important;
-    min-width: 3.4cm !important;
-    max-width: 3.4cm !important;
-    height: 3.8cm !important;
-    min-height: 3.8cm !important;
-    padding: 1.5mm !important;
+    width: 148px !important;
+    min-width: 148px !important;
+    max-width: 148px !important;
+    height: 165px !important;
+    min-height: 165px !important;
+    padding: 8px !important;
     box-sizing: border-box !important;
     background: #ffffff !important;
   }
 
   .qr-sticker-placement-box {
-    width: 3.0cm !important;
-    height: 3.0cm !important;
-    min-width: 3.0cm !important;
-    min-height: 3.0cm !important;
+    width: 128px !important;
+    height: 128px !important;
+    min-width: 128px !important;
+    min-height: 128px !important;
     box-sizing: border-box !important;
   }
 }

@@ -174,28 +174,30 @@ function simulateGuestLookup(PDO $pdo, string $controlNumber, ?string $contactNu
 // -----------------------------------------------------------------------------
 // Seed and Clean Test Data
 // -----------------------------------------------------------------------------
+$pdo->exec("DELETE FROM `users` WHERE (`employee_id` LIKE 'EMP-%' OR `id` LIKE 'usr-emp-%' OR `id` LIKE '%test%') AND `id` NOT IN ('usr-admin-001', 'usr-cashier-001', 'usr-teacher-001')");
+
 $pdo->prepare("
-    INSERT INTO `users` (id, name, email, role, password, employee_id, is_active)
-    VALUES ('usr-admin-001', 'System Administrator', 'admin@ncst.edu.ph', 'admin', ?, 'ADM-001', 1)
+    INSERT INTO `users` (id, name, role, password, employee_id, is_active)
+    VALUES ('usr-admin-001', 'System Administrator', 'admin', ?, 'ADM-001', 1)
     ON DUPLICATE KEY UPDATE employee_id = 'ADM-001', is_active = 1
 ")->execute([ncst_hash_password('password123')]);
 
 $pdo->prepare("
-    INSERT INTO `users` (id, name, email, role, password, employee_id, is_active)
-    VALUES ('usr-cashier-001', 'Maria Clara Santos', 'cashier@ncst.edu.ph', 'cashier', ?, 'CSH-001', 1)
+    INSERT INTO `users` (id, name, role, password, employee_id, is_active)
+    VALUES ('usr-cashier-001', 'Maria Clara Santos', 'cashier', ?, 'CSH-001', 1)
     ON DUPLICATE KEY UPDATE employee_id = 'CSH-001', is_active = 1
 ")->execute([ncst_hash_password('password123')]);
 
 $pdo->prepare("
-    INSERT INTO `users` (id, name, email, role, password, employee_id, is_active)
-    VALUES ('usr-teacher-001', 'Prof. Roberto D. Reyes', 'teacher@ncst.edu.ph', 'teacher', ?, 'TCH-001', 1)
+    INSERT INTO `users` (id, name, role, password, employee_id, is_active)
+    VALUES ('usr-teacher-001', 'Prof. Roberto D. Reyes', 'teacher', ?, 'TCH-001', 1)
     ON DUPLICATE KEY UPDATE employee_id = 'TCH-001', is_active = 1
 ")->execute([ncst_hash_password('password123')]);
 
 $studentSeedId = '2024-58566';
 $pdo->prepare("
-    INSERT INTO `users` (id, name, email, role, password, student_id, is_active)
-    VALUES ('usr-student-001', 'Juan Dela Cruz', '2024-58566@student.ncst.edu.ph', 'student', ?, ?, 1)
+    INSERT INTO `users` (id, name, role, password, student_id, is_active)
+    VALUES ('usr-student-001', 'Juan Dela Cruz', 'student', ?, ?, 1)
     ON DUPLICATE KEY UPDATE student_id = ?, is_active = 1
 ")->execute([ncst_hash_password('password123'), $studentSeedId, $studentSeedId]);
 
@@ -363,13 +365,13 @@ $customPassword = 'MyUniqueStudentPassword2026!';
 $initialHash = ncst_hash_password($customPassword);
 
 $pdo->prepare("
-    INSERT INTO `student_records` (id, student_id, name, course, year_level, section, department, email)
-    VALUES (?, ?, 'Existing Student Test', 'BSIT', '3rd Year', '31M1', 'CSD', 'existing.student@student.ncst.edu.ph')
+    INSERT INTO `student_records` (id, student_id, name, course, year_level, section, department)
+    VALUES (?, ?, 'Existing Student Test', 'BSIT', '3rd Year', '31M1', 'CSD')
 ")->execute(["rec-{$studentExistingId}", $studentExistingId]);
 
 $pdo->prepare("
-    INSERT INTO `users` (id, name, email, role, password, student_id, department, course, year_level, section, account_status, verification_status, is_verified, is_active, must_change_password)
-    VALUES (?, 'Existing Student Test', 'existing.student@student.ncst.edu.ph', 'student', ?, ?, 'CSD', 'BSIT', '3rd Year', '31M1', 'active', 'verified', 1, 1, 0)
+    INSERT INTO `users` (id, name, role, password, student_id, department, course, year_level, section, account_status, verification_status, is_verified, is_active, must_change_password)
+    VALUES (?, 'Existing Student Test', 'student', ?, ?, 'CSD', 'BSIT', '3rd Year', '31M1', 'active', 'verified', 1, 1, 0)
 ")->execute(["usr-{$studentExistingId}", $initialHash, $studentExistingId]);
 
 it("11. A student with an existing portal account buys their first ticket; original password hash remains unchanged", function() use ($pdo, $studentExistingId, $initialHash, $eventSeedId) {
@@ -434,8 +436,8 @@ it("13. A student buys another ticket; no duplicate account is created", functio
 it("14. A student with a StudentRecord but no portal account receives exactly one new account under the existing temporary-password policy", function() use ($pdo, $studentNewId, $eventSeedId) {
     // 1. Create StudentRecord only
     $pdo->prepare("
-        INSERT INTO `student_records` (id, student_id, name, course, year_level, section, department, email)
-        VALUES (?, ?, 'New Student Fresh', 'BSCS', '1st Year', '11M1', 'CSD', 'new.student@student.ncst.edu.ph')
+        INSERT INTO `student_records` (id, student_id, name, course, year_level, section, department)
+        VALUES (?, ?, 'New Student Fresh', 'BSCS', '1st Year', '11M1', 'CSD')
     ")->execute(["rec-{$studentNewId}", $studentNewId]);
 
     // Verify no account exists
@@ -453,8 +455,8 @@ it("14. A student with a StudentRecord but no portal account receives exactly on
     $tempHash = ncst_hash_password($tempPassword);
 
     $pdo->prepare("
-        INSERT INTO `users` (id, name, email, role, password, student_id, department, course, year_level, section, account_status, verification_status, is_verified, is_active, must_change_password)
-        VALUES (?, 'New Student Fresh', 'new.student@student.ncst.edu.ph', 'student', ?, ?, 'CSD', 'BSCS', '1st Year', '11M1', 'active', 'verified', 1, 1, 1)
+        INSERT INTO `users` (id, name, role, password, student_id, department, course, year_level, section, account_status, verification_status, is_verified, is_active, must_change_password)
+        VALUES (?, 'New Student Fresh', 'student', ?, ?, 'CSD', 'BSCS', '1st Year', '11M1', 'active', 'verified', 1, 1, 1)
     ")->execute([$newUserId, $tempHash, $studentNewId]);
 
     $pdo->prepare("
@@ -486,8 +488,8 @@ it("15. Concurrent or repeated requests do not create unintended duplicate accou
     // Attempt duplicate user creation with same student_id
     try {
         $pdo->prepare("
-            INSERT INTO `users` (id, name, email, role, password, student_id, must_change_password)
-            VALUES (?, 'Duplicate Attempt', 'dup@student.ncst.edu.ph', 'student', 'somehash', ?, 1)
+            INSERT INTO `users` (id, name, role, password, student_id, must_change_password)
+            VALUES (?, 'Duplicate Attempt', 'student', 'somehash', ?, 1)
         ")->execute(["usr-dup-" . time(), $studentNewId]);
     } catch (\PDOException $e) {
         // Unique index uq_users_student_id blocks duplicate insert cleanly

@@ -2,7 +2,7 @@ import type { User, UserRole } from '../types/index.ts';
 
 export interface IdentityConflictResult {
   hasConflict: boolean;
-  conflictType: 'student_id' | 'employee_id' | 'email' | 'none';
+  conflictType: 'student_id' | 'employee_id' | 'none';
   existingUser?: User;
   isInactive: boolean;
   isCrossRole: boolean;
@@ -13,13 +13,6 @@ export interface IdentityConflictResult {
   actionSuggestion: 'reactivate' | 'edit_role' | 'edit_account' | 'allow' | 'block';
 }
 
-/**
- * Normalizes email address for strict case-insensitive uniqueness
- * e.g. Juan.DelaCruz@school.edu.ph -> juan.delacruz@school.edu.ph
- */
-export function normalizeEmail(email: string): string {
-  return (email || '').trim().toLowerCase();
-}
 
 /**
  * Normalizes institutional identifiers (Student ID / Employee ID)
@@ -39,20 +32,92 @@ export function normalizeName(name?: string): string {
     .replace(/[.,]/g, '');
 }
 
+const SUFFIXES = ['jr.', 'jr', 'sr.', 'sr', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x'];
+const PREFIXES = [
+  'dela', 'de la', 'de los', 'delos', 'del', 'de', 'san', 'santa',
+  'sto.', 'sta.', 'van', 'von', 'mc', 'mac', 'al', 'el', 'st.',
+  'da', 'di', 'dos', 'das'
+];
+
+/**
+ * Authoritative Student Surname Extractor for Frontend
+ * Supports compound surnames (Dela Cruz, De Los Santos), suffixes (Jr., III), spaces, and hyphens
+ */
+export function extractSurname(input: string | { name?: string; lastName?: string; last_name?: string }): string {
+  if (typeof input === 'object' && input !== null) {
+    if (input.lastName?.trim()) return input.lastName.trim();
+    if (input.last_name?.trim()) return input.last_name.trim();
+    input = input.name || '';
+  }
+  const clean = (input || '').trim().replace(/\s+/g, ' ');
+  if (!clean) return '';
+  if (clean.includes(',')) {
+    return clean.split(',')[0].trim();
+  }
+  const parts = clean.split(' ');
+  if (parts.length === 1) return parts[0];
+
+  // Strip trailing suffix
+  if (parts.length > 1) {
+    const lastClean = parts[parts.length - 1].toLowerCase().replace(/[.,]/g, '');
+    if (SUFFIXES.includes(lastClean) || SUFFIXES.includes(parts[parts.length - 1].toLowerCase())) {
+      parts.pop();
+    }
+  }
+  if (parts.length === 1) return parts[0];
+  if (parts.length === 2) return parts[1];
+
+  for (let i = 1; i < parts.length; i++) {
+    if (i + 1 < parts.length) {
+      const twoWord = (parts[i] + ' ' + parts[i + 1]).toLowerCase();
+      if (PREFIXES.includes(twoWord)) {
+        return parts.slice(i).join(' ');
+      }
+    }
+    const oneWord = parts[i].toLowerCase();
+    if (PREFIXES.includes(oneWord)) {
+      return parts.slice(i).join(' ');
+    }
+  }
+
+  return parts[parts.length - 1];
+}
+
 /**
  * Split full name into firstName, middleName, lastName
  */
 export function splitFullName(fullName: string): { firstName?: string; middleName?: string; lastName?: string } {
   if (!fullName) return {};
-  const parts = fullName.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return {};
+  const clean = fullName.trim().replace(/\s+/g, ' ');
+  if (!clean) return {};
+  if (clean.includes(',')) {
+    const [last, firstMiddle] = clean.split(',').map(s => s.trim());
+    const fmParts = (firstMiddle || '').split(' ');
+    return {
+      firstName: fmParts[0] || undefined,
+      middleName: fmParts.length > 1 ? fmParts.slice(1).join(' ') : undefined,
+      lastName: last || undefined,
+    };
+  }
+  const surname = extractSurname(clean);
+  const surnameIdx = clean.lastIndexOf(surname);
+  if (surnameIdx > 0) {
+    const firstMiddle = clean.substring(0, surnameIdx).trim();
+    const fmParts = firstMiddle.split(' ');
+    return {
+      firstName: fmParts[0],
+      middleName: fmParts.length > 1 ? fmParts.slice(1).join(' ') : undefined,
+      lastName: surname,
+    };
+  }
+  const parts = clean.split(' ');
   if (parts.length === 1) return { firstName: parts[0] };
   if (parts.length === 2) return { firstName: parts[0], lastName: parts[1] };
-  
-  const firstName = parts[0];
-  const lastName = parts[parts.length - 1];
-  const middleName = parts.slice(1, -1).join(' ');
-  return { firstName, middleName, lastName };
+  return {
+    firstName: parts[0],
+    middleName: parts.slice(1, -1).join(' '),
+    lastName: parts[parts.length - 1],
+  };
 }
 
 /**
@@ -70,7 +135,6 @@ export function checkUserIdentityConflict(
   candidate: {
     id?: string; // Current user ID if editing
     name?: string;
-    email?: string;
     role?: UserRole;
     studentId?: string;
     employeeId?: string;
@@ -78,7 +142,6 @@ export function checkUserIdentityConflict(
   existingUsers: User[]
 ): IdentityConflictResult {
   const currentUserId = candidate.id;
-  const targetEmail = normalizeEmail(candidate.email || '');
   const targetStudentId = normalizeId(candidate.studentId);
   const targetEmployeeId = normalizeId(candidate.employeeId);
   const targetRole = candidate.role || 'student';
@@ -155,35 +218,7 @@ export function checkUserIdentityConflict(
     }
   }
 
-  // 3. SECONDARY UNIQUE IDENTIFIER CHECK: Institutional Email (case-insensitive across ALL roles)
-  if (targetEmail) {
-    const emailMatch = pool.find(
-      u => u.email && normalizeEmail(u.email) === targetEmail
-    );
-
-    if (emailMatch) {
-      const isInactive = emailMatch.isActive === false;
-      const isCrossRole = emailMatch.role !== targetRole;
-
-      const message = isInactive
-        ? `Email "${targetEmail}" belongs to an existing INACTIVE account (${emailMatch.name}). Please reactivate the account instead of registering again.`
-        : `Institutional email "${targetEmail}" is already registered to "${emailMatch.name}" (${emailMatch.role.toUpperCase()}).`;
-
-      return {
-        hasConflict: true,
-        conflictType: 'email',
-        existingUser: emailMatch,
-        isInactive,
-        isCrossRole,
-        isSameNameDifferentId: false,
-        title: isInactive ? 'ACCOUNT ALREADY EXISTS — INACTIVE' : 'EMAIL ALREADY REGISTERED',
-        message,
-        actionSuggestion: isInactive ? 'reactivate' : 'edit_account',
-      };
-    }
-  }
-
-  // 4. SOFT NAME SIMILARITY CHECK (DO NOT BLOCK REGISTRATION IF IDENTIFIERS DIFFER)
+  // 3. SOFT NAME SIMILARITY CHECK (DO NOT BLOCK REGISTRATION IF IDENTIFIERS DIFFER)
   // Juan Dela Cruz (2025-00125) and Juan Dela Cruz (2026-00918) are two valid distinct people
   if (targetNameNormalized && targetNameNormalized.length >= 3) {
     const similarNameUser = pool.find(u => {
@@ -227,7 +262,6 @@ export function validateUserForm(
   data: {
     id?: string;
     name: string;
-    email: string;
     role: UserRole;
     studentId?: string;
     employeeId?: string;
@@ -258,20 +292,7 @@ export function validateUserForm(
     errors.name = 'Full Name cannot exceed 100 characters.';
   }
 
-  // 2. Email Validation (Required for Personnel/Staff/Admin; Not required for Student onboarding)
-  const cleanEmail = normalizeEmail(data.email);
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (data.role !== 'student') {
-    if (!cleanEmail) {
-      errors.email = 'Institutional Email is required.';
-    } else if (!emailRegex.test(cleanEmail)) {
-      errors.email = 'Please provide a valid institutional email address.';
-    }
-  } else if (cleanEmail && !emailRegex.test(cleanEmail)) {
-    errors.email = 'Please provide a valid institutional email address.';
-  }
-
-  // 3. Role-specific Primary Identifier
+  // 2. Role-specific Primary Identifier
   if (data.role === 'student') {
     const cleanStudentId = normalizeId(data.studentId);
     if (!cleanStudentId) {
@@ -294,12 +315,11 @@ export function validateUserForm(
     }
   }
 
-  // 4. Check Identity Conflicts
+  // 3. Check Identity Conflicts
   const conflict = checkUserIdentityConflict(
     {
       id: data.id,
       name: cleanName,
-      email: cleanEmail,
       role: data.role,
       studentId: data.studentId,
       employeeId: data.employeeId,
@@ -312,8 +332,6 @@ export function validateUserForm(
       errors.studentId = conflict.message;
     } else if (conflict.conflictType === 'employee_id') {
       errors.employeeId = conflict.message;
-    } else if (conflict.conflictType === 'email') {
-      errors.email = conflict.message;
     }
     errors._general = conflict.message;
   } else if (conflict.isSameNameDifferentId) {
@@ -327,3 +345,4 @@ export function validateUserForm(
     conflict,
   };
 }
+

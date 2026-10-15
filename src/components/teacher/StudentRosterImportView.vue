@@ -425,54 +425,26 @@
         </div>
       </div>
 
-      <!-- Quick Sort Tabs for Directory -->
-      <div class="flex flex-wrap items-center gap-1.5 p-2 rounded-2xl bg-slate-50 dark:bg-[#242424] border border-slate-200 dark:border-[#333333] text-xs">
-        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">Sort Directory By:</span>
-        <button
-          type="button"
-          @click="setRosterSort('department')"
-          class="px-2.5 py-1 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1"
-          :class="rosterSortBy === 'department' ? 'bg-emerald-600 text-white' : 'bg-white dark:bg-[#1a1a1a] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-[#333]'"
-        >
-          <span>Department / College</span>
-          <component :is="rosterSortDir === 'asc' ? ArrowUp : ArrowDown" v-if="rosterSortBy === 'department'" class="w-3 h-3" />
-        </button>
-        <button
-          type="button"
-          @click="setRosterSort('yearLevel')"
-          class="px-2.5 py-1 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1"
-          :class="rosterSortBy === 'yearLevel' ? 'bg-emerald-600 text-white' : 'bg-white dark:bg-[#1a1a1a] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-[#333]'"
-        >
-          <span>Year Level (1st - 4th)</span>
-          <component :is="rosterSortDir === 'asc' ? ArrowUp : ArrowDown" v-if="rosterSortBy === 'yearLevel'" class="w-3 h-3" />
-        </button>
-        <button
-          type="button"
-          @click="setRosterSort('section')"
-          class="px-2.5 py-1 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1"
-          :class="rosterSortBy === 'section' ? 'bg-emerald-600 text-white' : 'bg-white dark:bg-[#1a1a1a] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-[#333]'"
-        >
-          <span>Section (M1 - E4)</span>
-          <component :is="rosterSortDir === 'asc' ? ArrowUp : ArrowDown" v-if="rosterSortBy === 'section'" class="w-3 h-3" />
-        </button>
-        <button
-          type="button"
-          @click="setRosterSort('name')"
-          class="px-2.5 py-1 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1"
-          :class="rosterSortBy === 'name' ? 'bg-emerald-600 text-white' : 'bg-white dark:bg-[#1a1a1a] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-[#333]'"
-        >
-          <span>Student Name</span>
-          <component :is="rosterSortDir === 'asc' ? ArrowUp : ArrowDown" v-if="rosterSortBy === 'name'" class="w-3 h-3" />
-        </button>
-        <button
-          type="button"
-          @click="setRosterSort('studentId')"
-          class="px-2.5 py-1 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1"
-          :class="rosterSortBy === 'studentId' ? 'bg-emerald-600 text-white' : 'bg-white dark:bg-[#1a1a1a] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-[#333]'"
-        >
-          <span>Student ID</span>
-          <component :is="rosterSortDir === 'asc' ? ArrowUp : ArrowDown" v-if="rosterSortBy === 'studentId'" class="w-3 h-3" />
-        </button>
+      <!-- Centralized Sort Control for Directory -->
+      <div class="flex items-center gap-2 p-2.5 rounded-2xl bg-slate-50 dark:bg-[#242424] border border-slate-200 dark:border-[#333333] text-xs">
+        <label class="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider px-1">
+          Sort students by
+        </label>
+        <div class="relative">
+          <ArrowUpDown class="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <select
+            v-model="rosterSortOption"
+            @change="handleRosterSortOptionChange"
+            class="pl-8 pr-3 py-1.5 bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#333] rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 cursor-pointer min-w-[190px]"
+          >
+            <option value="name_asc">Student Name (A–Z)</option>
+            <option value="name_desc">Student Name (Z–A)</option>
+            <option value="studentId_asc">Student ID (Lowest first)</option>
+            <option value="yearLevel_asc">Year Level (1st–4th)</option>
+            <option value="section_asc">Section (M1–E4)</option>
+            <option value="department_asc">Department / College</option>
+          </select>
+        </div>
       </div>
 
       <div class="overflow-x-auto rounded-2xl border border-slate-200 dark:border-[#333333]">
@@ -716,8 +688,15 @@ const getPreviewSortIcon = (col: PreviewSortField) => {
 
 // Directory Table Sorting
 type RosterSortField = 'department' | 'name' | 'studentId' | 'course' | 'yearLevel' | 'section';
-const rosterSortBy = ref<RosterSortField>('department');
+const rosterSortBy = ref<RosterSortField>('name');
 const rosterSortDir = ref<'asc' | 'desc'>('asc');
+const rosterSortOption = ref<string>('name_asc');
+
+const handleRosterSortOptionChange = () => {
+  const parts = rosterSortOption.value.split('_');
+  rosterSortBy.value = parts[0] as RosterSortField;
+  rosterSortDir.value = (parts[1] as 'asc' | 'desc') || 'asc';
+};
 
 const setRosterSort = (col: RosterSortField) => {
   if (rosterSortBy.value === col) {
@@ -726,6 +705,7 @@ const setRosterSort = (col: RosterSortField) => {
     rosterSortBy.value = col;
     rosterSortDir.value = 'asc';
   }
+  rosterSortOption.value = `${rosterSortBy.value}_${rosterSortDir.value}`;
 };
 
 const getRosterSortIcon = (col: RosterSortField) => {

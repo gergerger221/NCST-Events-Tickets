@@ -81,7 +81,8 @@ function ncst_apply_cors(): void {
                 $host === '127.0.0.1' ||
                 str_ends_with($host, '.loca.lt') ||
                 preg_match('/^192\.168\.\d{1,3}\.\d{1,3}$/', $host) ||
-                preg_match('/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/', $host)
+                preg_match('/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/', $host) ||
+                preg_match('/^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/', $host)
             ) {
                 $allowOrigin = $origin;
             }
@@ -165,18 +166,35 @@ function ncst_extract_surname(mixed $input): string {
         return '';
     }
 
-    // Comma format: "Dela Cruz, Juan" -> "Dela Cruz"
+    // Comma format: "Dela Cruz, Juan M. Jr." -> "Dela Cruz"
     if (strpos($clean, ',') !== false) {
         $parts = explode(',', $clean);
         return trim($parts[0]);
     }
 
+    $suffixes = [
+        'jr.', 'jr', 'sr.', 'sr', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x'
+    ];
+
     $prefixes = [
         'dela', 'de la', 'de los', 'delos', 'del', 'de', 'san', 'santa',
-        'sto.', 'sta.', 'van', 'von', 'mc', 'mac', 'al', 'el', 'st.'
+        'sto.', 'sta.', 'van', 'von', 'mc', 'mac', 'al', 'el', 'st.',
+        'da', 'di', 'dos', 'das'
     ];
 
     $parts = explode(' ', $clean);
+    if (count($parts) === 1) {
+        return $parts[0];
+    }
+
+    // Strip trailing suffix if present (e.g. "Roberto Dela Cruz Jr." -> ["Roberto", "Dela", "Cruz"])
+    if (count($parts) > 1) {
+        $lastWordClean = strtolower(rtrim(end($parts), '.,'));
+        if (in_array($lastWordClean, $suffixes, true) || in_array(strtolower(end($parts)), $suffixes, true)) {
+            array_pop($parts);
+        }
+    }
+
     if (count($parts) === 1) {
         return $parts[0];
     }
@@ -184,16 +202,18 @@ function ncst_extract_surname(mixed $input): string {
         return $parts[1];
     }
 
-    for ($i = 1; $i < count($parts) - 1; $i++) {
-        $twoWordPrefix = strtolower($parts[$i] . ' ' . $parts[$i + 1]);
+    // Check for multi-word and single-word prefixes
+    for ($i = 1; $i < count($parts); $i++) {
+        if ($i + 1 < count($parts)) {
+            $twoWordPrefix = strtolower($parts[$i] . ' ' . $parts[$i + 1]);
+            if (in_array($twoWordPrefix, $prefixes, true)) {
+                return trim(implode(' ', array_slice($parts, $i)));
+            }
+        }
         $oneWordPrefix = strtolower($parts[$i]);
-        if (in_array($twoWordPrefix, $prefixes, true) || in_array($oneWordPrefix, $prefixes, true)) {
+        if (in_array($oneWordPrefix, $prefixes, true)) {
             return trim(implode(' ', array_slice($parts, $i)));
         }
-    }
-
-    if (count($parts) === 3) {
-        return $parts[2];
     }
 
     return $parts[count($parts) - 1];
@@ -324,7 +344,7 @@ function ncst_get_auth_user(PDO $pdo): ?array {
         return null; // Reject unverified or forged token
     }
 
-    $stmt = $pdo->prepare("SELECT * FROM `users` WHERE `id` = ? AND `is_active` = 1 LIMIT 1");
+    $stmt = $pdo->prepare("SELECT * FROM `users` WHERE `id` = ? AND `is_active` = 1 AND COALESCE(`is_deleted`, 0) = 0 LIMIT 1");
     $stmt->execute([$verified['userId']]);
     $user = $stmt->fetch();
 
@@ -349,9 +369,6 @@ function ncst_get_auth_user(PDO $pdo): ?array {
         $user['studentId'] = $user['student_id'] ?? null;
         $user['employeeId'] = $user['employee_id'] ?? null;
         $user['yearLevel'] = $user['year_level'] ?? null;
-        $user['recoveryEmail'] = $user['recovery_email'] ?? null;
-        $user['recoveryEmailVerified'] = (bool)($user['recovery_email_verified'] ?? 0);
-        $user['recoveryEmailVerifiedAt'] = $user['recovery_email_verified_at'] ?? null;
         return $user;
     }
 
@@ -360,10 +377,20 @@ function ncst_get_auth_user(PDO $pdo): ?array {
 
 function ncst_sanitize_user(?array $user): ?array {
     if (!$user) return null;
-    unset($user['password']);
-    $user['recoveryEmail'] = $user['recovery_email'] ?? ($user['recoveryEmail'] ?? null);
-    $user['recoveryEmailVerified'] = (bool)($user['recovery_email_verified'] ?? ($user['recoveryEmailVerified'] ?? 0));
-    $user['recoveryEmailVerifiedAt'] = $user['recovery_email_verified_at'] ?? ($user['recoveryEmailVerifiedAt'] ?? null);
+    unset($user['password'], $user['email'], $user['recovery_email'], $user['recovery_email_verified'], $user['recovery_email_verified_at'], $user['recoveryEmail'], $user['recoveryEmailVerified'], $user['recoveryEmailVerifiedAt']);
+    $user['studentId'] = $user['student_id'] ?? ($user['studentId'] ?? null);
+    $user['employeeId'] = $user['employee_id'] ?? ($user['employeeId'] ?? null);
+    $user['firstName'] = $user['first_name'] ?? ($user['firstName'] ?? null);
+    $user['middleName'] = $user['middle_name'] ?? ($user['middleName'] ?? null);
+    $user['lastName'] = $user['last_name'] ?? ($user['lastName'] ?? null);
+    $user['yearLevel'] = $user['year_level'] ?? ($user['yearLevel'] ?? null);
+    $user['accountStatus'] = $user['account_status'] ?? ($user['accountStatus'] ?? 'active');
+    $user['verificationStatus'] = $user['verification_status'] ?? ($user['verificationStatus'] ?? 'verified');
+    $user['isVerified'] = (bool)($user['is_verified'] ?? ($user['isVerified'] ?? 1));
+    $user['isActive'] = (bool)($user['is_active'] ?? ($user['isActive'] ?? 1));
+    $user['mustChangePassword'] = (bool)($user['must_change_password'] ?? ($user['mustChangePassword'] ?? 0));
+    $user['hasRecoveryPin'] = !empty($user['recovery_pin_hash']);
+    unset($user['recovery_pin_hash']);
     return $user;
 }
 
@@ -404,8 +431,17 @@ function ncst_reset_rate_limit(string $action): void {
     }
 }
 
+function ncst_get_storage_path(?string $subpath = null): string {
+    $custom = trim((string)ncst_env('NCST_STORAGE_PATH', ncst_env('STORAGE_PATH', '')));
+    $base = !empty($custom) ? rtrim($custom, '\\/') : dirname(__DIR__) . DIRECTORY_SEPARATOR . 'storage';
+    if ($subpath !== null && $subpath !== '') {
+        $base .= DIRECTORY_SEPARATOR . ltrim($subpath, '\\/');
+    }
+    return $base;
+}
+
 function sys_get_temp_limit_dir(): string {
-    $dir = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'limits';
+    $dir = ncst_get_storage_path('limits');
     if (!is_dir($dir)) {
         @mkdir($dir, 0777, true);
     }
@@ -460,4 +496,33 @@ function ncst_match_teacher_class(array $assignment, array $target, string $teac
 
     return true;
 }
+
+/**
+ * Derives academic year level from the official NCST section code convention:
+ * Format: [Year 1-5][Sem 1-2][Sched M/A/E][Sec 1-99] (e.g. "11M1" -> "1st Year", "41M3" -> "4th Year")
+ */
+function ncst_derive_year_level_from_section(?string $section): string {
+    if (empty($section)) return '1st Year';
+    $clean = trim($section);
+    $firstChar = $clean[0] ?? '1';
+    switch ($firstChar) {
+        case '1': return '1st Year';
+        case '2': return '2nd Year';
+        case '3': return '3rd Year';
+        case '4': return '4th Year';
+        case '5': return '5th Year';
+        default: return '1st Year';
+    }
+}
+
+/**
+ * Validates whether a section code conforms to official NCST format:
+ * [Year 1-5][Semester 1-2][Schedule M/A/E][Section 1-99]
+ */
+function ncst_validate_section(?string $section): bool {
+    if (empty($section)) return false;
+    $clean = strtoupper(trim(preg_replace('/\s+/', '', $section)));
+    return (bool)preg_match('/^[1-5][1-2][MAE][1-9][0-9]?$/', $clean);
+}
+
 

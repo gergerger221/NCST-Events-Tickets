@@ -73,9 +73,9 @@ $pdo->prepare("DELETE FROM `student_records` WHERE `student_id` = ?")->execute([
 
 $recId = "rec-{$testStudentId}";
 $pdo->prepare("
-    INSERT INTO `student_records` (id, student_id, name, first_name, last_name, course, year_level, section, department, email, user_id)
-    VALUES (?, ?, ?, 'Juan', ?, 'BSIT', '2nd Year', '21M1', 'Computer Studies Department', ?, NULL)
-")->execute([$recId, $testStudentId, $testFullName, $testSurname, $testEmail]);
+    INSERT INTO `student_records` (id, student_id, name, first_name, last_name, course, year_level, section, department, user_id)
+    VALUES (?, ?, ?, 'Juan', ?, 'BSIT', '2nd Year', '21M1', 'Computer Studies Department', NULL)
+")->execute([$recId, $testStudentId, $testFullName, $testSurname]);
 
 // Confirm no user account exists yet
 $chkUser = $pdo->prepare("SELECT * FROM `users` WHERE `student_id` = ?");
@@ -93,7 +93,6 @@ $purchasePayload = [
     'yearLevel' => '2nd Year',
     'section' => '21M1',
     'department' => 'Computer Studies Department',
-    'email' => $testEmail,
     'attendeeType' => 'STUDENT',
     'cashReceived' => 500,
     'cashierStaffName' => 'Admin Cashier Desk'
@@ -113,24 +112,24 @@ $newUserId = "usr-test-student-{$uniqueId}";
 $hashedInitialPass = ncst_hash_password($officialSurname);
 
 $insStmt = $pdo->prepare("
-    INSERT INTO `users` (id, name, email, role, password, student_id, department, course, year_level, section, account_status, verification_status, is_verified, is_active, must_change_password)
-    VALUES (?, ?, ?, 'student', ?, ?, ?, ?, ?, ?, 'active', 'verified', 1, 1, 1)
+    INSERT INTO `users` (id, name, role, password, student_id, department, course, year_level, section, account_status, verification_status, is_verified, is_active, must_change_password)
+    VALUES (?, ?, 'student', ?, ?, ?, ?, ?, ?, 'active', 'verified', 1, 1, 1)
 ");
 $insStmt->execute([
-    $newUserId, $testFullName, $testEmail, $hashedInitialPass, $testStudentId,
+    $newUserId, $testFullName, $hashedInitialPass, $testStudentId,
     $studentRecord['department'], $studentRecord['course'], $studentRecord['year_level'], $studentRecord['section']
 ]);
 
 // Link in student_records using primary key
-$pdo->prepare("UPDATE `student_records` SET `user_id` = ?, `email` = ? WHERE `id` = ?")
-    ->execute([$newUserId, $testEmail, $studentRecord['id']]);
+$pdo->prepare("UPDATE `student_records` SET `user_id` = ? WHERE `id` = ?")
+    ->execute([$newUserId, $studentRecord['id']]);
 
 // Issue Ticket
 $ticketId = "TIX-TEST-{$uniqueId}";
 $pdo->prepare("
-    INSERT INTO `tickets` (id, ticket_number, qr_token, event_id, attendee_type, original_owner_id, current_attendee_id, current_attendee_name, attendee_student_id, attendee_email, attendee_department, ticket_status, payment_status, attendance_status, academic_year, semester)
-    VALUES (?, ?, ?, ?, 'STUDENT', ?, ?, ?, ?, ?, ?, 'active', 'paid', 'not_entered', '2026-2027', '1st Semester')
-")->execute([$ticketId, $ticketId, $ticketId, $testEventId, $newUserId, $newUserId, $testFullName, $testStudentId, $testEmail, $studentRecord['department']]);
+    INSERT INTO `tickets` (id, ticket_number, qr_token, event_id, attendee_type, original_owner_id, current_attendee_id, current_attendee_name, attendee_student_id, attendee_department, ticket_status, payment_status, attendance_status, academic_year, semester)
+    VALUES (?, ?, ?, ?, 'STUDENT', ?, ?, ?, ?, ?, 'active', 'paid', 'not_entered', '2026-2027', '1st Semester')
+")->execute([$ticketId, $ticketId, $ticketId, $testEventId, $newUserId, $newUserId, $testFullName, $testStudentId, $studentRecord['department']]);
 
 // Verify user account created
 $userCreated = $pdo->query("SELECT * FROM `users` WHERE `id` = '{$newUserId}'")->fetch();
@@ -209,9 +208,9 @@ assert($existingPassHash === $newHash, "Password hash is preserved and NEVER ove
 // Issue second ticket to existing account
 $ticketId2 = "TIX-TEST-{$uniqueId}-2";
 $pdo->prepare("
-    INSERT INTO `tickets` (id, ticket_number, qr_token, event_id, attendee_type, original_owner_id, current_attendee_id, current_attendee_name, attendee_student_id, attendee_email, attendee_department, ticket_status, payment_status, attendance_status, academic_year, semester)
-    VALUES (?, ?, ?, ?, 'STUDENT', ?, ?, ?, ?, ?, ?, 'active', 'paid', 'not_entered', '2026-2027', '1st Semester')
-")->execute([$ticketId2, $ticketId2, $ticketId2, $testEventId, $newUserId, $newUserId, $testFullName, $testStudentId, $testEmail, $studentRecord['department']]);
+    INSERT INTO `tickets` (id, ticket_number, qr_token, event_id, attendee_type, original_owner_id, current_attendee_id, current_attendee_name, attendee_student_id, attendee_department, ticket_status, payment_status, attendance_status, academic_year, semester)
+    VALUES (?, ?, ?, ?, 'STUDENT', ?, ?, ?, ?, ?, 'active', 'paid', 'not_entered', '2026-2027', '1st Semester')
+")->execute([$ticketId2, $ticketId2, $ticketId2, $testEventId, $newUserId, $newUserId, $testFullName, $testStudentId, $studentRecord['department']]);
 
 $totalAccounts = $pdo->query("SELECT COUNT(*) FROM `users` WHERE `student_id` = '{$testStudentId}'")->fetchColumn();
 assert((int)$totalAccounts === 1, "Exactly one account exists; duplicate account creation prevented");

@@ -41,54 +41,6 @@
 
       <form @submit.prevent="handleChangePassword" class="space-y-4">
         <div>
-          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-            Recovery Email Address *
-          </label>
-          <div class="flex gap-2">
-            <div class="relative flex-1">
-              <Mail class="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                v-model="recoveryEmailInput"
-                type="email"
-                required
-                placeholder="e.g. personal@gmail.com or student@student.ncst.edu.ph"
-                class="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-[#181818] border border-slate-300 dark:border-[#3a3a3a] rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 transition"
-              />
-            </div>
-            <button
-              type="button"
-              @click="handleSendFirstLoginOtp"
-              :disabled="otpSending || !recoveryEmailInput.trim() || !recoveryEmailInput.includes('@')"
-              class="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0 shadow-sm"
-            >
-              <span v-if="otpSending" class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              <Mail v-else class="w-3.5 h-3.5" />
-              <span>{{ otpSent ? 'Resend Code' : 'Send Code' }}</span>
-            </button>
-          </div>
-          <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-            Personal or institutional email. A 6-digit OTP will be sent to verify your ownership.
-          </p>
-          <p v-if="otpFeedback" class="text-[11px] font-bold text-blue-600 dark:text-blue-400 mt-1">
-            {{ otpFeedback }}
-          </p>
-        </div>
-
-        <div>
-          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-            6-Digit Email Verification Code *
-          </label>
-          <input
-            v-model="verificationCodeInput"
-            type="text"
-            maxlength="6"
-            required
-            placeholder="Enter 6-digit OTP sent to your recovery email"
-            class="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-[#181818] border border-slate-300 dark:border-[#3a3a3a] rounded-xl text-center text-sm font-mono tracking-widest font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 transition"
-          />
-        </div>
-
-        <div>
           <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">New Permanent Password *</label>
           <div class="relative">
             <input
@@ -136,7 +88,7 @@
 
         <button
           type="submit"
-          :disabled="isSubmittingFirstLogin || !newPassword.trim() || !confirmNewPassword.trim() || (!currentUser?.recoveryEmailVerified && (!recoveryEmailInput.trim() || !verificationCodeInput.trim()))"
+          :disabled="isSubmittingFirstLogin || !newPassword.trim() || !confirmNewPassword.trim()"
           class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer shadow-md disabled:opacity-50 flex items-center justify-center gap-2"
         >
           <span v-if="isSubmittingFirstLogin" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -171,9 +123,24 @@
               <span>{{ currentUser?.yearLevel || '3rd Year' }}</span>
               <span>•</span>
               <span>Section {{ currentUser?.section || '11M1' }}</span>
-              <span>•</span>
-              <span class="font-mono text-slate-500 dark:text-[#888888]">{{ currentUser?.email }}</span>
             </p>
+
+            <!-- Recovery PIN Status / Setup Trigger -->
+            <div class="pt-1 flex items-center gap-2 flex-wrap text-xs">
+              <span v-if="currentUser?.hasRecoveryPin" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold bg-blue-100/90 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border border-blue-300/80 dark:border-blue-800">
+                <ShieldCheck class="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                <span>Recovery PIN Active</span>
+              </span>
+              <button
+                v-else
+                type="button"
+                @click="isRecoveryPinModalOpen = true"
+                class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/60 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 transition cursor-pointer"
+              >
+                <KeyRound class="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                <span>Setup 4-Digit Recovery PIN</span>
+              </button>
+            </div>
             <div class="pt-0.5 flex items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500">
               <Clock class="w-3.5 h-3.5 text-blue-500" />
               <span>Attendance status updated: <strong class="text-slate-600 dark:text-slate-400 font-mono">{{ lastUpdatedTime }} (PHT)</strong></span>
@@ -195,30 +162,6 @@
       </div>
     </div>
 
-    <!-- Prompt for Existing Students Without Recovery Email -->
-    <div
-      v-if="!currentUser?.recoveryEmailVerified"
-      class="p-4 bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800 rounded-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-xs"
-    >
-      <div class="flex items-center gap-3">
-        <div class="p-2.5 bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 rounded-2xl">
-          <Mail class="w-5 h-5" />
-        </div>
-        <div>
-          <h4 class="font-bold text-amber-900 dark:text-amber-200 text-xs">Self-Service Account Recovery Required</h4>
-          <p class="text-[11px] text-amber-700 dark:text-amber-300 mt-0.5">
-            You do not have a verified recovery email registered. Register and verify your personal or institutional email to protect your account and regain access if you forget your password.
-          </p>
-        </div>
-      </div>
-      <button
-        type="button"
-        @click="openRegisterRecoveryModal"
-        class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs transition cursor-pointer shadow-xs whitespace-nowrap"
-      >
-        Register Recovery Email
-      </button>
-    </div>
 
     <!-- Navigation Tabs -->
     <div class="flex items-center justify-between gap-4 border-b border-slate-200 dark:border-[#333333] pb-3 overflow-x-auto">
@@ -340,6 +283,7 @@
                 <th class="py-3.5 px-4 font-bold">Venue</th>
                 <th class="py-3.5 px-4 font-bold">Event Date</th>
                 <th class="py-3.5 px-4 font-bold">Ticket Number</th>
+                <th class="py-3.5 px-4 font-bold">Ticket Status</th>
                 <th class="py-3.5 px-4 font-bold">Attendance Status</th>
                 <th class="py-3.5 px-4 font-bold">Recorded Time</th>
               </tr>
@@ -373,6 +317,11 @@
                   {{ rec.ticketNumber }}
                 </td>
 
+                <!-- Ticket Status -->
+                <td class="py-3.5 px-4">
+                  <StatusBadge type="ticket" :status="rec.ticketStatus" />
+                </td>
+
                 <!-- Attendance Status -->
                 <td class="py-3.5 px-4">
                   <StatusBadge type="attendance" :status="rec.attendanceStatus" />
@@ -393,7 +342,7 @@
 
               <!-- Empty Table State -->
               <tr v-if="myAttendanceRecords.length === 0">
-                <td colspan="6" class="text-center py-8 px-4 text-slate-400 dark:text-slate-500 space-y-1.5">
+                <td colspan="7" class="text-center py-8 px-4 text-slate-400 dark:text-slate-500 space-y-1.5">
                   <Receipt class="w-7 h-7 mx-auto opacity-40" />
                   <p class="text-xs font-semibold">No attendance records have been recorded yet.</p>
                   <p class="text-[11px] text-slate-400">Once your official pass is scanned at the event entrance, your attendance record will appear here.</p>
@@ -506,86 +455,19 @@
         </form>
       </div>
     </Modal>
-    <!-- Register Recovery Email Modal for Existing Students -->
-    <Modal
-      :is-open="isRegisterRecoveryModalOpen"
-      @close="isRegisterRecoveryModalOpen = false"
-      title="Register Recovery Email"
-      subtitle="Link and verify an email for secure self-service password recovery"
-      max-width="md"
-    >
-      <div class="space-y-4">
-        <div v-if="modalRecoveryError" class="p-3 bg-rose-50 dark:bg-rose-950/70 border border-rose-200 dark:border-rose-800 rounded-xl text-rose-700 dark:text-rose-300 text-xs">
-          {{ modalRecoveryError }}
-        </div>
-        <div v-if="modalRecoverySuccess" class="p-3 bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-800 rounded-xl text-emerald-700 dark:text-emerald-300 text-xs font-bold">
-          {{ modalRecoverySuccess }}
-        </div>
 
-        <form @submit.prevent="handleVerifyRecoveryModal" class="space-y-3.5">
-          <div>
-            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Recovery Email Address *</label>
-            <div class="flex gap-2">
-              <input
-                v-model="modalRecoveryEmail"
-                type="email"
-                required
-                placeholder="e.g. yourname@gmail.com or institutional email"
-                class="flex-1 px-3.5 py-2.5 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 transition"
-              />
-              <button
-                type="button"
-                @click="handleSendModalOtp"
-                :disabled="modalOtpSending || !modalRecoveryEmail.trim() || !modalRecoveryEmail.includes('@')"
-                class="px-3.5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition cursor-pointer disabled:opacity-50 shrink-0"
-              >
-                <span v-if="modalOtpSending" class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                <span v-else>{{ modalOtpSent ? 'Resend' : 'Send Code' }}</span>
-              </button>
-            </div>
-            <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-              Personal or institutional address. A 6-digit OTP will be dispatched.
-            </p>
-            <p v-if="modalOtpFeedback" class="text-[11px] font-bold text-blue-600 dark:text-blue-400 mt-1">{{ modalOtpFeedback }}</p>
-          </div>
-
-          <div>
-            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">6-Digit Verification Code *</label>
-            <input
-              v-model="modalRecoveryCode"
-              type="text"
-              maxlength="6"
-              required
-              placeholder="Enter 6-digit OTP"
-              class="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-xl text-center text-sm font-mono tracking-widest font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 transition"
-            />
-          </div>
-
-          <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-[#333333]">
-            <button
-              type="button"
-              @click="isRegisterRecoveryModalOpen = false"
-              class="px-4 py-2.5 bg-slate-100 dark:bg-[#2c2c2c] text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-200 dark:hover:bg-[#383838] transition cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              :disabled="modalVerifying || !modalRecoveryEmail.trim() || !modalRecoveryCode.trim()"
-              class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer shadow-md disabled:opacity-50 flex items-center gap-1.5"
-            >
-              <span v-if="modalVerifying" class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              <span>Verify & Save Email</span>
-            </button>
-          </div>
-        </form>
-      </div>
-    </Modal>
+    <!-- Recovery PIN Setup Modal -->
+    <RecoveryPinSetupModal
+      :is-open="isRecoveryPinModalOpen"
+      :can-dismiss="true"
+      @close="isRecoveryPinModalOpen = false"
+      @saved="fetchStateFromServer"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import {
   QrCode,
   CalendarDays,
@@ -596,8 +478,6 @@ import {
   Ticket as TicketIcon,
   KeyRound,
   Eye,
-  EyeOff,
-  Mail,
   ShieldCheck,
 } from 'lucide-vue-next';
 import { useAppStore } from '../../composables/useAppStore';
@@ -606,6 +486,7 @@ import StatusBadge from '../common/StatusBadge.vue';
 import UserAvatar from '../common/UserAvatar.vue';
 import DigitalTicketCard from '../tickets/DigitalTicketCard.vue';
 import Modal from '../common/Modal.vue';
+import RecoveryPinSetupModal from '../auth/RecoveryPinSetupModal.vue';
 import { formatPhilippineDate, formatPhilippineTime, formatPhilippineFull } from '../../utils/philippineTime';
 
 const emit = defineEmits<{
@@ -620,11 +501,37 @@ const {
   events,
   logs,
   updateUserPassword,
-  requestEmailVerification,
-  verifyRecoveryEmail
+  fetchStateFromServer
 } = useAppStore();
 
+const onFocusRefresh = () => {
+  fetchStateFromServer();
+};
+
+const onVisibilityRefresh = () => {
+  if (document.visibilityState === 'visible') {
+    fetchStateFromServer();
+  }
+};
+
+onMounted(() => {
+  fetchStateFromServer();
+  if (typeof window !== 'undefined') {
+    window.addEventListener('focus', onFocusRefresh);
+    document.addEventListener('visibilitychange', onVisibilityRefresh);
+  }
+});
+
+onUnmounted(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('focus', onFocusRefresh);
+    document.removeEventListener('visibilitychange', onVisibilityRefresh);
+  }
+});
+
+
 const isChangePassModalOpen = ref(false);
+const isRecoveryPinModalOpen = ref(false);
 const newPassword = ref('');
 const confirmNewPassword = ref('');
 const showNewPassword = ref(false);
@@ -632,34 +539,7 @@ const showConfirmPassword = ref(false);
 const passError = ref('');
 const passSuccess = ref('');
 
-// First-login recovery email & OTP state
-const recoveryEmailInput = ref('');
-const verificationCodeInput = ref('');
-const otpSending = ref(false);
-const otpSent = ref(false);
-const otpFeedback = ref('');
 const isSubmittingFirstLogin = ref(false);
-
-const handleSendFirstLoginOtp = async () => {
-  otpFeedback.value = '';
-  passError.value = '';
-  if (!recoveryEmailInput.value.trim() || !recoveryEmailInput.value.includes('@')) {
-    passError.value = 'Please provide a valid recovery email address.';
-    return;
-  }
-  otpSending.value = true;
-  const res = await requestEmailVerification(recoveryEmailInput.value.trim());
-  otpSending.value = false;
-  if (res.success) {
-    otpSent.value = true;
-    otpFeedback.value = res.message || 'Verification code sent to your email!';
-    if (res.dev_verification_code) {
-      verificationCodeInput.value = res.dev_verification_code;
-    }
-  } else {
-    passError.value = res.error || 'Failed to send verification code.';
-  }
-};
 
 const handleChangePassword = async () => {
   passError.value = '';
@@ -683,103 +563,27 @@ const handleChangePassword = async () => {
     passError.value = 'Password must be at least 4 characters long.';
     return;
   }
-  if (!currentUser.value.recoveryEmailVerified) {
-    if (!recoveryEmailInput.value.trim() || !recoveryEmailInput.value.includes('@')) {
-      passError.value = 'A valid recovery email address is required.';
-      return;
-    }
-    if (!verificationCodeInput.value.trim() || verificationCodeInput.value.trim().length !== 6) {
-      passError.value = 'Please enter the 6-digit verification code sent to your email.';
-      return;
-    }
-  }
 
   isSubmittingFirstLogin.value = true;
   const res = await updateUserPassword(
     currentUser.value.id,
-    newPassword.value,
-    recoveryEmailInput.value.trim() || undefined,
-    verificationCodeInput.value.trim() || undefined
+    newPassword.value
   );
   isSubmittingFirstLogin.value = false;
 
   if (res.success) {
-    passSuccess.value = 'Password and recovery email verified successfully! Welcome to your Student Portal.';
+    passSuccess.value = 'Permanent password established successfully! Next, configure your 4-digit Recovery PIN.';
     newPassword.value = '';
     confirmNewPassword.value = '';
-    recoveryEmailInput.value = '';
-    verificationCodeInput.value = '';
     setTimeout(() => {
       isChangePassModalOpen.value = false;
       passSuccess.value = '';
-    }, 1200);
+      if (!currentUser.value?.hasRecoveryPin) {
+        isRecoveryPinModalOpen.value = true;
+      }
+    }, 1000);
   } else {
     passError.value = res.message || 'Failed to update password.';
-  }
-};
-
-// Existing Student Recovery Email Registration Modal State
-const isRegisterRecoveryModalOpen = ref(false);
-const modalRecoveryEmail = ref('');
-const modalRecoveryCode = ref('');
-const modalOtpSending = ref(false);
-const modalOtpSent = ref(false);
-const modalOtpFeedback = ref('');
-const modalVerifying = ref(false);
-const modalRecoveryError = ref('');
-const modalRecoverySuccess = ref('');
-
-const openRegisterRecoveryModal = () => {
-  modalRecoveryEmail.value = currentUser.value?.email || currentUser.value?.recoveryEmail || '';
-  modalRecoveryCode.value = '';
-  modalOtpSending.value = false;
-  modalOtpSent.value = false;
-  modalOtpFeedback.value = '';
-  modalVerifying.value = false;
-  modalRecoveryError.value = '';
-  modalRecoverySuccess.value = '';
-  isRegisterRecoveryModalOpen.value = true;
-};
-
-const handleSendModalOtp = async () => {
-  modalRecoveryError.value = '';
-  modalOtpFeedback.value = '';
-  if (!modalRecoveryEmail.value.trim() || !modalRecoveryEmail.value.includes('@')) {
-    modalRecoveryError.value = 'Please provide a valid email address.';
-    return;
-  }
-  modalOtpSending.value = true;
-  const res = await requestEmailVerification(modalRecoveryEmail.value.trim());
-  modalOtpSending.value = false;
-  if (res.success) {
-    modalOtpSent.value = true;
-    modalOtpFeedback.value = res.message || 'Verification code sent to your email!';
-    if (res.dev_verification_code) {
-      modalRecoveryCode.value = res.dev_verification_code;
-    }
-  } else {
-    modalRecoveryError.value = res.error || 'Failed to request verification code.';
-  }
-};
-
-const handleVerifyRecoveryModal = async () => {
-  modalRecoveryError.value = '';
-  modalRecoverySuccess.value = '';
-  if (!modalRecoveryCode.value.trim() || modalRecoveryCode.value.trim().length !== 6) {
-    modalRecoveryError.value = 'Please enter the complete 6-digit verification code.';
-    return;
-  }
-  modalVerifying.value = true;
-  const res = await verifyRecoveryEmail(modalRecoveryEmail.value.trim(), modalRecoveryCode.value.trim());
-  modalVerifying.value = false;
-  if (res.success) {
-    modalRecoverySuccess.value = 'Recovery email verified successfully!';
-    setTimeout(() => {
-      isRegisterRecoveryModalOpen.value = false;
-      modalRecoverySuccess.value = '';
-    }, 1200);
-  } else {
-    modalRecoveryError.value = res.error || 'Failed to verify recovery email code.';
   }
 };
 
@@ -848,27 +652,45 @@ const myAttendanceRecords = computed(() => {
   const currentStudentId = currentUser.value.studentId;
 
   return myTickets.value.map(ticket => {
-    const event = getEventForTicket(ticket.eventId);
-    // Find matching attendance log
-    const log = logs.value.find(l => 
-      (l.ticketId === ticket.id || (ticket.ticketNumber && l.ticketNumber === ticket.ticketNumber)) &&
-      l.status === 'valid'
-    );
-    const isPresent = ticket.attendanceStatus === 'present' || !!log;
-    const recordedTimestamp = ticket.timeIn || log?.timestamp;
+    try {
+      const event = getEventForTicket(ticket.eventId);
+      // Find matching authoritative attendance log
+      const log = logs.value.find(l => 
+        (l.ticketId === ticket.id || (ticket.ticketNumber && l.ticketNumber === ticket.ticketNumber)) &&
+        l.status === 'valid'
+      );
+      // A ticket being USED alone is not enough; attendance must be confirmed by an authoritative attendance log or explicit attendanceStatus
+      const isPresent = !!log || (ticket.attendanceStatus === 'present' && !!ticket.timeIn);
+      const recordedTimestamp = log?.timestamp || (ticket as any).timeInIso || ticket.timeIn || log?.timeIn || null;
+      const timeInFormatted = log?.timeIn ? formatPhilippineTime(log.timeIn) : (ticket.timeIn ? formatPhilippineTime(ticket.timeIn) : null);
 
-    return {
-      id: ticket.id,
-      ticketNumber: ticket.ticketNumber || ticket.id,
-      eventId: ticket.eventId,
-      eventName: event?.title || ticket.eventTitle || 'Campus Event',
-      eventDate: event?.date || ticket.purchaseDate,
-      eventVenue: event?.venue || 'Campus Grounds',
-      ticketStatus: ticket.ticketStatus,
-      attendanceStatus: isPresent ? 'present' : 'not_entered',
-      recordedTime: recordedTimestamp ? formatPhilippineFull(recordedTimestamp) : null,
-      timeInFormatted: recordedTimestamp ? formatPhilippineTime(recordedTimestamp) : null,
-    };
+      return {
+        id: ticket.id,
+        ticketNumber: ticket.ticketNumber || ticket.id,
+        eventId: ticket.eventId,
+        eventName: event?.title || ticket.eventTitle || 'Campus Event',
+        eventDate: event?.date || ticket.purchaseDate,
+        eventVenue: event?.venue || 'Campus Grounds',
+        ticketStatus: ticket.ticketStatus,
+        attendanceStatus: isPresent ? 'present' : 'not_entered',
+        recordedTime: recordedTimestamp ? formatPhilippineFull(recordedTimestamp) : null,
+        timeInFormatted,
+      };
+    } catch (err) {
+      console.warn('[StudentDashboard] Malformed attendance ticket skipped gracefully:', ticket?.id, err);
+      return {
+        id: ticket?.id || 'err-tix',
+        ticketNumber: ticket?.ticketNumber || ticket?.id || '—',
+        eventId: ticket?.eventId || '',
+        eventName: ticket?.eventTitle || 'Campus Event',
+        eventDate: ticket?.purchaseDate || '—',
+        eventVenue: 'Campus Grounds',
+        ticketStatus: ticket?.ticketStatus || 'issued',
+        attendanceStatus: 'not_entered',
+        recordedTime: null,
+        timeInFormatted: null,
+      };
+    }
   });
 });
 </script>

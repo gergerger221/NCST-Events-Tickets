@@ -19,6 +19,7 @@ import {
   QRPrintStatus,
   AttendanceStatus,
   TicketStock,
+  TicketSalesSummary,
 } from '../types';
 import {
   INITIAL_USERS,
@@ -38,7 +39,6 @@ import { apiUrl } from '../utils/apiUrl';
 import {
   checkUserIdentityConflict,
   validateUserForm,
-  normalizeEmail,
   normalizeId,
   normalizeName,
   IdentityConflictResult,
@@ -50,7 +50,6 @@ import {
   validateSection,
   validateAttendeeName,
   validatePhoneNumber,
-  validateEmail as validateEmailFormat,
   validateCashPayment,
 } from '../utils/posValidation';
 import {
@@ -84,6 +83,7 @@ const STORAGE_KEYS = {
   CURRENT_USER: 'integ2_vue_current_user_v10',
   CURRENT_EVENT: 'integ2_vue_current_event_v10',
   SESSION_TOKEN: 'integ2_vue_session_token_v10',
+  DELETED_USER_IDS: 'integ2_vue_deleted_user_ids_v10',
 };
 
 const safeLocalStorageSetItem = (key: string, value: string): void => {
@@ -92,6 +92,27 @@ const safeLocalStorageSetItem = (key: string, value: string): void => {
   } catch (e) {
     console.warn(`[LocalStorage] Storage write suppressed for "${key}" to avoid quota overflow:`, e);
   }
+};
+
+const deletedUserIds = ref<Set<string>>(
+  (() => {
+    try {
+      const s = localStorage.getItem(STORAGE_KEYS.DELETED_USER_IDS);
+      if (s) {
+        const arr = JSON.parse(s);
+        if (Array.isArray(arr)) return new Set(arr);
+      }
+    } catch {}
+    return new Set<string>();
+  })()
+);
+
+export const recordDeletedUserId = (id: string) => {
+  if (!id) return;
+  deletedUserIds.value.add(id);
+  try {
+    localStorage.setItem(STORAGE_KEYS.DELETED_USER_IDS, JSON.stringify(Array.from(deletedUserIds.value)));
+  } catch {}
 };
 
 const sessionToken = ref<string>(
@@ -111,17 +132,30 @@ const sessionToken = ref<string>(
 export function ensureSeedUsers(userList: User[]): User[] {
   if (!Array.isArray(userList) || userList.length === 0) return [...INITIAL_USERS];
 
-  const merged = [...userList];
+  const merged = userList.map(u => {
+    const sanitized = { ...u };
+    delete (sanitized as any).email;
+    delete (sanitized as any).recoveryEmail;
+    delete (sanitized as any).recovery_email;
+    delete (sanitized as any).recovery_email_verified;
+    delete (sanitized as any).recovery_email_verified_at;
+    delete (sanitized as any).recoveryEmailVerified;
+    delete (sanitized as any).recoveryEmailVerifiedAt;
+    return sanitized;
+  });
 
   INITIAL_USERS.forEach(seedUser => {
-    const seedEmail = normalizeEmail(seedUser.email);
     const seedEmpId = seedUser.employeeId ? normalizeId(seedUser.employeeId).toLowerCase() : '';
     const seedStudentId = seedUser.studentId ? normalizeId(seedUser.studentId).toLowerCase() : '';
     const seedId = (seedUser.id || '').toLowerCase();
 
+    // Guard: Never resurrect deleted user accounts
+    if (deletedUserIds.value.has(seedUser.id) || (seedEmpId && deletedUserIds.value.has(seedEmpId)) || (seedStudentId && deletedUserIds.value.has(seedStudentId))) {
+      return;
+    }
+
     const existingIndex = merged.findIndex(u => {
       if (u.id && u.id.toLowerCase() === seedId) return true;
-      if (u.email && normalizeEmail(u.email) === seedEmail) return true;
       if (seedEmpId && u.employeeId && normalizeId(u.employeeId).toLowerCase() === seedEmpId) return true;
       if (seedStudentId && u.studentId && normalizeId(u.studentId).toLowerCase() === seedStudentId) return true;
       return false;
@@ -137,7 +171,6 @@ export function ensureSeedUsers(userList: User[]): User[] {
         // Guarantee demo credentials and essential permissions remain intact
         id: current.id || seedUser.id,
         name: current.name || seedUser.name,
-        email: current.email || seedUser.email,
         role: current.role || seedUser.role,
         password: current.password || seedUser.password || 'password123',
         isActive: current.isActive !== false,
@@ -162,11 +195,12 @@ const users = ref<User[]>(
       try {
         const parsed = JSON.parse(s);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return ensureSeedUsers(parsed);
+          const filtered = parsed.filter(u => u && !deletedUserIds.value.has(u.id));
+          return ensureSeedUsers(filtered);
         }
       } catch {}
     }
-    return [...INITIAL_USERS];
+    return ensureSeedUsers([...INITIAL_USERS]);
   })()
 );
 
@@ -257,7 +291,6 @@ export function normalizeTicket(t: any): Ticket {
     lastName: t.lastName || t.last_name || '',
     attendeeStudentId: t.attendeeStudentId || t.attendee_student_id || null,
     outsiderId: t.outsiderId || t.outsider_id || null,
-    attendeeEmail: t.attendeeEmail || t.attendee_email || null,
     attendeeDepartment: t.attendeeDepartment || t.attendee_department || null,
     course: t.course || null,
     yearLevel: t.yearLevel || t.year_level || null,
@@ -410,6 +443,10 @@ const activeAcademicPeriod = computed<AcademicPeriod>(() => {
 // Centralized physical ticket stock inventory shared across all cashiers
 const ticketStock = ref<TicketStock[]>([]);
 
+// Authoritative event sales summaries cache & last updated timestamps
+const salesSummaryCache = ref<Record<string, TicketSalesSummary>>({});
+const salesSummaryLastUpdated = ref<Record<string, number>>({});
+
 const currentUser = ref<User | null>(
   (() => {
     const s = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
@@ -515,7 +552,6 @@ const validateAndSyncSession = () => {
     localStorage.removeItem(STORAGE_KEYS.SESSION_TOKEN);
   } else if (
     currentUser.value.role !== authoritative.role ||
-    currentUser.value.email !== authoritative.email ||
     currentUser.value.name !== authoritative.name ||
     currentUser.value.studentId !== authoritative.studentId ||
     currentUser.value.employeeId !== authoritative.employeeId
@@ -568,6 +604,7 @@ const pushStateToServer = async () => {
   try {
     const payload = {
       users: users.value,
+      studentRecords: studentRecords.value,
       events: events.value,
       tickets: tickets.value,
       logs: logs.value,
@@ -619,15 +656,21 @@ const fetchStateFromServer = async () => {
         pushDebounceTimer = null;
       }
 
+      if (Array.isArray(data.deletedUserIds)) {
+        data.deletedUserIds.forEach((id: string) => recordDeletedUserId(id));
+      }
+
       // Overwrite users/tickets/events if server timestamp is newer or if read-only role
       if (Array.isArray(data.users) && data.users.length > 0) {
-        users.value = ensureSeedUsers(data.users);
+        const filtered = data.users.filter((u: User) => !deletedUserIds.value.has(u.id));
+        users.value = ensureSeedUsers(filtered);
+        safeLocalStorageSetItem(STORAGE_KEYS.USERS, JSON.stringify(users.value));
         validateAndSyncSession();
       }
       if (Array.isArray(data.studentRecords) && data.studentRecords.length > 0) studentRecords.value = sanitizeAndDeduplicateStudentRecords(data.studentRecords);
       if (Array.isArray(data.events) && data.events.length > 0) events.value = data.events.map(normalizeEvent);
-      if (Array.isArray(data.tickets) && data.tickets.length > 0) tickets.value = sanitizeAndDeduplicateTickets(data.tickets);
-      if (Array.isArray(data.logs) && data.logs.length > 0) logs.value = sanitizeAndDeduplicateLogs(data.logs);
+      if (Array.isArray(data.tickets)) tickets.value = sanitizeAndDeduplicateTickets(data.tickets);
+      if (Array.isArray(data.logs)) logs.value = sanitizeAndDeduplicateLogs(data.logs);
       if (Array.isArray(data.transactions) && data.transactions.length > 0) transactions.value = data.transactions;
       if (Array.isArray(data.academicPeriods) && data.academicPeriods.length > 0) academicPeriods.value = data.academicPeriods;
       if (Array.isArray(data.ticketStock) && data.ticketStock.length > 0) ticketStock.value = data.ticketStock;
@@ -692,6 +735,10 @@ if (typeof window !== 'undefined') {
     scheduleNextPoll();
   });
 
+  window.addEventListener('focus', () => {
+    fetchStateFromServer();
+  });
+
   // Cross-tab / cross-window instant synchronization listener
   window.addEventListener('storage', (e: StorageEvent) => {
     if (!e.newValue) return;
@@ -702,7 +749,8 @@ if (typeof window !== 'undefined') {
       } else if (e.key === STORAGE_KEYS.USERS) {
         const parsed = JSON.parse(e.newValue);
         if (Array.isArray(parsed)) {
-          users.value = ensureSeedUsers(parsed);
+          const filtered = parsed.filter((u: any) => u && !deletedUserIds.value.has(u.id));
+          users.value = ensureSeedUsers(filtered);
           validateAndSyncSession();
         }
       } else if (e.key === STORAGE_KEYS.STUDENT_RECORDS) {
@@ -731,6 +779,7 @@ watch(academicPeriods, val => {
 }, { deep: true });
 
 watch(users, val => {
+  safeLocalStorageSetItem(STORAGE_KEYS.USERS, JSON.stringify(val));
   if (isSyncingFromServer) return;
   localWriteTimestamp = Date.now();
   validateAndSyncSession();
@@ -744,6 +793,7 @@ watch(studentRecords, () => {
 }, { deep: true });
 
 watch(events, val => {
+  safeLocalStorageSetItem(STORAGE_KEYS.EVENTS, JSON.stringify(val));
   if (isSyncingFromServer) return;
   localWriteTimestamp = Date.now();
   if (!val || val.length === 0) {
@@ -854,9 +904,8 @@ export function useAppStore() {
         const matchCourse = (ticket.course || '').toLowerCase().includes(q);
         const matchYear = (ticket.yearLevel || '').toLowerCase().includes(q);
         const matchSection = (ticket.section || '').toLowerCase().includes(q);
-        const matchEmail = (ticket.attendeeEmail || '').toLowerCase().includes(q);
         const matchOriginal = (ticket.originalOwnerName || '').toLowerCase().includes(q);
-        if (!matchId && !matchNum && !matchName && !matchStudentId && !matchCourse && !matchYear && !matchSection && !matchEmail && !matchOriginal) {
+        if (!matchId && !matchNum && !matchName && !matchStudentId && !matchCourse && !matchYear && !matchSection && !matchOriginal) {
           return false;
         }
       }
@@ -1038,26 +1087,51 @@ export function useAppStore() {
     return { success: true, event: merged };
   };
 
-  const deleteEvent = (id: string) => {
+  const deleteEvent = async (id: string): Promise<{ success: boolean; message?: string; mode?: string; error?: string }> => {
     if (!currentUser.value || currentUser.value.role !== 'admin') {
       sounds.playError();
       return { success: false, message: '403 Forbidden: Only Administrators can delete events.' };
     }
 
-    events.value = events.value.filter(e => e.id !== id);
-    if (currentEvent.value && currentEvent.value.id === id) {
-      currentEvent.value = events.value[0] || null;
-      if (currentEvent.value) {
-        localStorage.setItem(STORAGE_KEYS.CURRENT_EVENT, JSON.stringify(currentEvent.value));
-      } else {
-        localStorage.removeItem(STORAGE_KEYS.CURRENT_EVENT);
+    try {
+      const res = await fetch(apiUrl('/api/events/delete'), {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        sounds.playError();
+        return { success: false, message: data.error || data.message || 'Failed to delete event on the server.' };
       }
+
+      // 1. Remove event from active events list ONLY AFTER server confirms success
+      events.value = events.value.filter(e => e.id !== id);
+      safeLocalStorageSetItem(STORAGE_KEYS.EVENTS, JSON.stringify(events.value));
+
+      // 2. Switch currentEvent if the deleted event was currently selected
+      if (currentEvent.value && currentEvent.value.id === id) {
+        const remainingActive = events.value.filter(e => e.id !== id && (e.status === 'ongoing' || e.status === 'upcoming'));
+        currentEvent.value = remainingActive[0] || events.value[0] || null;
+        if (currentEvent.value) {
+          safeLocalStorageSetItem(STORAGE_KEYS.CURRENT_EVENT, JSON.stringify(currentEvent.value));
+        } else {
+          localStorage.removeItem(STORAGE_KEYS.CURRENT_EVENT);
+        }
+      }
+
+      // 3. Clear local ticket stock if permanently deleted
+      if (data.mode === 'permanent') {
+        ticketStock.value = ticketStock.value.filter(s => s.eventId !== id);
+      }
+
+      // Historical tickets, transactions, and logs are safely preserved for reporting & audit
+      sounds.playSuccess();
+      return { success: true, message: data.message || 'Event successfully deleted.', mode: data.mode };
+    } catch (err: any) {
+      sounds.playError();
+      return { success: false, message: 'Network error: Failed to communicate with server.' };
     }
-    // Also remove tickets, transactions, and logs belonging to the deleted event
-    tickets.value = tickets.value.filter(t => t.eventId !== id);
-    transactions.value = transactions.value.filter(tx => tx.eventId !== id);
-    logs.value = logs.value.filter(l => l.eventId !== id);
-    return { success: true };
   };
 
   const archiveEvent = (id: string) => {
@@ -1127,30 +1201,35 @@ export function useAppStore() {
     course?: string;
     yearLevel?: string;
     section?: string;
-    email?: string;
     department?: string;
     photoUrl?: string;
     userId?: string;
+    lastName?: string;
+    suffix?: string;
+    firstName?: string;
+    middleName?: string;
   }): StudentRecord => {
     const cleanStudentId = normalizeId(data.studentId);
     const existingIdx = studentRecords.value.findIndex(
       r => normalizeId(r.studentId).toLowerCase() === cleanStudentId.toLowerCase()
     );
     const parsedName = splitFullName(data.name.trim());
+    const explicitLastName = data.lastName?.trim();
+    const explicitSuffix = data.suffix?.trim();
     
     if (existingIdx !== -1) {
       const existing = studentRecords.value[existingIdx];
       const updated: StudentRecord = {
         ...existing,
         name: data.name.trim() || existing.name,
-        firstName: parsedName.firstName || existing.firstName,
-        middleName: parsedName.middleName || existing.middleName,
-        lastName: parsedName.lastName || existing.lastName,
+        firstName: data.firstName?.trim() || existing.firstName || parsedName.firstName,
+        middleName: data.middleName?.trim() || existing.middleName || parsedName.middleName,
+        lastName: explicitLastName || existing.lastName || parsedName.lastName,
+        suffix: explicitSuffix || existing.suffix || parsedName.suffix,
         course: data.course?.trim() || existing.course,
         yearLevel: data.yearLevel?.trim() || existing.yearLevel,
         section: data.section?.trim() || existing.section,
         department: data.department?.trim() || existing.department,
-        email: data.email?.trim() || existing.email,
         photoUrl: data.photoUrl || existing.photoUrl,
         userId: data.userId || existing.userId,
       };
@@ -1162,14 +1241,14 @@ export function useAppStore() {
       id: `rec-${cleanStudentId}`,
       studentId: cleanStudentId,
       name: data.name.trim(),
-      firstName: parsedName.firstName,
-      middleName: parsedName.middleName,
-      lastName: parsedName.lastName,
+      firstName: data.firstName?.trim() || parsedName.firstName,
+      middleName: data.middleName?.trim() || parsedName.middleName,
+      lastName: explicitLastName || parsedName.lastName,
+      suffix: explicitSuffix || parsedName.suffix,
       course: data.course?.trim() || 'BSIT',
       yearLevel: data.yearLevel?.trim() || '1st Year',
       section: data.section?.trim() || '11M1',
       department: data.department?.trim() || `College of ${data.course?.trim() || 'Computer Studies'}`,
-      email: data.email?.trim() || `${data.name.toLowerCase().replace(/[^a-z0-9]/g, '.')}@student.edu.ph`,
       photoUrl: data.photoUrl,
       createdAt: new Date().toISOString(),
       userId: data.userId,
@@ -1186,8 +1265,9 @@ export function useAppStore() {
     course: string;
     yearLevel: string;
     section: string;
-    email?: string;
     department?: string;
+    lastName?: string;
+    suffix?: string;
   }): StudentRecord => {
     return saveStudentRecord(data);
   };
@@ -1201,11 +1281,12 @@ export function useAppStore() {
     studentOverride?: {
       studentId?: string;
       name?: string;
+      lastName?: string;
+      suffix?: string;
       course?: string;
       yearLevel?: string;
       section?: string;
       department?: string;
-      email?: string;
       attendeeType?: AttendeeType;
       contactNumber?: string;
       cashReceived?: number | string;
@@ -1218,7 +1299,6 @@ export function useAppStore() {
     accountCreated?: boolean;
     notifications?: {
       sms?: { status: string; details: string; recipient?: string };
-      email?: { status: string; details: string; recipient?: string };
     };
     outsiderAccount?: {
       created: boolean;
@@ -1249,7 +1329,6 @@ export function useAppStore() {
     const yearLevel = isOutsider ? undefined : (studentOverride?.yearLevel || '1st Year');
     const section = isOutsider ? undefined : (studentOverride?.section || '11M1');
     const department = isOutsider ? 'General Public / Guest' : (studentOverride?.department || 'College of Computer Studies');
-    const email = studentOverride?.email || (isOutsider ? undefined : `${studentName.toLowerCase().replace(/[^a-z0-9]/g, '.')}@student.edu.ph`);
     const contactNumber = studentOverride?.contactNumber;
     const targetEventId = targetEvent ? targetEvent.id : eventId;
 
@@ -1310,17 +1389,6 @@ export function useAppStore() {
           };
         }
       }
-      if (email) {
-        const emailVal = validateEmailFormat(email, false);
-        if (!emailVal.isValid) {
-          sounds.playError();
-          return {
-            success: false,
-            message: emailVal.error || 'Invalid email format.',
-            ticket: null as any
-          };
-        }
-      }
     }
 
     // 1. Authoritatively resolve/sync student record in enrollment roster & Auto-Provision Account
@@ -1338,14 +1406,18 @@ export function useAppStore() {
 
       if (existingRosterRecord) {
         studentRec = existingRosterRecord;
+        if (!studentRec.lastName && studentOverride?.lastName) {
+          studentRec.lastName = studentOverride.lastName.trim();
+        }
       } else {
         studentRec = saveStudentRecord({
           name: studentName,
           studentId: cleanStudentId,
+          lastName: studentOverride?.lastName?.trim(),
+          suffix: studentOverride?.suffix?.trim(),
           course: course || 'BSIT',
           yearLevel: yearLevel || '1st Year',
           section: section || '11M1',
-          email,
           department,
         });
       }
@@ -1357,19 +1429,18 @@ export function useAppStore() {
       ) || (recUserId ? users.value.find(u => u.id === recUserId) : null) || null;
 
       if (!existingUserAccount && studentRec) {
-        // Automatically create ONE Student login account with initial temporary password set to official surname
+        // Automatically create ONE Student login account with authoritative surname initial password
         const parsedName = splitFullName(studentRec.name.trim());
-        const cleanEmail = studentRec.email || email || `${cleanStudentId.toLowerCase()}@student.ncst.edu.ph`;
-        const officialSurname = (studentRec.lastName || parsedName.lastName || 'Student').trim();
-        const initialPassword = officialSurname;
+        const officialSurname = (studentRec.lastName || studentOverride?.lastName || parsedName.lastName || '').trim();
+        const initialPassword = officialSurname || `NCST-${cleanStudentId}`;
 
         const newUser: User = {
           id: `usr-student-${Date.now().toString().slice(-6)}`,
           name: studentRec.name,
           firstName: studentRec.firstName || parsedName.firstName,
           middleName: studentRec.middleName || parsedName.middleName,
-          lastName: studentRec.lastName || parsedName.lastName,
-          email: cleanEmail,
+          lastName: officialSurname || studentRec.lastName,
+          suffix: studentRec.suffix || studentOverride?.suffix || parsedName.suffix,
           role: 'student',
           password: initialPassword,
           studentId: cleanStudentId,
@@ -1406,12 +1477,10 @@ export function useAppStore() {
     if (isOutsider) {
       const guestRef = (studentOverride?.studentId || '').trim();
       const cleanGuestRef = guestRef.toLowerCase();
-      const guestEmail = (studentOverride?.email || '').trim().toLowerCase();
 
       const existingOutsider = users.value.find(u =>
         (u.isOutsider || u.role === 'outsider' || u.attendeeType === 'OUTSIDER') &&
-        ((cleanGuestRef && u.studentId && u.studentId.toLowerCase() === cleanGuestRef) ||
-         (guestEmail && u.email && u.email.toLowerCase() === guestEmail))
+        cleanGuestRef && u.studentId && u.studentId.toLowerCase() === cleanGuestRef
       );
 
       if (existingOutsider) {
@@ -1420,12 +1489,24 @@ export function useAppStore() {
         outsiderAccountId = existingOutsider.studentId || existingOutsider.id;
         outsiderExpiration = existingOutsider.expiresAt;
       } else {
+        const parsedGuestName = splitFullName(studentName.trim());
+        const guestSurname = (studentOverride?.lastName || parsedGuestName.lastName || '').trim();
+        if (!guestSurname) {
+          sounds.playError();
+          return {
+            success: false,
+            message: 'A valid surname could not be identified for guest account provisioning.',
+            ticket: null as any
+          };
+        }
         const transientGuestRef = guestRef || `GUEST-${Math.floor(1000 + Math.random() * 9000)}`;
-        outsiderInitialPassword = `Guest@${Math.random().toString(36).slice(-6).toUpperCase()}`;
+        outsiderInitialPassword = guestSurname;
         const newOutsider: User = {
           id: `usr-guest-${Date.now()}`,
           name: studentName,
-          email: studentOverride?.email?.trim() || `${transientGuestRef.toLowerCase()}@guest.ncst.edu.ph`,
+          firstName: parsedGuestName.firstName,
+          middleName: parsedGuestName.middleName,
+          lastName: guestSurname,
           role: 'outsider',
           attendeeType: 'OUTSIDER',
           isOutsider: true,
@@ -1435,7 +1516,7 @@ export function useAppStore() {
           createdAt: new Date().toISOString(),
           isActive: true,
           accountStatus: 'active',
-          mustChangePassword: false,
+          mustChangePassword: true,
         };
 
         const { expirationDate } = getOutsiderAccountExpirationDate(newOutsider, events.value, tickets.value);
@@ -1527,23 +1608,16 @@ export function useAppStore() {
     // Prepare student notification statuses for newly created accounts (optimistic default)
     let notifications: {
       sms?: { status: string; details: string; recipient?: string };
-      email?: { status: string; details: string; recipient?: string };
     } | undefined = undefined;
 
     if (!isOutsider && accountCreated) {
       const phoneNum = studentOverride?.contactNumber || studentRec?.contactNumber;
-      const emailAddr = studentRec?.email || studentOverride?.email || (studentId ? `${normalizeId(studentId).toLowerCase()}@student.ncst.edu.ph` : undefined);
 
       notifications = {
         sms: {
           status: phoneNum ? 'queued' : 'unavailable',
           details: phoneNum ? `SMS notification queued for ${phoneNum}.` : 'Registered mobile number unavailable.',
           recipient: phoneNum,
-        },
-        email: {
-          status: emailAddr ? 'queued' : 'unavailable',
-          details: emailAddr ? `Official email queued for ${emailAddr}.` : 'Official NCST email address unavailable.',
-          recipient: emailAddr,
         },
       };
     }
@@ -1564,12 +1638,13 @@ export function useAppStore() {
             attendeeType: calculatedAttendeeType,
             studentId: isOutsider ? undefined : studentId,
             name: studentName,
+            lastName: studentRec?.lastName || studentOverride?.lastName,
+            suffix: studentRec?.suffix || studentOverride?.suffix,
             course,
             yearLevel,
             section,
             department,
             contactNumber,
-            email,
             price,
             idempotencyKey: clientTxId,
             guestReference: isOutsider ? (studentOverride?.studentId || outsiderAccountId) : undefined,
@@ -1583,8 +1658,7 @@ export function useAppStore() {
             ...data.ticket,
             firstName: existingUserAccount?.firstName || studentRec?.firstName || parsedName.firstName,
             middleName: existingUserAccount?.middleName || studentRec?.middleName || parsedName.middleName,
-            lastName: existingUserAccount?.lastName || studentRec?.lastName || parsedName.lastName,
-            attendeeEmail: email,
+            lastName: existingUserAccount?.lastName || studentRec?.lastName || studentOverride?.lastName || parsedName.lastName,
             attendeeDepartment: department,
             course,
             yearLevel,
@@ -1620,7 +1694,6 @@ export function useAppStore() {
             yearLevel,
             section,
             contactNumber,
-            userEmail: email,
             eventId: targetEvent ? targetEvent.id : eventId,
             eventTitle: targetEvent ? targetEvent.title : 'Event',
             ticketId: serverTicket.id,
@@ -1637,19 +1710,22 @@ export function useAppStore() {
           transactions.value.unshift(serverTxn);
 
           sounds.playSuccess();
+          // Automatically refresh authoritative backend sales summary for the affected event
+          fetchTicketSalesSummary(targetEventId).catch(() => {});
+
           return {
             success: true,
             message: `Ticket #${serverTicket.ticketNumber} generated successfully for ${studentRec?.name || studentName}!`,
             ticket: serverTicket,
             accountCreated: data.accountCreated ?? accountCreated,
             notifications: data.notifications ?? notifications,
-            outsiderAccount: isOutsider ? {
+            outsiderAccount: isOutsider ? (data.outsiderAccount || {
               created: outsiderAccountCreated,
               accountId: outsiderAccountId,
               initialPassword: outsiderInitialPassword,
-              instructions: 'Use your Account ID and initial password to access your temporary event pass.',
+              instructions: 'Provide these credentials to the guest now. Initial password is their official surname. Password change is required upon first login.',
               expirationDate: outsiderExpiration,
-            } : undefined,
+            }) : undefined,
           };
         } else if (!res.ok || (data && !data.success)) {
           sounds.playError();
@@ -1691,10 +1767,9 @@ export function useAppStore() {
       currentAttendeeName: studentName,
       firstName: existingUserAccount?.firstName || studentRec?.firstName || parsedName.firstName,
       middleName: existingUserAccount?.middleName || studentRec?.middleName || parsedName.middleName,
-      lastName: existingUserAccount?.lastName || studentRec?.lastName || parsedName.lastName,
+      lastName: existingUserAccount?.lastName || studentRec?.lastName || studentOverride?.lastName || parsedName.lastName,
       attendeeStudentId: isOutsider ? undefined : (studentId ? normalizeId(studentId) : undefined),
       outsiderId,
-      attendeeEmail: email,
       attendeeDepartment: department,
       course,
       yearLevel,
@@ -1728,7 +1803,6 @@ export function useAppStore() {
       yearLevel,
       section,
       contactNumber,
-      userEmail: email,
       eventId: targetEvent ? targetEvent.id : eventId,
       eventTitle: targetEvent ? targetEvent.title : 'Event',
       ticketId: newTicketNumber,
@@ -1745,6 +1819,9 @@ export function useAppStore() {
     transactions.value.unshift(newTxn);
 
     sounds.playSuccess();
+    // Automatically refresh authoritative sales summary for the affected event
+    fetchTicketSalesSummary(targetEventId).catch(() => {});
+
     return {
       success: true,
       message: `Ticket #${newTicketNumber} generated successfully for ${studentRec?.name || studentName}!`,
@@ -1823,7 +1900,6 @@ export function useAppStore() {
     _ticketId: string,
     _toStudentName: string,
     _toStudentId?: string,
-    _toEmail?: string,
     _reason?: string
   ): { success: boolean; message: string; ticket?: Ticket } => {
     return {
@@ -1925,13 +2001,9 @@ export function useAppStore() {
   };
 
   // User CRUD - Enforces strict ONE PERSON = ONE ACCOUNT
-  const addUser = (userData: Partial<User> & { name: string; email?: string; role: UserRole }): { success: boolean; user?: User; message?: string; conflict?: IdentityConflictResult } => {
-    const fallbackStudentEmail = userData.studentId ? `${normalizeId(userData.studentId).toLowerCase()}@student.ncst.edu.ph` : '';
-    const emailToUse = (userData.email && userData.email.trim()) || (userData.role === 'student' ? fallbackStudentEmail : '');
-
+  const addUser = (userData: Partial<User> & { name: string; role: UserRole }): { success: boolean; user?: User; message?: string; conflict?: IdentityConflictResult } => {
     const candidate = {
       name: userData.name,
-      email: emailToUse,
       role: userData.role,
       studentId: userData.role === 'student' ? userData.studentId : undefined,
       employeeId: userData.role !== 'student' ? (userData.employeeId || userData.studentId) : undefined,
@@ -1950,7 +2022,6 @@ export function useAppStore() {
       firstName: userData.firstName || parsedName.firstName,
       middleName: userData.middleName || parsedName.middleName,
       lastName: userData.lastName || parsedName.lastName,
-      email: normalizeEmail(emailToUse),
       studentId: userData.role === 'student' ? normalizeId(userData.studentId) || undefined : undefined,
       employeeId: userData.role !== 'student' ? normalizeId(userData.employeeId) || undefined : undefined,
       id: userData.id || `usr-${userData.role}-${Date.now().toString(36)}`,
@@ -1958,7 +2029,53 @@ export function useAppStore() {
       isActive: userData.isActive !== false,
     };
 
+    // For student accounts, ensure yearLevel is derived consistently from authoritative section
+    if (newUser.role === 'student' && newUser.section) {
+      newUser.yearLevel = deriveYearLevelFromSection(newUser.section);
+    }
+
     users.value.unshift(newUser);
+
+    // Two-way synchronization: Keep StudentRecord in sync or provision authoritative StudentRecord
+    if (newUser.role === 'student' && newUser.studentId) {
+      const cleanSid = normalizeId(newUser.studentId).toLowerCase();
+      const recIdx = studentRecords.value.findIndex(
+        r => normalizeId(r.studentId).toLowerCase() === cleanSid
+      );
+      const derivedYear = newUser.section ? deriveYearLevelFromSection(newUser.section) : (newUser.yearLevel || '1st Year');
+      if (recIdx !== -1) {
+        studentRecords.value[recIdx] = {
+          ...studentRecords.value[recIdx],
+          name: newUser.name,
+          firstName: newUser.firstName,
+          middleName: newUser.middleName,
+          lastName: newUser.lastName,
+          course: newUser.course || studentRecords.value[recIdx].course,
+          yearLevel: derivedYear || studentRecords.value[recIdx].yearLevel,
+          section: newUser.section || studentRecords.value[recIdx].section,
+          department: newUser.department || studentRecords.value[recIdx].department,
+          photoUrl: newUser.photoUrl || studentRecords.value[recIdx].photoUrl,
+          userId: newUser.id,
+        };
+      } else {
+        studentRecords.value.unshift({
+          id: `rec-${newUser.studentId}`,
+          studentId: newUser.studentId,
+          name: newUser.name,
+          firstName: newUser.firstName,
+          middleName: newUser.middleName,
+          lastName: newUser.lastName,
+          course: newUser.course || 'BSIT',
+          yearLevel: derivedYear,
+          section: newUser.section || '11M1',
+          department: newUser.department || 'CSD',
+          createdAt: newUser.createdAt,
+          userId: newUser.id,
+        });
+      }
+    }
+
+    schedulePushStateToServer(true);
     sounds.playSuccess();
     return { success: true, user: newUser, message: 'Account created successfully.' };
   };
@@ -1973,7 +2090,6 @@ export function useAppStore() {
     const candidate = {
       id,
       name: updates.name !== undefined ? updates.name : current.name,
-      email: updates.email !== undefined ? updates.email : current.email,
       role: updates.role !== undefined ? updates.role : current.role,
       studentId: (updates.role || current.role) === 'student'
         ? (updates.studentId !== undefined ? updates.studentId : current.studentId)
@@ -1997,7 +2113,6 @@ export function useAppStore() {
       firstName: updates.firstName || parsedName?.firstName || current.firstName,
       middleName: updates.middleName || parsedName?.middleName || current.middleName,
       lastName: updates.lastName || parsedName?.lastName || current.lastName,
-      email: updates.email !== undefined ? normalizeEmail(updates.email) : current.email,
       studentId: (updates.role || current.role) === 'student'
         ? (updates.studentId !== undefined ? (normalizeId(updates.studentId) || undefined) : current.studentId)
         : undefined,
@@ -2024,9 +2139,8 @@ export function useAppStore() {
           firstName: updatedUser.firstName,
           middleName: updatedUser.middleName,
           lastName: updatedUser.lastName,
-          email: updatedUser.email,
           course: updatedUser.course || studentRecords.value[recIdx].course,
-          yearLevel: updatedUser.yearLevel || studentRecords.value[recIdx].yearLevel,
+          yearLevel: (updatedUser.section ? deriveYearLevelFromSection(updatedUser.section) : updatedUser.yearLevel) || studentRecords.value[recIdx].yearLevel,
           section: updatedUser.section || studentRecords.value[recIdx].section,
           department: updatedUser.department || studentRecords.value[recIdx].department,
           photoUrl: updatedUser.photoUrl || studentRecords.value[recIdx].photoUrl,
@@ -2063,20 +2177,57 @@ export function useAppStore() {
     };
   };
 
-  const deleteUser = (id: string) => {
-    users.value = users.value.filter(u => u.id !== id);
-    if (currentUser.value && currentUser.value.id === id) {
-      currentUser.value = null;
+  const deleteUser = async (id: string): Promise<{ success: boolean; message?: string; mode?: string; error?: string }> => {
+    if (!currentUser.value || currentUser.value.role !== 'admin') {
+      sounds.playError();
+      return { success: false, message: '403 Forbidden: Only Administrators can delete user accounts.' };
+    }
+
+    if (currentUser.value.id === id) {
+      sounds.playError();
+      return { success: false, message: 'Action rejected: You cannot delete your own active administrator account.' };
+    }
+
+    try {
+      const res = await fetch(apiUrl('/api/users/delete'), {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        sounds.playError();
+        return { success: false, message: data.error || data.message || 'Failed to delete user account on the server.' };
+      }
+
+      // Add to tracked deleted tombstones
+      recordDeletedUserId(id);
+
+      // Remove user from active users list ONLY AFTER server confirms success
+      users.value = users.value.filter(u => u.id !== id);
+      safeLocalStorageSetItem(STORAGE_KEYS.USERS, JSON.stringify(users.value));
+
+      if (currentUser.value && currentUser.value.id === id) {
+        currentUser.value = null;
+        localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+        localStorage.removeItem(STORAGE_KEYS.SESSION_TOKEN);
+      }
+
+      sounds.playSuccess();
+      return { success: true, message: data.message || 'User account successfully deleted.', mode: data.mode };
+    } catch (err: any) {
+      sounds.playError();
+      return { success: false, message: 'Network error: Failed to communicate with server.' };
     }
   };
 
   // QR Scanning & Attendance Validation Engine with Real-Time Student vs Outsider Classification
-  const validateAndRecordScan = (
+  const validateAndRecordScan = async (
     rawScanData: string,
     isSimulation: any = false,
     _deprecatedArea?: any,
     _deprecatedScanType?: any
-  ): ScanValidationResult => {
+  ): Promise<ScanValidationResult> => {
     let actualIsSimulation = false;
     if (typeof isSimulation === 'boolean') {
       actualIsSimulation = isSimulation;
@@ -2198,116 +2349,167 @@ export function useAppStore() {
       }
     }
 
-    // CHECK 5: Does the ticket exist in the database?
-    if (!ticket) {
-      return recordDenied(`INVALID TICKET: Ticket number or QR token "${ticketTokenToLookup}" not found in database.`);
-    }
-
-    // CHECK 6: Does the QR ticket belong to the selected event?
-    if (currentEvent.value && ticket.eventId !== currentEvent.value.id) {
-      const actualEvent = events.value.find(e => e.id === ticket.eventId);
-      return recordDenied(
-        `WRONG EVENT: This ticket is registered for "${actualEvent ? actualEvent.title : ticket.eventId}", not for "${currentEvent.value.title}".`
-      );
-    }
-
-    // CHECK 7: Is the ticket active / valid / paid?
-    const tStatus = (ticket.ticketStatus || '').toUpperCase();
-    if (tStatus === 'CANCELLED' || tStatus === 'REFUNDED' || tStatus === 'VOID') {
-      return recordDenied(`TICKET NOT VALID: This ticket has been marked as ${tStatus} and is void.`);
-    }
-
-    // CHECK 8: Validate Registered Ticket Owner
-    const ownerName = (ticket.currentAttendeeName || ticket.originalOwnerName || '').trim();
-    const ownerId = (ticket.attendeeStudentId || ticket.currentAttendeeId || ticket.outsiderId || '').trim();
-    if (!ownerName && !ownerId) {
-      return recordDenied('INVALID OWNER: Ticket does not have a verified registered owner record.');
-    }
-
-    // Determine exact Attendee Type: STUDENT vs OUTSIDER
-    const isStudentAccount = !!(ticket.attendeeStudentId || users.value.some(u => u.studentId === ticket.attendeeStudentId && u.role === 'student'));
-    const classification: AttendeeType = ticket.attendeeType || (isStudentAccount ? 'STUDENT' : 'OUTSIDER');
-
-    // CHECK 9: Has the ticket already been used? (Duplicate Scan Protection on Venue Entry)
-    if (ticket.attendanceStatus === 'present' || tStatus === 'USED') {
-      const prevScanTime = ticket.timeIn ? new Date(ticket.timeIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Earlier';
-      return recordDenied(
-        `⚠️ TICKET ALREADY USED: Scanned at ${prevScanTime} by ${ticket.lastScannedBy || 'Event Staff'}. Attendee: ${ticket.currentAttendeeName} [${classification}].`
-      );
-    }
-
-    // ALL CHECKS PASSED: ENTRY ALLOWED & ATTENDANCE RECORDED IN REAL TIME
-    const updatedTicket: Ticket = {
-      ...ticket,
-      attendeeType: classification,
-      ticketStatus: 'USED',
-      attendanceStatus: 'present',
-      timeIn: ticket.timeIn || timestamp,
-      lastScannedBy: scannerName,
-    };
-
-    if (!actualIsSimulation) {
-      const idx = tickets.value.findIndex(t => t.id === ticket.id);
-      if (idx !== -1) tickets.value[idx] = updatedTicket;
-
-      const parsedLogName = splitFullName(ticket.currentAttendeeName);
-      const successLog: AttendanceLog = {
-        id: `log-${Date.now()}`,
-        ticketId: ticket.id,
-        ticketNumber: ticket.ticketNumber || ticket.id,
-        eventId: targetEvent ? targetEvent.id : 'unknown',
-        eventTitle: targetEvent ? targetEvent.title : 'Event',
-        attendeeType: classification,
-        attendeeName: ticket.currentAttendeeName,
-        firstName: ticket.firstName || parsedLogName.firstName,
-        middleName: ticket.middleName || parsedLogName.middleName,
-        lastName: ticket.lastName || parsedLogName.lastName,
-        studentId: classification === 'STUDENT' ? ticket.attendeeStudentId : undefined,
-        outsiderId: classification === 'OUTSIDER' ? (ticket.outsiderId || ticket.id) : undefined,
-        course: classification === 'STUDENT' ? ticket.course : undefined,
-        yearLevel: classification === 'STUDENT' ? ticket.yearLevel : undefined,
-        section: classification === 'STUDENT' ? ticket.section : undefined,
-        contactNumber: ticket.contactNumber,
-        ticketType: ticket.ticketType,
-        timestamp,
-        date: new Date(timestamp).toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' }),
-        timeIn: new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        verifiedById: scannerId,
-        verifiedByName: scannerName,
-        status: 'valid',
-        academicYear: targetEvent?.academicYear || ticket.academicYear || '2026-2027',
-        semester: targetEvent?.semester || ticket.semester || '1st Semester',
-      };
-      logs.value.unshift(successLog);
-      sounds.vibrateSuccess();
-
-      const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
-      if (isOffline) {
-        useOfflineScanner().enqueueScan({
-          rawScanData: ticketTokenToLookup,
-          eventId: targetEvent ? targetEvent.id : undefined,
-          scannerUserId: scannerId,
-          scannerName,
-          ticketId: ticket.id,
-          ticketNumber: ticket.ticketNumber,
-          attendeeName: ticket.currentAttendeeName,
-        });
+    if (actualIsSimulation) {
+      // In simulation mode, perform local validation without backend write
+      if (!ticket) {
+        return recordDenied(`INVALID TICKET: Ticket number or QR token "${ticketTokenToLookup}" not found in database.`);
       }
-    } else {
+      if (currentEvent.value && ticket.eventId !== currentEvent.value.id) {
+        return recordDenied(`WRONG EVENT: This ticket is registered for a different event.`);
+      }
+      const tStatus = (ticket.ticketStatus || '').toUpperCase();
+      if (tStatus === 'CANCELLED' || tStatus === 'REFUNDED' || tStatus === 'VOID') {
+        return recordDenied(`TICKET NOT VALID: This ticket has been marked as ${tStatus} and is void.`);
+      }
+      if (ticket.attendanceStatus === 'present' || tStatus === 'USED') {
+        return recordDenied(`⚠️ TICKET ALREADY USED: Scanned previously.`);
+      }
       sounds.vibrateSuccess();
+      return {
+        isValid: true,
+        status: 'valid',
+        reason: '[TEST MODE] Simulated Scan Preview (No real attendance recorded)',
+        attendeeType: ticket.attendeeType || 'STUDENT',
+        ticket,
+        event: targetEvent,
+        timestamp,
+      };
     }
 
-    return {
-      isValid: true,
-      status: 'valid',
-      reason: actualIsSimulation ? '[TEST MODE] Simulated Scan Preview (No real attendance recorded)' : undefined,
-      attendeeType: classification,
-      ticket: updatedTicket,
-      event: targetEvent,
-      timestamp,
-      timeInFormatted: new Date(updatedTicket.timeIn!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-      isOfflineRecorded: typeof navigator !== 'undefined' && !navigator.onLine,
-    };
+    // Check if device is offline: Queue scan and report clear sync state
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+    if (isOffline) {
+      sounds.vibrateWarning();
+      useOfflineScanner().enqueueScan({
+        rawScanData: ticketTokenToLookup,
+        eventId: targetEvent ? targetEvent.id : undefined,
+        scannerUserId: scannerId,
+        scannerName,
+        ticketId: ticket?.id,
+        ticketNumber: ticket?.ticketNumber,
+        attendeeName: ticket?.currentAttendeeName,
+      });
+      return {
+        isValid: false,
+        status: 'denied',
+        reason: 'OFFLINE MODE: Ticket scan queued locally. Official attendance will be recorded once connection to server is restored.',
+        attendeeType: ticket?.attendeeType,
+        ticket,
+        event: targetEvent,
+        timestamp,
+        isOfflineRecorded: true,
+      };
+    }
+
+    // Authoritative Server-Side Scan Validation & Atomic Persistence
+    try {
+      const response = await fetch(apiUrl('/api/scan-ticket'), {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          rawScanData: ticketTokenToLookup,
+          eventId: currentEvent.value?.id || targetEvent?.id,
+        }),
+      });
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok || !data?.success) {
+        const errorReason = data?.error || 'Validation failed with server.';
+        return recordDenied(errorReason);
+      }
+
+      // Authoritative Backend Confirmation Received
+      let updatedTicket: Ticket;
+      if (data.ticket) {
+        updatedTicket = normalizeTicket(data.ticket);
+        const idx = tickets.value.findIndex(t => t.id === updatedTicket.id || t.ticketNumber === updatedTicket.ticketNumber);
+        if (idx !== -1) {
+          tickets.value[idx] = updatedTicket;
+        } else {
+          tickets.value.unshift(updatedTicket);
+        }
+      } else {
+        const phtTime = data.time_in || timestamp;
+        updatedTicket = {
+          ...(ticket || {} as any),
+          ticketStatus: 'USED',
+          attendanceStatus: 'present',
+          timeIn: phtTime,
+          lastScannedBy: data.verified_by || scannerName,
+        };
+        if (ticket) {
+          const idx = tickets.value.findIndex(t => t.id === ticket!.id);
+          if (idx !== -1) tickets.value[idx] = updatedTicket;
+        }
+      }
+
+      let successLog: AttendanceLog;
+      if (data.log) {
+        successLog = data.log;
+      } else {
+        const parsedLogName = splitFullName(updatedTicket.currentAttendeeName);
+        successLog = {
+          id: `log-${Date.now()}`,
+          ticketId: updatedTicket.id,
+          ticketNumber: updatedTicket.ticketNumber || updatedTicket.id,
+          eventId: targetEvent ? targetEvent.id : 'unknown',
+          eventTitle: targetEvent ? targetEvent.title : 'Event',
+          attendeeType: updatedTicket.attendeeType || 'STUDENT',
+          attendeeName: updatedTicket.currentAttendeeName,
+          firstName: updatedTicket.firstName || parsedLogName.firstName,
+          middleName: updatedTicket.middleName || parsedLogName.middleName,
+          lastName: updatedTicket.lastName || parsedLogName.lastName,
+          studentId: updatedTicket.attendeeStudentId,
+          course: updatedTicket.course,
+          yearLevel: updatedTicket.yearLevel,
+          section: updatedTicket.section,
+          contactNumber: updatedTicket.contactNumber,
+          ticketType: updatedTicket.ticketType,
+          timestamp,
+          date: new Date().toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' }),
+          timeIn: data.time_in || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          verifiedById: scannerId,
+          verifiedByName: data.verified_by || scannerName,
+          status: 'valid',
+          academicYear: targetEvent?.academicYear || updatedTicket.academicYear || '2026-2027',
+          semester: targetEvent?.semester || updatedTicket.semester || '1st Semester',
+        };
+      }
+
+      const existingLogIdx = logs.value.findIndex(l => 
+        (l.id && successLog.id && l.id === successLog.id) ||
+        (l.ticketId === successLog.ticketId && l.status === 'valid')
+      );
+      if (existingLogIdx !== -1) {
+        logs.value[existingLogIdx] = successLog;
+      } else {
+        logs.value.unshift(successLog);
+      }
+
+      sounds.vibrateSuccess();
+
+      return {
+        isValid: true,
+        status: 'valid',
+        attendeeType: updatedTicket.attendeeType,
+        ticket: updatedTicket,
+        event: targetEvent,
+        timestamp,
+        timeInFormatted: data.time_in || (updatedTicket.timeIn ? new Date(updatedTicket.timeIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : undefined),
+      };
+    } catch (_netErr: any) {
+      sounds.vibrateError();
+      return {
+        isValid: false,
+        status: 'denied',
+        reason: 'Server unreachable. Network connection to authoritative server is required to record attendance.',
+        attendeeType: ticket?.attendeeType,
+        ticket,
+        event: targetEvent,
+        timestamp,
+      };
+    }
   };
 
   const lookupTicketInfo = (query: string) => {
@@ -2454,12 +2656,13 @@ export function useAppStore() {
           sounds.playSuccess();
           return { success: true, message: data.message || `Welcome back, ${serverUser.name}!`, user: serverUser };
         }
-      } else if (res.status === 401 || res.status === 403 || res.status === 409) {
+      } else {
         const data = await res.json().catch(() => ({}));
-        if (data && data.error) {
-          sounds.playError();
-          return { success: false, message: data.error };
-        }
+        sounds.playError();
+        return {
+          success: false,
+          message: data?.error || (res.status === 429 ? 'Too many login attempts. Please wait before trying again.' : 'Invalid credentials. Please verify your ID Number and password.')
+        };
       }
     } catch {
       // Server offline or unreachable: fall back to local store
@@ -2487,11 +2690,11 @@ export function useAppStore() {
     }
 
     const isGuest = isOutsiderUser(foundUser) || foundUser.role === 'outsider';
-    const userSurname = (foundUser.lastName || splitFullName(foundUser.name).lastName || 'Student').trim();
+    const userSurname = (foundUser.lastName || splitFullName(foundUser.name).lastName || '').trim();
     const expectedPassword = (foundUser.password || (foundUser.mustChangePassword ? userSurname : 'password123')).trim();
     const passMatches = cleanPass === expectedPassword ||
-      (foundUser.mustChangePassword && (cleanPass.toLowerCase() === userSurname.toLowerCase() || cleanPass === 'ncst123')) ||
-      (isGuest && (cleanPass === 'password123' || cleanPass === 'ncst123'));
+      (foundUser.mustChangePassword && Boolean(userSurname) && (cleanPass.toLowerCase() === userSurname.toLowerCase() || cleanPass === 'ncst123')) ||
+      (!foundUser.mustChangePassword && isGuest && (cleanPass === 'password123' || cleanPass === 'ncst123'));
     if (!passMatches) {
       sounds.playError();
       return { success: false, message: 'Invalid password. Please verify your credentials.' };
@@ -2518,6 +2721,8 @@ export function useAppStore() {
   const lookupStudentRecord = async (rawStudentId: string): Promise<{
     found: boolean;
     hasExistingAccount: boolean;
+    accountStatus?: string;
+    isAuthoritative?: boolean;
     student?: StudentRecord;
     message: string;
   }> => {
@@ -2526,26 +2731,11 @@ export function useAppStore() {
       return { found: false, hasExistingAccount: false, message: 'Student ID Number is required.' };
     }
 
-    // 1. Check if an account already exists locally or in users
-    const existingUser = users.value.find(
-      u => u.studentId && normalizeId(u.studentId).toLowerCase() === clean.toLowerCase()
-    );
-
-    if (existingUser) {
-      return {
-        found: true,
-        hasExistingAccount: true,
-        message: existingUser.mustChangePassword
-          ? `An account for Student ID ${clean} was automatically created during ticket purchase. Please sign in using your official surname as your initial temporary password to set your permanent password.`
-          : `An account is already registered for Student ID ${clean}. Please log in or use Forgot Password.`,
-      };
-    }
-
-    // 2. Query authoritative backend endpoint
+    // 1. Query authoritative backend endpoint
     try {
       const res = await fetch(apiUrl('/api/lookup-student'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ studentId: clean }),
       });
       if (res.ok) {
@@ -2554,6 +2744,8 @@ export function useAppStore() {
           return {
             found: data.found,
             hasExistingAccount: data.hasExistingAccount,
+            accountStatus: data.accountStatus,
+            isAuthoritative: data.isAuthoritative,
             student: data.student,
             message: data.message,
           };
@@ -2561,12 +2753,15 @@ export function useAppStore() {
       }
     } catch {}
 
-    // 3. Fallback to client-synchronized studentRecords
+    // 2. Fallback to client-synchronized users and studentRecords (offline fallback)
+    const existingUser = users.value.find(
+      u => u.studentId && normalizeId(u.studentId).toLowerCase() === clean.toLowerCase()
+    );
     const record = studentRecords.value.find(
       r => normalizeId(r.studentId).toLowerCase() === clean.toLowerCase()
     );
 
-    if (!record) {
+    if (!existingUser && !record) {
       return {
         found: false,
         hasExistingAccount: false,
@@ -2574,20 +2769,43 @@ export function useAppStore() {
       };
     }
 
+    const canonicalName = record?.name || existingUser?.name || '';
+    const canonicalStudentId = record?.studentId || existingUser?.studentId || clean;
+    const canonicalLastName = record?.lastName || (record as any)?.last_name || existingUser?.lastName || (existingUser as any)?.last_name || '';
+    const canonicalCourse = record?.course || existingUser?.course || 'BSIT';
+    const canonicalYear = record?.yearLevel || existingUser?.yearLevel || '1st Year';
+    const canonicalSection = record?.section || existingUser?.section || '11M1';
+    const canonicalDept = record?.department || existingUser?.department || 'CSD';
+
+    const hasAccount = !!existingUser;
+    const isAuthoritative = !!record;
+
     return {
       found: true,
-      hasExistingAccount: false,
+      hasExistingAccount: hasAccount,
+      accountStatus: hasAccount ? (existingUser.accountStatus || 'active') : 'unregistered',
+      isAuthoritative,
       student: {
-        ...record,
+        id: record?.id || existingUser?.id || `rec-${clean}`,
+        studentId: canonicalStudentId,
+        name: canonicalName,
+        firstName: record?.firstName || existingUser?.firstName,
+        middleName: record?.middleName || existingUser?.middleName,
+        lastName: canonicalLastName,
+        course: canonicalCourse,
+        yearLevel: canonicalYear,
+        section: canonicalSection,
+        department: canonicalDept,
+        createdAt: record?.createdAt || existingUser?.createdAt || new Date().toISOString(),
       },
-      message: 'Student Record Found',
+      message: hasAccount
+        ? `An account is already registered for Student ID ${clean}.`
+        : 'Student Record Found',
     };
   };
 
   const sendStudentVerificationCode = async (rawStudentId: string): Promise<{
     success: boolean;
-    maskedEmail?: string;
-    demoCode?: string;
     message: string;
   }> => {
     const clean = normalizeId(rawStudentId);
@@ -2596,8 +2814,7 @@ export function useAppStore() {
     }
     return {
       success: true,
-      demoCode: '123456',
-      message: 'Verification completed.',
+      message: 'Verification code generated.',
     };
   };
 
@@ -2615,7 +2832,6 @@ export function useAppStore() {
 
   const register = async (data: {
     name?: string;
-    email?: string;
     role?: UserRole;
     password: string;
     studentId: string;
@@ -2626,7 +2842,6 @@ export function useAppStore() {
     verificationToken?: string;
   }): Promise<{ success: boolean; message: string; user?: User; conflict?: IdentityConflictResult }> => {
     const cleanStudentId = normalizeId(data.studentId);
-    const cleanEmail = normalizeEmail(data.email || (cleanStudentId ? `${cleanStudentId.toLowerCase()}@student.ncst.edu.ph` : ''));
     const assignedRole: UserRole = 'student'; // Self-registration is strictly for students
 
     if (!cleanStudentId) {
@@ -2684,7 +2899,6 @@ export function useAppStore() {
           yearLevel: data.yearLevel || '1st Year',
           section: data.section || '11M1',
           department: data.department || 'CSD',
-          email: cleanEmail,
           createdAt: new Date().toISOString(),
         };
         studentRecords.value.push(matchedStudentRecord);
@@ -2707,12 +2921,10 @@ export function useAppStore() {
     const finalYear = isAuthoritative ? (matchedStudentRecord.yearLevel || '1st Year') : (data.yearLevel || '1st Year');
     const finalSection = isAuthoritative ? (matchedStudentRecord.section || '11M1') : (data.section || '11M1');
     const finalDept = isAuthoritative ? (matchedStudentRecord.department || 'CSD') : (data.department || 'CSD');
-    const finalEmail = cleanEmail || matchedStudentRecord.email || `${cleanStudentId.toLowerCase()}@student.ncst.edu.ph`;
 
     // Primary Identity Check across ALL roles and ALL statuses (Active & Inactive)
     const conflict = checkUserIdentityConflict({
       name: finalName,
-      email: finalEmail,
       role: assignedRole,
       studentId: cleanStudentId,
     }, users.value);
@@ -2733,7 +2945,6 @@ export function useAppStore() {
       firstName: matchedStudentRecord.firstName || parsedRegName.firstName,
       middleName: matchedStudentRecord.middleName || parsedRegName.middleName,
       lastName: matchedStudentRecord.lastName || parsedRegName.lastName,
-      email: finalEmail,
       role: 'student',
       password: data.password,
       studentId: cleanStudentId,
@@ -2742,14 +2953,15 @@ export function useAppStore() {
       yearLevel: finalYear,
       section: finalSection,
       isActive: true,
-      verificationStatus: isAuthoritative ? 'verified' : 'pending',
-      isVerified: isAuthoritative,
+      accountStatus: 'active',
+      mustChangePassword: false,
+      verificationStatus: 'verified',
+      isVerified: true,
       createdAt: new Date().toISOString(),
     };
 
     // Save/link student record with two-way field synchronization
     matchedStudentRecord.userId = newUser.id;
-    matchedStudentRecord.email = finalEmail;
 
     // Automatically bind all existing tickets issued before account creation to this newly registered account
     tickets.value = tickets.value.map(t => {
@@ -2760,7 +2972,6 @@ export function useAppStore() {
           originalOwnerId: (t.originalOwnerId && (t.originalOwnerId.startsWith('rec-') || t.originalOwnerId.startsWith('usr-guest-') || t.originalOwnerId === t.attendeeStudentId))
             ? newUser.id
             : (t.originalOwnerId || newUser.id),
-          attendeeEmail: cleanEmail,
           firstName: newUser.firstName || t.firstName,
           lastName: newUser.lastName || t.lastName,
         };
@@ -2774,7 +2985,6 @@ export function useAppStore() {
         return {
           ...tx,
           userId: newUser.id,
-          userEmail: cleanEmail,
           userName: newUser.name,
         };
       }
@@ -2810,31 +3020,30 @@ export function useAppStore() {
     return { success: true, message: `Student account created successfully! Welcome, ${newUser.name}.`, user: newUser };
   };
 
-  const resetPassword = (emailOrIdentifier: string, newPasswordParam: string, _legacyParam?: string): { success: boolean; message: string; user?: User } => {
-    const rawInput = emailOrIdentifier.trim();
+  const resetPassword = (identifier: string, newPasswordParam: string, _legacyParam?: string): { success: boolean; message: string; user?: User } => {
+    const rawInput = identifier.trim();
     const newPassword = (_legacyParam !== undefined ? _legacyParam : newPasswordParam).trim();
 
     if (!rawInput) {
       sounds.playError();
-      return { success: false, message: 'Registered email or identifier is required for password reset.' };
+      return { success: false, message: 'Identifier is required for password reset.' };
     }
 
     const cleanInput = rawInput.toLowerCase();
     const cleanId = normalizeId(rawInput).toLowerCase();
 
-    // Match by email, studentId, employeeId, or name across all accounts (students, employees, outsiders)
+    // Match by studentId, employeeId, account id, or name across all accounts
     const targetUser = users.value.find(u => {
-      const emailMatch = u.email && u.email.trim().toLowerCase() === cleanInput;
       const idMatch = (u.studentId && normalizeId(u.studentId).toLowerCase() === cleanId) ||
                       (u.employeeId && normalizeId(u.employeeId).toLowerCase() === cleanId) ||
                       (u.id && u.id.toLowerCase() === cleanInput);
       const nameMatch = u.name && u.name.trim().toLowerCase() === cleanInput;
-      return emailMatch || idMatch || nameMatch;
+      return idMatch || nameMatch;
     });
 
     if (!targetUser) {
       sounds.playError();
-      return { success: false, message: 'No registered account found matching this email or identifier.' };
+      return { success: false, message: 'No registered account found matching this identifier.' };
     }
 
     if (targetUser.isActive === false || targetUser.accountStatus === 'deactivated') {
@@ -2875,73 +3084,9 @@ export function useAppStore() {
     };
   };
 
-  const requestEmailVerification = async (email: string): Promise<{ success: boolean; message?: string; error?: string; dev_verification_code?: string }> => {
-    try {
-      const res = await fetch(apiUrl('/api/auth/request-email-verification'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(sessionToken.value ? {
-            'Authorization': `Bearer ${sessionToken.value}`,
-            'x-session-token': sessionToken.value,
-          } : {})
-        },
-        body: JSON.stringify({ email: email.trim() }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data.success) {
-        sounds.playSuccess();
-        return { success: true, message: data.message, dev_verification_code: data.dev_verification_code };
-      }
-      sounds.playError();
-      return { success: false, error: data.error || 'Failed to send verification code.' };
-    } catch {
-      sounds.playError();
-      return { success: false, error: 'Network error: Unable to contact server for verification code.' };
-    }
-  };
-
-  const verifyRecoveryEmail = async (email: string, code: string): Promise<{ success: boolean; message?: string; error?: string; user?: User }> => {
-    try {
-      const res = await fetch(apiUrl('/api/auth/verify-recovery-email'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(sessionToken.value ? {
-            'Authorization': `Bearer ${sessionToken.value}`,
-            'x-session-token': sessionToken.value,
-          } : {})
-        },
-        body: JSON.stringify({ email: email.trim(), code: code.trim() }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data.success) {
-        if (data.user) {
-          const idx = users.value.findIndex(u => u.id === data.user.id);
-          if (idx !== -1) {
-            users.value[idx] = { ...users.value[idx], ...data.user };
-          }
-          if (currentUser.value && currentUser.value.id === data.user.id) {
-            currentUser.value = { ...currentUser.value, ...data.user };
-            safeLocalStorageSetItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(currentUser.value));
-          }
-        }
-        sounds.playSuccess();
-        return { success: true, message: data.message, user: data.user };
-      }
-      sounds.playError();
-      return { success: false, error: data.error || 'Invalid or expired verification code.' };
-    } catch {
-      sounds.playError();
-      return { success: false, error: 'Network error: Unable to verify recovery email.' };
-    }
-  };
-
   const updateUserPassword = async (
     userId: string, 
-    newPassword: string, 
-    recoveryEmail?: string, 
-    verificationCode?: string
+    newPassword: string
   ): Promise<{ success: boolean; message: string; user?: User }> => {
     const idx = users.value.findIndex(u => u.id === userId);
     if (idx === -1) {
@@ -2965,8 +3110,6 @@ export function useAppStore() {
           },
           body: JSON.stringify({
             newPassword,
-            recoveryEmail: recoveryEmail ? recoveryEmail.trim() : undefined,
-            verificationCode: verificationCode ? verificationCode.trim() : undefined,
           }),
         });
         const data = await res.json().catch(() => ({}));
@@ -2993,11 +3136,6 @@ export function useAppStore() {
       password: newPassword,
       mustChangePassword: false,
       temporaryPassword: undefined,
-      ...(recoveryEmail ? {
-        recoveryEmail: recoveryEmail.trim(),
-        recoveryEmailVerified: true,
-        recoveryEmailVerifiedAt: new Date().toISOString()
-      } : {})
     };
     users.value[idx] = updated;
     if (currentUser.value && currentUser.value.id === userId) {
@@ -3009,29 +3147,168 @@ export function useAppStore() {
     return { success: true, message: 'Password updated successfully!', user: updated };
   };
 
-  const adminResetUserPassword = (targetUserId: string, newPass: string): { success: boolean; message: string; user?: User } => {
+  const adminResetUserPassword = async (targetUserId: string): Promise<{ success: boolean; message: string; user?: User }> => {
     const target = users.value.find(u => u.id === targetUserId);
     if (!target) {
       sounds.playError();
       return { success: false, message: 'Target user account not found.' };
     }
-    if (newPass.length < 4) {
-      sounds.playError();
-      return { success: false, message: 'Password must be at least 4 characters long.' };
+
+    if (sessionToken.value) {
+      try {
+        const res = await fetch(apiUrl('/api/auth/reset-password'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${sessionToken.value}`,
+            'x-session-token': sessionToken.value,
+          },
+          body: JSON.stringify({ userId: targetUserId }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) {
+          sounds.playError();
+          return { success: false, message: data.error || 'Failed to reset password via administrator service.' };
+        }
+
+        const idx = users.value.findIndex(u => u.id === target.id);
+        if (idx !== -1) {
+          users.value[idx] = {
+            ...users.value[idx],
+            mustChangePassword: true,
+            accountStatus: 'active',
+            verificationStatus: 'verified',
+            isVerified: true,
+          };
+        }
+        sounds.playSuccess();
+        return {
+          success: true,
+          message: data.message || `Password for ${target.name} has been reset to temporary initial password.`,
+          user: users.value[idx],
+        };
+      } catch (err: any) {
+        sounds.playError();
+        return { success: false, message: err.message || 'Network error during administrator password reset.' };
+      }
     }
+
     const idx = users.value.findIndex(u => u.id === target.id);
     if (idx !== -1) {
-      users.value[idx] = { ...users.value[idx], password: newPass };
-      if (currentUser.value && currentUser.value.id === target.id) {
-        currentUser.value = { ...currentUser.value, password: newPass };
-      }
+      users.value[idx] = { ...users.value[idx], mustChangePassword: true };
     }
     sounds.playSuccess();
     return {
       success: true,
-      message: `Password for ${target.name} (${target.role.toUpperCase()}) was successfully reset by Administrator.`,
+      message: `Password for ${target.name} has been reset to temporary initial password.`,
       user: target,
     };
+  };
+
+  const setRecoveryPin = async (pin: string): Promise<{ success: boolean; message: string; user?: User }> => {
+    if (!/^\d{4}$/.test(pin.trim())) {
+      sounds.playError();
+      return { success: false, message: 'Recovery PIN must be exactly 4 numeric digits.' };
+    }
+
+    if (sessionToken.value) {
+      try {
+        const res = await fetch(apiUrl('/api/auth/set-recovery-pin'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${sessionToken.value}`,
+            'x-session-token': sessionToken.value,
+          },
+          body: JSON.stringify({ pin: pin.trim() }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) {
+          sounds.playError();
+          return { success: false, message: data.error || 'Failed to save Recovery PIN.' };
+        }
+        if (currentUser.value) {
+          currentUser.value = { ...currentUser.value, hasRecoveryPin: true };
+          safeLocalStorageSetItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(currentUser.value));
+        }
+        sounds.playSuccess();
+        return { success: true, message: data.message || 'Recovery PIN saved successfully.', user: currentUser.value || undefined };
+      } catch (err: any) {
+        sounds.playError();
+        return { success: false, message: err?.message || 'Network error while configuring Recovery PIN.' };
+      }
+    }
+
+    if (currentUser.value) {
+      currentUser.value = { ...currentUser.value, hasRecoveryPin: true };
+      safeLocalStorageSetItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(currentUser.value));
+    }
+    sounds.playSuccess();
+    return { success: true, message: 'Recovery PIN saved successfully.', user: currentUser.value || undefined };
+  };
+
+  const identifyForRecovery = async (identifier: string): Promise<{ success: boolean; error?: string; noPin?: boolean; cooldown?: number; identifier?: string; role?: string; name?: string }> => {
+    const rawId = identifier.trim();
+    if (!rawId) return { success: false, error: 'Please enter your ID Number or Guest Reference Code.' };
+    try {
+      const res = await fetch(apiUrl('/api/auth/forgot-password/identify'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: rawId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        return {
+          success: false,
+          error: data.error || 'Unable to proceed with account recovery. Please verify your ID Number.',
+          noPin: !!data.noPin,
+          cooldown: data.cooldown
+        };
+      }
+      return { success: true, identifier: data.identifier, role: data.role, name: data.name };
+    } catch (err: any) {
+      return { success: false, error: 'Network or server failure. Please check your connection and try again.' };
+    }
+  };
+
+  const verifyRecoveryPin = async (identifier: string, pin: string): Promise<{ success: boolean; error?: string; cooldown?: number; remainingAttempts?: number; resetToken?: string; message?: string }> => {
+    try {
+      const res = await fetch(apiUrl('/api/auth/forgot-password/verify-pin'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: identifier.trim(), pin: pin.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        return {
+          success: false,
+          error: data.error || 'Invalid Recovery PIN.',
+          cooldown: data.cooldown,
+          remainingAttempts: data.remainingAttempts
+        };
+      }
+      return { success: true, resetToken: data.resetToken, message: data.message };
+    } catch (err: any) {
+      return { success: false, error: 'Network or server failure. Please check your connection and try again.' };
+    }
+  };
+
+  const resetPasswordWithPinToken = async (resetToken: string, newPassword: string, confirmPassword: string): Promise<{ success: boolean; error?: string; message?: string }> => {
+    try {
+      const res = await fetch(apiUrl('/api/auth/forgot-password/reset-password'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resetToken, newPassword, confirmPassword }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        return { success: false, error: data.error || 'Failed to reset password.' };
+      }
+      sounds.playSuccess();
+      return { success: true, message: data.message || 'Password reset successful!' };
+    } catch (err: any) {
+      return { success: false, error: 'Network or server failure. Please check your connection and try again.' };
+    }
   };
 
   const importStudents = (studentsList: Array<{
@@ -3040,7 +3317,6 @@ export function useAppStore() {
     course?: string;
     yearLevel?: string;
     section?: string;
-    email?: string;
     department?: string;
   }>): { success: boolean; added: number; updated: number; total: number; message: string; importedClasses: TeacherClassAssignment[] } => {
     let addedCount = 0;
@@ -3085,7 +3361,6 @@ export function useAppStore() {
         yearLevel,
         section,
         department,
-        email: st.email?.trim() || existingRec?.email,
         userId: existingUser ? existingUser.id : existingRec?.userId,
       });
 
@@ -3148,7 +3423,6 @@ export function useAppStore() {
    */
   const createTemporaryOutsiderAccount = (data: {
     name: string;
-    email?: string;
     contactNumber?: string;
     eventId?: string;
     assignedEventIds?: string[];
@@ -3163,7 +3437,6 @@ export function useAppStore() {
     }
 
     const cleanGuestRef = (data.guestReference || `GUEST-${Math.floor(1000 + Math.random() * 9000)}`).trim().toUpperCase();
-    const cleanEmail = (data.email || `${cleanGuestRef.toLowerCase()}@guest.external`).trim().toLowerCase();
     const eventIds = data.assignedEventIds || (data.eventId ? [data.eventId] : []);
 
     const parsedName = splitFullName(cleanName);
@@ -3173,7 +3446,6 @@ export function useAppStore() {
       firstName: parsedName.firstName,
       middleName: parsedName.middleName,
       lastName: parsedName.lastName,
-      email: cleanEmail,
       role: 'student', // Login-compatible role
       attendeeType: 'OUTSIDER',
       isOutsider: true,
@@ -3360,6 +3632,166 @@ export function useAppStore() {
     }
   };
 
+  const fetchTicketSalesSummary = async (filters?: string | {
+    eventId?: string;
+    academicYear?: string;
+    semester?: string;
+    attendeeType?: string;
+    course?: string;
+    yearLevel?: string;
+    section?: string;
+    dateFrom?: string;
+    dateTo?: string;
+  }) => {
+    const filterObj = typeof filters === 'string' ? { eventId: filters } : (filters || {});
+    const params = new URLSearchParams();
+    if (filterObj.eventId && filterObj.eventId !== 'all') params.append('eventId', filterObj.eventId);
+    if (filterObj.academicYear && filterObj.academicYear !== 'all') params.append('academicYear', filterObj.academicYear);
+    if (filterObj.semester && filterObj.semester !== 'all') params.append('semester', filterObj.semester);
+    if (filterObj.attendeeType && filterObj.attendeeType !== 'all') params.append('attendeeType', filterObj.attendeeType);
+    if (filterObj.course && filterObj.course !== 'all') params.append('course', filterObj.course);
+    if (filterObj.yearLevel && filterObj.yearLevel !== 'all') params.append('yearLevel', filterObj.yearLevel);
+    if (filterObj.section && filterObj.section !== 'all') params.append('section', filterObj.section);
+    if (filterObj.dateFrom) params.append('dateFrom', filterObj.dateFrom);
+    if (filterObj.dateTo) params.append('dateTo', filterObj.dateTo);
+
+    const queryString = params.toString();
+    const cacheKey = queryString ? `__FILTER__${queryString}` : (filterObj.eventId || '__GLOBAL__');
+
+    try {
+      const url = apiUrl(`/api/tickets/sales-summary${queryString ? `?${queryString}` : ''}`);
+      const res = await fetch(url, {
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.summary) {
+          const s = data.summary;
+          const paidStudent = Number(s.paidStudentTicketsSold ?? s.studentTicketsSold ?? 0);
+          const paidOutsider = Number(s.paidOutsiderTicketsSold ?? s.outsiderTicketsSold ?? 0);
+          const totalPaid = Number(s.totalPaidTicketsSold ?? (paidStudent + paidOutsider));
+          const freeIssued = Number(s.freeTicketsIssued ?? s.freeTicketsSold ?? 0);
+          const freeStudent = Number(s.freeStudentTickets ?? 0);
+          const freeOutsider = Number(s.freeOutsiderTickets ?? 0);
+          const totalValid = Number(s.totalValidTicketsIssued ?? (totalPaid + freeIssued));
+          const totalRevenue = Number(s.totalCollectedSales ?? s.totalRevenue ?? 0);
+          const totalStudent = Number(s.totalStudentTickets ?? (paidStudent + freeStudent));
+          const totalOutsider = Number(s.totalOutsiderTickets ?? (paidOutsider + freeOutsider));
+
+          const result: TicketSalesSummary = {
+            paidStudentTicketsSold: paidStudent,
+            paidOutsiderTicketsSold: paidOutsider,
+            totalPaidTicketsSold: totalPaid,
+            freeTicketsIssued: freeIssued,
+            freeStudentTickets: freeStudent,
+            freeOutsiderTickets: freeOutsider,
+            totalValidTicketsIssued: totalValid,
+            totalCollectedSales: totalRevenue,
+            totalStudentTickets: totalStudent,
+            totalOutsiderTickets: totalOutsider,
+            // Backwards-compatible aliases:
+            studentTicketsSold: paidStudent,
+            outsiderTicketsSold: paidOutsider,
+            totalTicketsSold: totalPaid,
+            paidTicketsSold: totalPaid,
+            freeTicketsSold: freeIssued,
+            totalRevenue: totalRevenue,
+            breakdowns: data.breakdowns || { byEvent: [], bySection: [] },
+          };
+
+          salesSummaryCache.value[cacheKey] = result;
+          salesSummaryLastUpdated.value[cacheKey] = Date.now();
+
+          return result;
+        }
+      }
+    } catch (e) {
+      console.warn('Backend sales-summary fetch warning, calculating from authoritative local state:', e);
+    }
+
+    // If backend fetch failed and local store has no tickets, return null so UI displays 'Unavailable' rather than false zeros
+    if (!tickets.value || tickets.value.length === 0) {
+      return null;
+    }
+
+    // Resilient fallback: Compute from current store tickets (excluding VOID, CANCELLED, REFUNDED, PENDING)
+    const validTickets = tickets.value.filter(t => {
+      if (filterObj.eventId && filterObj.eventId !== 'all' && t.eventId !== filterObj.eventId) return false;
+      
+      const ev = events.value.find(e => e.id === t.eventId);
+      const ayr = t.academicYear || ev?.academicYear;
+      const sem = t.semester || ev?.semester;
+      if (filterObj.academicYear && filterObj.academicYear !== 'all' && ayr !== filterObj.academicYear) return false;
+      if (filterObj.semester && filterObj.semester !== 'all' && sem !== filterObj.semester) return false;
+      
+      const attType = (t.attendeeType || 'STUDENT').toUpperCase();
+      if (filterObj.attendeeType && filterObj.attendeeType !== 'all' && attType !== filterObj.attendeeType.toUpperCase()) return false;
+
+      if (filterObj.course && filterObj.course !== 'all' && (t.course || '').toUpperCase() !== filterObj.course.toUpperCase()) return false;
+      if (filterObj.yearLevel && filterObj.yearLevel !== 'all' && (t.yearLevel || '').toLowerCase() !== filterObj.yearLevel.toLowerCase()) return false;
+      if (filterObj.section && filterObj.section !== 'all' && (t.section || '').toUpperCase() !== filterObj.section.toUpperCase()) return false;
+
+      if (filterObj.dateFrom) {
+        const pDate = t.purchaseDate ? t.purchaseDate.slice(0, 10) : '';
+        if (pDate && pDate < filterObj.dateFrom) return false;
+      }
+      if (filterObj.dateTo) {
+        const pDate = t.purchaseDate ? t.purchaseDate.slice(0, 10) : '';
+        if (pDate && pDate > filterObj.dateTo) return false;
+      }
+
+      const status = (t.ticketStatus || '').toUpperCase();
+      if (status === 'VOID' || status === 'CANCELLED' || status === 'REFUNDED') return false;
+      const payStatus = (t.paymentStatus || '').toLowerCase();
+      if (payStatus !== 'paid' && payStatus !== 'free') return false;
+      return true;
+    });
+
+    const isPaid = (t: any) => (t.paymentStatus || 'paid').toLowerCase() === 'paid';
+    const isFree = (t: any) => (t.paymentStatus || '').toLowerCase() === 'free';
+    const isStudent = (t: any) => (t.attendeeType || 'STUDENT').toUpperCase() === 'STUDENT';
+    const isOutsider = (t: any) => (t.attendeeType || '').toUpperCase() === 'OUTSIDER';
+
+    const paidStudentSold = validTickets.filter(t => isStudent(t) && isPaid(t)).length;
+    const paidOutsiderSold = validTickets.filter(t => isOutsider(t) && isPaid(t)).length;
+    const totalPaidSold = paidStudentSold + paidOutsiderSold;
+
+    const freeStudent = validTickets.filter(t => isStudent(t) && isFree(t)).length;
+    const freeOutsider = validTickets.filter(t => isOutsider(t) && isFree(t)).length;
+    const freeIssued = freeStudent + freeOutsider;
+
+    const totalValidIssued = totalPaidSold + freeIssued;
+    const totalStudent = paidStudentSold + freeStudent;
+    const totalOutsider = paidOutsiderSold + freeOutsider;
+    const totalRev = validTickets.reduce((sum, t) => sum + (isPaid(t) ? (t.price || 0) : 0), 0);
+
+    const fallbackResult: TicketSalesSummary = {
+      paidStudentTicketsSold: paidStudentSold,
+      paidOutsiderTicketsSold: paidOutsiderSold,
+      totalPaidTicketsSold: totalPaidSold,
+      freeTicketsIssued: freeIssued,
+      freeStudentTickets: freeStudent,
+      freeOutsiderTickets: freeOutsider,
+      totalValidTicketsIssued: totalValidIssued,
+      totalCollectedSales: totalRev,
+      totalStudentTickets: totalStudent,
+      totalOutsiderTickets: totalOutsider,
+      // Backwards-compatible aliases:
+      studentTicketsSold: paidStudentSold,
+      outsiderTicketsSold: paidOutsiderSold,
+      totalTicketsSold: totalPaidSold,
+      paidTicketsSold: totalPaidSold,
+      freeTicketsSold: freeIssued,
+      totalRevenue: totalRev,
+      breakdowns: { byEvent: [], bySection: [] },
+    };
+
+    salesSummaryCache.value[cacheKey] = fallbackResult;
+    salesSummaryLastUpdated.value[cacheKey] = Date.now();
+
+    return fallbackResult;
+  };
+
   return {
     currentUser,
     setCurrentUser,
@@ -3396,6 +3828,9 @@ export function useAppStore() {
     updateEvent,
     deleteEvent,
     purchaseTicket,
+    fetchTicketSalesSummary,
+    salesSummaryCache,
+    salesSummaryLastUpdated,
     transferTicket,
     refundTicket,
     cancelTicket,
@@ -3406,6 +3841,7 @@ export function useAppStore() {
     deleteTicket,
     clearAllTickets,
     validateAndRecordScan,
+    fetchStateFromServer,
     lookupTicketInfo,
     addUser,
     updateUser,
@@ -3413,6 +3849,10 @@ export function useAppStore() {
     deleteUser,
     adminResetUserPassword,
     updateUserPassword,
+    setRecoveryPin,
+    identifyForRecovery,
+    verifyRecoveryPin,
+    resetPasswordWithPinToken,
     activeEvents,
     archivedEvents,
     archiveEvent,
@@ -3428,8 +3868,6 @@ export function useAppStore() {
     lookupStudentRecord,
     sendStudentVerificationCode,
     verifyStudentVerificationCode,
-    requestEmailVerification,
-    verifyRecoveryEmail,
   };
 }
 

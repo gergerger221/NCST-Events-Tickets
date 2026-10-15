@@ -59,23 +59,47 @@ function ncst_mask_phone(?string $phone): string {
 /**
  * Builds the official Student Portal SMS notification message.
  */
-function ncst_build_student_sms(string $studentId, string $surname): string {
-    return "NCST Student Portal: Your student portal account has been created following your ticket purchase. Student ID: {$studentId}. Your initial password is your official surname as recorded in your student record. Please log in and change your password on your first login. For assistance, contact official NCST support.";
+function ncst_build_student_sms(string $studentId, string $surname = ''): string {
+    $surnameRef = !empty($surname) ? " (official surname: {$surname})" : " as recorded in your official surname";
+    return "NCST Student Portal: Your student portal account has been created following your ticket purchase. Student ID: {$studentId}{$surnameRef}. Please check your institutional email for your secure activation link to set your password. For assistance, contact official NCST support.";
 }
 
 /**
  * Builds the official Student Portal Email notification message and subject.
+ * Includes student login identifier, portal access URL, single-use activation link, and security guidance.
  */
-function ncst_build_student_email(string $studentName, string $studentId): array {
+function ncst_build_student_email(string $studentName, string $studentId, ?string $portalUrl = null, ?string $activationLink = null): array {
+    $cleanName = trim($studentName) ?: 'Student';
+    $appUrl = $portalUrl ?: trim((string)ncst_env('APP_URL', ''));
+    if (empty($appUrl)) {
+        $allowed = ncst_env('APP_ALLOWED_ORIGINS', 'http://localhost:5173');
+        $origins = explode(',', $allowed);
+        $appUrl = trim($origins[0] ?? 'http://localhost:5173');
+    }
+    $setupUrl = rtrim($appUrl, '/') . '/#login';
+
     $subject = "Your NCST Student Portal Account Is Ready";
-    $body = "Hello, {$studentName}!\n\n"
-          . "Your NCST Student Portal account has been created following your recent ticket purchase.\n\n"
-          . "Student ID: {$studentId}\n"
-          . "Initial password: Your official surname as recorded in your student record.\n\n"
-          . "To access your portal, log in using your Student ID and initial password. You will be required to create a new personal password on your first login.\n\n"
-          . "If your initial password is not accepted or you need assistance, contact the official NCST support team through its configured contact information.\n\n"
-          . "Thank you.\n"
-          . "NCST Student Portal\n";
+    $body = "Hello, {$cleanName}!\r\n\r\n"
+          . "Your official NCST Student Portal account has been created following your recent ticket purchase.\r\n\r\n"
+          . "— ACCOUNT DETAILS —\r\n"
+          . "Student ID: {$studentId}\r\n"
+          . "Portal URL: {$setupUrl}\r\n\r\n";
+
+    if (!empty($activationLink)) {
+        $body .= "— SECURE FIRST-TIME ACCOUNT ACTIVATION —\r\n"
+              . "To activate your account and establish your confidential personal password, click your single-use activation link below:\r\n"
+              . "{$activationLink}\r\n\r\n"
+              . "This activation link is single-use and will expire in 24 hours. You must create your personal password before accessing the student portal.\r\n\r\n";
+    } else {
+        $body .= "— ACCOUNT ACTIVATION & SECURITY ONBOARDING —\r\n"
+              . "To access your portal, log in using your Student ID and initial access reference (your official surname as recorded in your student record).\r\n\r\n"
+              . "For your security, you will be required to establish a confidential personal password immediately on your first login. Do not share your login credentials with anyone.\r\n\r\n";
+    }
+
+    $body .= "If you need assistance or did not make this purchase, please contact official NCST support.\r\n\r\n"
+          . "Thank you,\r\n"
+          . "National College of Science and Technology\r\n"
+          . "NCST Student Portal";
 
     return [
         'subject' => $subject,
@@ -84,309 +108,184 @@ function ncst_build_student_email(string $studentName, string $studentId): array
 }
 
 /**
- * Transmits an email using the configured centralized NCST no-reply sender.
- * Supports direct SMTP socket (with STARTTLS / SSL auth) or native mail().
+ * Builds the official Guest / Outsider Event Access Email notification.
  */
-function ncst_send_email(string $toEmail, string $subject, string $bodyText): array {
-    $fromName = trim((string)(ncst_env('SMTP_FROM_NAME') ?: ncst_env('MAIL_FROM_NAME', 'NCST Student Portal')));
-    $fromAddress = trim((string)(ncst_env('SMTP_FROM_ADDRESS') ?: ncst_env('MAIL_FROM_ADDRESS', 'no-reply@student.ncst.edu.ph')));
-    $replyTo = trim((string)(ncst_env('SMTP_REPLY_TO') ?: ncst_env('MAIL_REPLY_TO', 'support@ncst.edu.ph')));
-    $host = trim((string)(ncst_env('SMTP_HOST') ?: ncst_env('MAIL_HOST', '')));
-    $port = (int)(ncst_env('SMTP_PORT') ?: ncst_env('MAIL_PORT', 587));
-    $username = trim((string)(ncst_env('SMTP_USERNAME') ?: ncst_env('SMTP_USER', ncst_env('MAIL_USERNAME', ''))));
-    $password = trim((string)(ncst_env('SMTP_PASSWORD') ?: ncst_env('SMTP_PASS', ncst_env('MAIL_PASSWORD', ''))));
-    $encryption = strtolower(trim((string)(ncst_env('SMTP_ENCRYPTION') ?: ncst_env('MAIL_ENCRYPTION', 'tls'))));
-    $driver = strtolower(trim((string)ncst_env('MAIL_DRIVER', 'smtp')));
-    $appEnv = strtolower(trim((string)ncst_env('APP_ENV', 'development')));
+function ncst_build_outsider_email(string $guestName, string $guestRef, ?string $expirationDate = null, ?string $portalUrl = null, ?string $activationLink = null): array {
+    $cleanName = trim($guestName) ?: 'Guest Attendee';
+    $appUrl = $portalUrl ?: trim((string)ncst_env('APP_URL', ''));
+    if (empty($appUrl)) {
+        $allowed = ncst_env('APP_ALLOWED_ORIGINS', 'http://localhost:5173');
+        $origins = explode(',', $allowed);
+        $appUrl = trim($origins[0] ?? 'http://localhost:5173');
+    }
+    $setupUrl = rtrim($appUrl, '/') . '/#login';
 
-    // Header injection prevention: strip carriage returns and newlines from all header parameters
-    $cleanTo = trim(str_replace(["\r", "\n"], '', $toEmail));
-    $cleanSubject = trim(str_replace(["\r", "\n"], '', $subject));
-    $cleanFromName = trim(str_replace(["\r", "\n"], '', $fromName));
-    $cleanFromAddress = trim(str_replace(["\r", "\n"], '', $fromAddress));
-    $cleanReplyTo = trim(str_replace(["\r", "\n"], '', $replyTo));
+    $validityText = $expirationDate ? "Valid Through: {$expirationDate}\r\n" : "";
 
-    if (!filter_var($cleanTo, FILTER_VALIDATE_EMAIL)) {
-        return [
-            'success' => false,
-            'status' => 'failed',
-            'details' => 'Invalid recipient email address format.'
-        ];
+    $subject = "Your NCST Event Guest Account Access";
+    $body = "Hello, {$cleanName}!\r\n\r\n"
+          . "Your guest access account for the NCST Events & Tickets System has been created following your ticket purchase.\r\n\r\n"
+          . "— ACCOUNT DETAILS —\r\n"
+          . "Guest Reference / Username: {$guestRef}\r\n"
+          . $validityText
+          . "Event Portal URL: {$setupUrl}\r\n\r\n";
+
+    if (!empty($activationLink)) {
+        $body .= "— SECURE GUEST PORTAL ACTIVATION —\r\n"
+              . "To verify your email address, activate your portal access, and set your confidential password, click your single-use activation link below:\r\n"
+              . "{$activationLink}\r\n\r\n"
+              . "This activation link is single-use and will expire in 24 hours. Email verification is required before portal account access is granted.\r\n\r\n";
+    } else {
+        $body .= "— ACCESS INSTRUCTIONS —\r\n"
+              . "You can view your active event pass and admission status by logging into the portal using your Guest Reference or registered mobile number.\r\n\r\n";
     }
 
-    // 1. Production safety: Mock provider cannot be accidentally used in production
-    if ($appEnv === 'production' && ($driver === 'mock' || $driver === 'log')) {
-        return [
-            'success' => false,
-            'status' => 'failed',
-            'details' => 'Mock email driver is disabled in production environment.'
-        ];
-    }
+    $body .= "If you need assistance during the event, please visit the Cashier Desk or official Event Information booth.\r\n\r\n"
+          . "Thank you,\r\n"
+          . "National College of Science and Technology\r\n"
+          . "NCST Events & Ticketing Desk";
 
-    // 2. Mock / Development driver: returns distinct 'simulated' status
-    if ($driver === 'mock' || $driver === 'log' || (empty($host) && $appEnv !== 'production')) {
-        return [
-            'success' => true,
-            'status' => 'simulated',
-            'details' => "Official email simulated for {$cleanTo} (Mock/Dev Dispatcher)."
-        ];
-    }
-
-    // 3. If SMTP credentials absent in live mode, fail truthfully without lying
-    if ($driver === 'smtp' && empty($host)) {
-        return [
-            'success' => false,
-            'status' => 'failed',
-            'details' => 'Notification provider configuration missing (SMTP_HOST / MAIL_HOST not configured).'
-        ];
-    }
-
-    // 4. Native PHP mail() driver fallback
-    if ($driver === 'mail') {
-        $headers = [
-            "From: {$cleanFromName} <{$cleanFromAddress}>",
-            "Reply-To: {$cleanReplyTo}",
-            "Auto-Submitted: auto-generated",
-            "X-Mailer: NCST-Portal-Mailer/2.0",
-            "Content-Type: text/plain; charset=UTF-8"
-        ];
-        $sent = @mail($cleanTo, $cleanSubject, $bodyText, implode("\r\n", $headers));
-        if ($sent) {
-            return [
-                'success' => true,
-                'status' => 'submitted',
-                'details' => "Official email submitted via system mailer to {$cleanTo}."
-            ];
-        } else {
-            return [
-                'success' => false,
-                'status' => 'failed',
-                'details' => 'Native mail delivery failed.'
-            ];
-        }
-    }
-
-    // 5. If PHPMailer is available via Composer, use it for standard RFC-compliant SMTP delivery
-    if (class_exists('\\PHPMailer\\PHPMailer\\PHPMailer')) {
-        try {
-            $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
-            $mail->isSMTP();
-            $mail->Host       = $host;
-            $mail->Port       = $port;
-            $mail->SMTPAuth   = (!empty($username) && !empty($password));
-            if ($mail->SMTPAuth) {
-                $mail->Username = $username;
-                $mail->Password = $password;
-            }
-            if ($encryption === 'ssl') {
-                $mail->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
-            } elseif ($encryption === 'tls') {
-                $mail->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
-            } else {
-                $mail->SMTPSecure = '';
-                $mail->SMTPAutoTLS = false;
-            }
-            $mail->Timeout = 8;
-            $mail->CharSet = 'UTF-8';
-
-            $mail->setFrom($cleanFromAddress, $cleanFromName);
-            $mail->addAddress($cleanTo);
-            if (!empty($cleanReplyTo)) {
-                $mail->addReplyTo($cleanReplyTo);
-            }
-
-            $mail->isHTML(false);
-            $mail->Subject = $cleanSubject;
-            $mail->Body    = $bodyText;
-
-            $mail->send();
-            return [
-                'success' => true,
-                'status'  => 'submitted',
-                'details' => "Official email delivered via PHPMailer to {$cleanTo}."
-            ];
-        } catch (\Throwable $e) {
-            return [
-                'success' => false,
-                'status'  => 'failed',
-                'details' => "PHPMailer SMTP Error: " . $e->getMessage()
-            ];
-        }
-    }
-
-    // 6. Native Sockets SMTP Sender with TLS validation and timeouts (fallback)
-    try {
-        $socketHost = ($encryption === 'ssl') ? "ssl://{$host}" : "tcp://{$host}";
-        $timeout = 8;
-        
-        $sslOptions = [
-            'verify_peer' => true,
-            'verify_peer_name' => true,
-            'allow_self_signed' => false,
-            'peer_name' => $host,
-            'crypto_method' => STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT | STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT
-        ];
-        $ctx = stream_context_create(['ssl' => $sslOptions]);
-        $fp = @stream_socket_client("{$socketHost}:{$port}", $errno, $errstr, $timeout, STREAM_CLIENT_CONNECT, $ctx);
-
-        if (!$fp) {
-            return [
-                'success' => false,
-                'status' => 'failed',
-                'details' => "SMTP connection failed: {$errstr} ({$errno})"
-            ];
-        }
-
-        stream_set_timeout($fp, $timeout);
-
-        $readResponse = function() use ($fp) {
-            $data = '';
-            while ($line = fgets($fp, 515)) {
-                $data .= $line;
-                if (isset($line[3]) && $line[3] === ' ') break;
-            }
-            return $data;
-        };
-
-        $sendCommand = function(string $cmd) use ($fp, $readResponse) {
-            fputs($fp, $cmd . "\r\n");
-            return $readResponse();
-        };
-
-        // Greeting
-        $greeting = $readResponse();
-        if (!str_starts_with($greeting, '220')) {
-            fclose($fp);
-            return ['success' => false, 'status' => 'failed', 'details' => 'Invalid SMTP greeting response.'];
-        }
-
-        // EHLO
-        $ehlo = $sendCommand("EHLO localhost");
-
-        // STARTTLS upgrade if requested
-        if ($encryption === 'tls' && !str_starts_with($socketHost, 'ssl://')) {
-            $starttls = $sendCommand("STARTTLS");
-            if (str_starts_with($starttls, '220')) {
-                $cryptoMethod = STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT | STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT;
-                $crypto = @stream_socket_enable_crypto($fp, true, $cryptoMethod);
-                if (!$crypto) {
-                    fclose($fp);
-                    return ['success' => false, 'status' => 'failed', 'details' => 'TLS cryptographic negotiation failed.'];
-                }
-                $ehlo = $sendCommand("EHLO localhost");
-            }
-        }
-
-        // Authentication if credentials configured
-        if (!empty($username) && !empty($password)) {
-            $auth = $sendCommand("AUTH LOGIN");
-            if (!str_starts_with($auth, '334')) {
-                fclose($fp);
-                return ['success' => false, 'status' => 'failed', 'details' => 'SMTP AUTH LOGIN rejected.'];
-            }
-            $uRes = $sendCommand(base64_encode($username));
-            if (!str_starts_with($uRes, '334')) {
-                fclose($fp);
-                return ['success' => false, 'status' => 'failed', 'details' => 'SMTP username rejected.'];
-            }
-            $pRes = $sendCommand(base64_encode($password));
-            if (!str_starts_with($pRes, '235')) {
-                fclose($fp);
-                return ['success' => false, 'status' => 'failed', 'details' => 'SMTP authentication failed.'];
-            }
-        }
-
-        // Mail From
-        $fromRes = $sendCommand("MAIL FROM:<{$cleanFromAddress}>");
-        if (!str_starts_with($fromRes, '250')) {
-            fclose($fp);
-            return ['success' => false, 'status' => 'failed', 'details' => 'SMTP MAIL FROM rejected.'];
-        }
-
-        // RCPT TO
-        $rcptRes = $sendCommand("RCPT TO:<{$cleanTo}>");
-        if (!str_starts_with($rcptRes, '250') && !str_starts_with($rcptRes, '251')) {
-            fclose($fp);
-            return ['success' => false, 'status' => 'failed', 'details' => 'SMTP RCPT TO rejected.'];
-        }
-
-        // DATA
-        $dataRes = $sendCommand("DATA");
-        if (!str_starts_with($dataRes, '354')) {
-            fclose($fp);
-            return ['success' => false, 'status' => 'failed', 'details' => 'SMTP DATA command rejected.'];
-        }
-
-        $emailHeaders = [
-            "Date: " . date('r'),
-            "From: {$cleanFromName} <{$cleanFromAddress}>",
-            "To: <{$cleanTo}>",
-            "Reply-To: <{$cleanReplyTo}>",
-            "Subject: {$cleanSubject}",
-            "Auto-Submitted: auto-generated",
-            "MIME-Version: 1.0",
-            "Content-Type: text/plain; charset=UTF-8",
-            "X-NCST-Notification: student_portal_account"
-        ];
-
-        // RFC 5321 Dot-stuffing for message body
-        $dotStuffedBody = preg_replace('/^\./m', '..', $bodyText);
-        $payload = implode("\r\n", $emailHeaders) . "\r\n\r\n" . $dotStuffedBody . "\r\n.";
-        $sendRes = $sendCommand($payload);
-
-        $sendCommand("QUIT");
-        fclose($fp);
-
-        if (str_starts_with($sendRes, '250')) {
-            return [
-                'success' => true,
-                'status' => 'submitted',
-                'details' => "Official email submitted via SMTP to {$cleanTo}."
-            ];
-        } else {
-            return [
-                'success' => false,
-                'status' => 'failed',
-                'details' => "SMTP rejected message body ({$sendRes})."
-            ];
-        }
-    } catch (\Throwable $e) {
-        return [
-            'success' => false,
-            'status' => 'failed',
-            'details' => 'SMTP delivery exception: ' . $e->getMessage()
-        ];
-    }
+    return [
+        'subject' => $subject,
+        'body' => $body
+    ];
 }
 
 /**
- * Returns safe diagnostic metadata about current SMTP configuration without exposing passwords.
+ * Determines whether the test mail sink is permitted to operate.
+ * 
+ * Strict Enforcement:
+ *  1. When APP_ENV=production (or production aliases), ALWAYS disabled unconditionally.
+ *  2. TEST_MAIL_SINK=true can NEVER override production mode.
+ *  3. Allowed ONLY in recognized non-production environments ('development', 'test', 'testing', 'local')
+ *     AND when TEST_MAIL_SINK is explicitly enabled ('true' or '1').
+ *  4. If APP_ENV is missing, null, empty, invalid, or ambiguous, fails closed (disabled).
+ */
+function ncst_is_test_mail_sink_enabled(): bool {
+    $rawEnv = ncst_env('APP_ENV', null);
+    if ($rawEnv === null) {
+        return false;
+    }
+    $appEnv = strtolower(trim((string)$rawEnv));
+    if ($appEnv === '' || $appEnv === 'production' || $appEnv === 'prod' || $appEnv === 'live') {
+        return false;
+    }
+
+    $allowedNonProdEnvs = ['development', 'test', 'testing', 'local'];
+    if (!in_array($appEnv, $allowedNonProdEnvs, true)) {
+        return false;
+    }
+
+    $sinkFlag = strtolower(trim((string)ncst_env('TEST_MAIL_SINK', '')));
+    return ($sinkFlag === 'true' || $sinkFlag === '1');
+}
+
+/**
+ * Records dispatched email to the server-side test mail sink for test suite inspection.
+ * Strictly disabled in production and unauthorized environments.
+ */
+function ncst_record_test_mail_sink(string $toEmail, string $subject, string $bodyText): void {
+    if (!ncst_is_test_mail_sink_enabled()) {
+        return;
+    }
+    $sinkFile = function_exists('ncst_get_storage_path') 
+        ? ncst_get_storage_path('test_mail_sink.json') 
+        : dirname(__DIR__) . '/storage/test_mail_sink.json';
+    $entry = [
+        'to' => $toEmail,
+        'subject' => $subject,
+        'body' => $bodyText,
+        'time' => time(),
+    ];
+    $list = [];
+    if (file_exists($sinkFile)) {
+        $data = json_decode(@file_get_contents($sinkFile), true);
+        if (is_array($data)) {
+            $list = $data;
+        }
+    }
+    $list[] = $entry;
+    if (count($list) > 100) {
+        $list = array_slice($list, -100);
+    }
+    @file_put_contents($sinkFile, json_encode($list, JSON_PRETTY_PRINT));
+}
+
+/**
+ * Retrieves the latest dispatched test email for a recipient from the server-side test mail sink.
+ * Fails closed in production environments and unauthorized environments.
+ */
+function ncst_get_latest_test_email(?string $toEmail = null): ?array {
+    if (!ncst_is_test_mail_sink_enabled()) {
+        return null;
+    }
+    $sinkFile = function_exists('ncst_get_storage_path') 
+        ? ncst_get_storage_path('test_mail_sink.json') 
+        : dirname(__DIR__) . '/storage/test_mail_sink.json';
+    if (!file_exists($sinkFile)) return null;
+    $data = json_decode(@file_get_contents($sinkFile), true);
+    if (!is_array($data) || empty($data)) return null;
+    if ($toEmail === null) {
+        return end($data);
+    }
+    $clean = strtolower(trim($toEmail));
+    for ($i = count($data) - 1; $i >= 0; $i--) {
+        if (strtolower(trim($data[$i]['to'])) === $clean) {
+            return $data[$i];
+        }
+    }
+    return null;
+}
+
+/**
+ * Safely logs notification diagnostics.
+ * Outbound SMTP is disabled across the NCST Events & Tickets System.
+ */
+function ncst_log_smtp_diagnostic(string $stage, int $code, string $rawMessage, string $toEmail): void {
+    // No-op: Outbound SMTP email delivery is disabled.
+}
+
+/**
+ * Returns a standardized notification status message.
+ */
+function ncst_get_safe_smtp_user_message(int $code, string $rawMessage): string {
+    return 'Outbound email delivery is disabled.';
+}
+
+/**
+ * Outbound email delivery is permanently disabled across the NCST Events & Tickets System.
+ * All SMTP transport, mail queues, and socket connections have been removed.
+ * Returns a standardized no-op response.
+ */
+function ncst_send_email(string $toEmail, string $subject, string $bodyText): array {
+    if (!filter_var($toEmail, FILTER_VALIDATE_EMAIL)) {
+        return [
+            'success' => false,
+            'status' => 'failed',
+            'code' => 400,
+            'stage' => 'VALIDATION',
+            'details' => 'Invalid recipient email format.',
+            'user_message' => 'Invalid email address.'
+        ];
+    }
+    return [
+        'success' => true,
+        'status' => 'disabled',
+        'code' => 200,
+        'stage' => 'DISABLED',
+        'details' => 'Outbound email delivery is disabled by institutional policy.',
+        'user_message' => 'Email notifications are disabled.'
+    ];
+}
+
+/**
+ * Returns status indicating SMTP service is disabled.
  */
 function ncst_get_smtp_diagnostic_config(): array {
-    $host = trim((string)(ncst_env('SMTP_HOST') ?: ncst_env('MAIL_HOST', '')));
-    $port = (int)(ncst_env('SMTP_PORT') ?: ncst_env('MAIL_PORT', 587));
-    $username = trim((string)(ncst_env('SMTP_USERNAME') ?: ncst_env('SMTP_USER', ncst_env('MAIL_USERNAME', ''))));
-    $encryption = strtolower(trim((string)(ncst_env('SMTP_ENCRYPTION') ?: ncst_env('MAIL_ENCRYPTION', 'tls'))));
-    $driver = strtolower(trim((string)ncst_env('MAIL_DRIVER', 'smtp')));
-    $fromAddress = trim((string)(ncst_env('SMTP_FROM_ADDRESS') ?: ncst_env('MAIL_FROM_ADDRESS', 'no-reply@student.ncst.edu.ph')));
-    $fromName = trim((string)(ncst_env('SMTP_FROM_NAME') ?: ncst_env('MAIL_FROM_NAME', 'NCST Student Portal')));
-    $replyTo = trim((string)(ncst_env('SMTP_REPLY_TO') ?: ncst_env('MAIL_REPLY_TO', 'support@ncst.edu.ph')));
-    $appEnv = strtolower(trim((string)ncst_env('APP_ENV', 'development')));
-    $hasPassword = !empty(ncst_env('SMTP_PASSWORD') ?: ncst_env('SMTP_PASS', ncst_env('MAIL_PASSWORD', '')));
-
     return [
-        'driver' => $driver,
-        'host' => $host ?: '(not configured)',
-        'port' => $port,
-        'encryption' => $encryption ?: 'none',
-        'from_address' => $fromAddress,
-        'from_name' => $fromName,
-        'reply_to' => $replyTo,
-        'has_credentials' => (!empty($username) && $hasPassword),
-        'username_masked' => !empty($username) ? ncst_mask_email($username) : '(none)',
-        'mailer_engine' => class_exists('\\PHPMailer\\PHPMailer\\PHPMailer') ? 'PHPMailer v7' : 'Native Sockets',
-        'is_mock' => ($driver === 'mock' || $driver === 'log' || (empty($host) && $appEnv !== 'production')),
-        'environment' => $appEnv
+        'driver' => 'disabled',
+        'status' => 'disabled',
+        'message' => 'Outbound SMTP email service is disabled by institutional policy.'
     ];
 }
 
@@ -477,10 +376,195 @@ function ncst_send_sms(string $toPhone, string $message): array {
 }
 
 /**
- * Creates outbox records in `notification_queue` and attempts immediate dispatch.
- * Must only be called AFTER the ticket purchase transaction commits!
+ * Background worker trigger for asynchronous queue dispatching.
+ * On FastCGI environments flushes response first; on Windows/CLI spawns background worker.
+ * Employs reliable PHP binary detection and fallback shutdown registration.
  */
-function ncst_queue_student_account_notifications(PDO $pdo, array $studentData, array $ticketData): array {
+function ncst_trigger_background_queue_worker(): void {
+    if (function_exists('fastcgi_finish_request')) {
+        register_shutdown_function(function() {
+            try {
+                require_once __DIR__ . '/db.php';
+                global $pdo;
+                if ($pdo) {
+                    ncst_process_notification_queue($pdo, 15);
+                }
+            } catch (\Throwable $e) {
+                error_log("FastCGI background queue worker error: " . $e->getMessage());
+            }
+        });
+        return;
+    }
+
+    $cliScript = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'scripts' . DIRECTORY_SEPARATOR . 'smtp-cli.php';
+    if (file_exists($cliScript)) {
+        if (strncasecmp(PHP_OS, 'WIN', 3) === 0) {
+            // Locate authoritative PHP binary for Windows XAMPP
+            $phpBin = 'php';
+            if (defined('PHP_BINARY') && !empty(PHP_BINARY) && str_ends_with(strtolower(PHP_BINARY), 'php.exe')) {
+                $phpBin = PHP_BINARY;
+            } elseif (file_exists('C:\\xampp\\php\\php.exe')) {
+                $phpBin = 'C:\\xampp\\php\\php.exe';
+            } elseif (defined('PHP_BINARY') && file_exists(dirname(PHP_BINARY) . DIRECTORY_SEPARATOR . 'php.exe')) {
+                $phpBin = dirname(PHP_BINARY) . DIRECTORY_SEPARATOR . 'php.exe';
+            }
+            $cmd = 'start /B "" "' . $phpBin . '" "' . $cliScript . '" process-queue >NUL 2>&1';
+            @pclose(@popen($cmd, 'r'));
+        } else {
+            $cmd = 'php "' . $cliScript . '" process-queue > /dev/null 2>&1 &';
+            @exec($cmd);
+        }
+    }
+
+    // Secondary fallback: register shutdown handler in case external process spawn is restricted
+    register_shutdown_function(function() {
+        try {
+            require_once __DIR__ . '/db.php';
+            global $pdo;
+            if ($pdo) {
+                ncst_process_notification_queue($pdo, 15);
+            }
+        } catch (\Throwable) {}
+    });
+}
+
+/**
+ * Processes queued and retryable failed notification jobs from notification_queue.
+ * Strictly adheres to SMTP semantics: successful transmission is marked 'submitted', not 'delivered'.
+ * Prevents concurrent duplicate worker execution via flock, purges stale jobs, and prevents endless retries on invalid recipients.
+ */
+function ncst_process_notification_queue(PDO $pdo, int $limit = 20): array {
+    // 1. Process Concurrency Mutex: Prevent duplicate workers from executing concurrently
+    $lockFile = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'ncst_queue_worker.lock';
+    $lockFp = @fopen($lockFile, 'c+');
+    if (!$lockFp || !@flock($lockFp, LOCK_EX | LOCK_NB)) {
+        if ($lockFp) @fclose($lockFp);
+        return [
+            'processed' => 0,
+            'submitted' => 0,
+            'failed' => 0,
+            'locked' => true,
+            'details' => 'Queue worker lock active: Another worker is currently processing.'
+        ];
+    }
+
+    try {
+        // 2. Stale Job Detection: Mark jobs queued for over 7 days as permanently failed
+        $pdo->exec("
+            UPDATE `notification_queue`
+            SET `status` = 'failed', `last_error` = 'Job expired: Queued for over 7 days without delivery.'
+            WHERE `status` = 'queued' AND `created_at` < DATE_SUB(NOW(), INTERVAL 7 DAY)
+        ");
+
+        // 3. Fetch candidate jobs
+        $selStmt = $pdo->prepare("
+            SELECT id, recipient_type, channel, recipient, subject, message, attempts
+            FROM `notification_queue`
+            WHERE `status` = 'queued'
+               OR (`status` = 'failed' AND `attempts` < 3 AND `updated_at` < DATE_SUB(NOW(), INTERVAL 1 MINUTE))
+            ORDER BY `created_at` ASC
+            LIMIT ?
+        ");
+        $selStmt->bindValue(1, $limit, PDO::PARAM_INT);
+        $selStmt->execute();
+        $jobs = $selStmt->fetchAll();
+
+        $updStmt = $pdo->prepare("
+            UPDATE `notification_queue`
+            SET `status` = ?, `attempts` = `attempts` + 1, `last_error` = ?, `updated_at` = NOW()
+            WHERE `id` = ?
+        ");
+
+        $processed = 0;
+        $submitted = 0;
+        $failed = 0;
+
+        foreach ($jobs as $job) {
+            $processed++;
+            $jobId = $job['id'];
+            $channel = $job['channel'];
+            $recipient = trim($job['recipient'] ?? '');
+            $subject = $job['subject'] ?? 'NCST Notification';
+            $message = $job['message'];
+
+            // 4. Absent recipient: mark unavailable immediately without retries
+            if (empty($recipient) || $recipient === 'N/A') {
+                $updStmt->execute(['unavailable', 'No recipient address provided.', $jobId]);
+                continue;
+            }
+
+            // 5. Permanently invalid recipient: mark failed with max attempts (99) to stop endless retries
+            if ($channel === 'email' && !filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
+                $pdo->prepare("UPDATE `notification_queue` SET `status` = 'failed', `attempts` = 99, `last_error` = 'Permanently invalid email address format', `updated_at` = NOW() WHERE `id` = ?")->execute([$jobId]);
+                $failed++;
+                continue;
+            }
+
+            if ($channel === 'email') {
+                $res = ncst_send_email($recipient, $subject, $message);
+            } elseif ($channel === 'sms') {
+                $res = ncst_send_sms($recipient, $message);
+            } else {
+                $res = ['success' => false, 'status' => 'failed', 'details' => "Unsupported channel: {$channel}"];
+            }
+
+            if ($res['success']) {
+                $submitted++;
+                $status = ($res['status'] === 'simulated') ? 'simulated' : 'submitted';
+                // Redact raw activation tokens from outbox message body after successful handoff
+                $redactedMessage = preg_replace('/token=[a-f0-9]{24,64}/i', 'token=[REDACTED]', $message);
+                $pdo->prepare("UPDATE `notification_queue` SET `status` = ?, `attempts` = `attempts` + 1, `message` = ?, `last_error` = NULL, `updated_at` = NOW() WHERE `id` = ?")
+                    ->execute([$status, $redactedMessage, $jobId]);
+            } else {
+                $failed++;
+                $rawDet = strtolower((string)($res['details'] ?? ''));
+                $isQuotaLimit = (($res['code'] ?? 0) === 550) && (str_contains($rawDet, 'limit exceeded') || str_contains($rawDet, 'quota') || str_contains($rawDet, 'sending limit'));
+                if ($isQuotaLimit) {
+                    // Backoff on provider daily quota exhaustion without burning attempts (cap attempts at 2)
+                    $pdo->prepare("UPDATE `notification_queue` SET `status` = 'failed', `attempts` = LEAST(`attempts` + 1, 2), `last_error` = ?, `updated_at` = DATE_ADD(NOW(), INTERVAL 30 MINUTE) WHERE `id` = ?")
+                        ->execute([$res['details'] ?? 'Provider daily quota limit reached', $jobId]);
+                    // Break batch processing: subsequent emails will also be rejected by the exhausted provider
+                    break;
+                } else {
+                    $updStmt->execute(['failed', $res['details'] ?? 'Dispatch failed', $jobId]);
+                }
+            }
+        }
+
+        // 6. Data retention policy: Purge completed/unavailable jobs older than 30 days
+        $pdo->exec("DELETE FROM `notification_queue` WHERE `status` IN ('submitted', 'simulated', 'delivered', 'unavailable') AND `updated_at` < DATE_SUB(NOW(), INTERVAL 30 DAY)");
+
+        return [
+            'processed' => $processed,
+            'submitted' => $submitted,
+            'failed' => $failed,
+            'locked' => false
+        ];
+    } finally {
+        @flock($lockFp, LOCK_UN);
+        @fclose($lockFp);
+    }
+}
+
+
+/**
+ * Builds the full URL for account activation.
+ */
+function ncst_build_activation_link(string $rawToken, string $identifier): string {
+    $appUrl = trim((string)ncst_env('APP_URL', ''));
+    if (empty($appUrl)) {
+        $allowed = ncst_env('APP_ALLOWED_ORIGINS', 'http://localhost:5173');
+        $origins = explode(',', $allowed);
+        $appUrl = trim($origins[0] ?? 'http://localhost:5173');
+    }
+    return rtrim($appUrl, '/') . '/#activate?token=' . urlencode($rawToken) . '&id=' . urlencode($identifier);
+}
+
+/**
+ * Creates outbox records in `notification_queue` with duplicate protection and retryable queuing.
+ * Must only be called inside the purchase transaction for atomic commit.
+ */
+function ncst_queue_student_account_notifications(PDO $pdo, array $studentData, array $ticketData, bool $immediateDispatch = true, ?string $activationLink = null, bool $triggerWorker = false): array {
     $studentId = trim($studentData['studentId'] ?? ($studentData['student_id'] ?? ''));
     $studentName = trim($studentData['name'] ?? 'Student');
     $surname = trim($studentData['surname'] ?? ncst_extract_surname($studentName));
@@ -506,28 +590,11 @@ function ncst_queue_student_account_notifications(PDO $pdo, array $studentData, 
         ]
     ];
 
-    // Ensure outbox table exists
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS `notification_queue` (
-            `id` VARCHAR(64) NOT NULL,
-            `recipient_type` ENUM('student', 'outsider') NOT NULL DEFAULT 'student',
-            `channel` ENUM('sms', 'email') NOT NULL,
-            `recipient` VARCHAR(150) NOT NULL,
-            `subject` VARCHAR(255) NULL,
-            `message` TEXT NOT NULL,
-            `status` ENUM('pending', 'queued', 'submitted', 'delivered', 'failed', 'unavailable', 'simulated') NOT NULL DEFAULT 'queued',
-            `attempts` INT(11) NOT NULL DEFAULT 0,
-            `last_error` TEXT NULL,
-            `user_id` VARCHAR(64) NULL,
-            `student_id` VARCHAR(50) NULL,
-            `ticket_id` VARCHAR(64) NULL,
-            `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            PRIMARY KEY (`id`),
-            INDEX `idx_notif_status` (`status`),
-            INDEX `idx_notif_student` (`student_id`),
-            INDEX `idx_notif_channel` (`channel`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+    $chkStmt = $pdo->prepare("
+        SELECT id, status, last_error FROM `notification_queue`
+        WHERE `recipient_type` = 'student' AND `channel` = ? AND `ticket_id` = ? AND (`student_id` = ? OR `user_id` = ?)
+        LIMIT 1
     ");
 
     $insStmt = $pdo->prepare("
@@ -538,35 +605,54 @@ function ncst_queue_student_account_notifications(PDO $pdo, array $studentData, 
 
     // 1. Process SMS
     if ($normalizedPhone) {
-        $smsJobId = 'notif-sms-' . bin2hex(random_bytes(10));
-        $smsBody = ncst_build_student_sms($studentId, $surname);
+        $chkStmt->execute(['sms', $ticketId, $studentId, $userId]);
+        $existingSms = $chkStmt->fetch();
 
-        $insStmt->execute([
-            $smsJobId,
-            'sms',
-            $normalizedPhone,
-            null,
-            $smsBody,
-            'queued',
-            0,
-            null,
-            $userId,
-            $studentId,
-            $ticketId
-        ]);
+        if ($existingSms) {
+            $results['sms'] = [
+                'status' => $existingSms['status'],
+                'details' => 'Duplicate notification prevented; existing SMS job reused.',
+                'recipient' => ncst_mask_phone($normalizedPhone)
+            ];
+        } else {
+            $smsJobId = 'notif-sms-' . bin2hex(random_bytes(10));
+            $smsBody = ncst_build_student_sms($studentId, $surname);
 
-        $smsDispatch = ncst_send_sms($normalizedPhone, $smsBody);
-        $updStmt->execute([
-            $smsDispatch['status'],
-            $smsDispatch['success'] ? null : ($smsDispatch['details'] ?? 'Provider failed'),
-            $smsJobId
-        ]);
+            $insStmt->execute([
+                $smsJobId,
+                'sms',
+                $normalizedPhone,
+                null,
+                $smsBody,
+                'queued',
+                0,
+                null,
+                $userId,
+                $studentId,
+                $ticketId
+            ]);
 
-        $results['sms'] = [
-            'status' => $smsDispatch['status'],
-            'details' => $smsDispatch['details'],
-            'recipient' => ncst_mask_phone($normalizedPhone)
-        ];
+            if ($immediateDispatch) {
+                $smsDispatch = ncst_send_sms($normalizedPhone, $smsBody);
+                $finalStatus = ($smsDispatch['status'] === 'simulated') ? 'simulated' : ($smsDispatch['success'] ? 'submitted' : 'failed');
+                $updStmt->execute([
+                    $finalStatus,
+                    $smsDispatch['success'] ? null : ($smsDispatch['details'] ?? 'Provider failed'),
+                    $smsJobId
+                ]);
+                $results['sms'] = [
+                    'status' => $finalStatus,
+                    'details' => $smsDispatch['details'],
+                    'recipient' => ncst_mask_phone($normalizedPhone)
+                ];
+            } else {
+                $results['sms'] = [
+                    'status' => 'queued',
+                    'details' => 'SMS notification queued for background dispatch.',
+                    'recipient' => ncst_mask_phone($normalizedPhone)
+                ];
+            }
+        }
     } else {
         $smsJobId = 'notif-sms-' . bin2hex(random_bytes(10));
         $insStmt->execute([
@@ -591,35 +677,54 @@ function ncst_queue_student_account_notifications(PDO $pdo, array $studentData, 
 
     // 2. Process Official Email
     if ($cleanEmail) {
-        $emailJobId = 'notif-email-' . bin2hex(random_bytes(10));
-        $emailTemplate = ncst_build_student_email($studentName, $studentId);
+        $chkStmt->execute(['email', $ticketId, $studentId, $userId]);
+        $existingEmail = $chkStmt->fetch();
 
-        $insStmt->execute([
-            $emailJobId,
-            'email',
-            $cleanEmail,
-            $emailTemplate['subject'],
-            $emailTemplate['body'],
-            'queued',
-            0,
-            null,
-            $userId,
-            $studentId,
-            $ticketId
-        ]);
+        if ($existingEmail) {
+            $results['email'] = [
+                'status' => $existingEmail['status'],
+                'details' => 'Duplicate notification prevented; existing email job reused.',
+                'recipient' => ncst_mask_email($cleanEmail)
+            ];
+        } else {
+            $emailJobId = 'notif-email-' . bin2hex(random_bytes(10));
+            $emailTemplate = ncst_build_student_email($studentName, $studentId, null, $activationLink);
 
-        $emailDispatch = ncst_send_email($cleanEmail, $emailTemplate['subject'], $emailTemplate['body']);
-        $updStmt->execute([
-            $emailDispatch['status'],
-            $emailDispatch['success'] ? null : ($emailDispatch['details'] ?? 'SMTP failed'),
-            $emailJobId
-        ]);
+            $insStmt->execute([
+                $emailJobId,
+                'email',
+                $cleanEmail,
+                $emailTemplate['subject'],
+                $emailTemplate['body'],
+                'queued',
+                0,
+                null,
+                $userId,
+                $studentId,
+                $ticketId
+            ]);
 
-        $results['email'] = [
-            'status' => $emailDispatch['status'],
-            'details' => $emailDispatch['details'],
-            'recipient' => ncst_mask_email($cleanEmail)
-        ];
+            if ($immediateDispatch) {
+                $emailDispatch = ncst_send_email($cleanEmail, $emailTemplate['subject'], $emailTemplate['body']);
+                $finalStatus = ($emailDispatch['status'] === 'simulated') ? 'simulated' : ($emailDispatch['success'] ? 'submitted' : 'queued');
+                $updStmt->execute([
+                    $finalStatus,
+                    $emailDispatch['success'] ? null : ($emailDispatch['details'] ?? 'SMTP failed; queued for background retry'),
+                    $emailJobId
+                ]);
+                $results['email'] = [
+                    'status' => $finalStatus,
+                    'details' => $emailDispatch['success'] ? $emailDispatch['details'] : 'Email dispatch failed immediately; queued for background retry.',
+                    'recipient' => ncst_mask_email($cleanEmail)
+                ];
+            } else {
+                $results['email'] = [
+                    'status' => 'queued',
+                    'details' => 'Official student email queued for background dispatch.',
+                    'recipient' => ncst_mask_email($cleanEmail)
+                ];
+            }
+        }
     } else {
         $emailJobId = 'notif-email-' . bin2hex(random_bytes(10));
         $insStmt->execute([
@@ -642,6 +747,124 @@ function ncst_queue_student_account_notifications(PDO $pdo, array $studentData, 
         ];
     }
 
+    if ($triggerWorker && !$immediateDispatch) {
+        ncst_trigger_background_queue_worker();
+    }
+
+    return $results;
+}
+
+/**
+ * Queues official account notification for Outsiders / Guests following ticket purchase.
+ * If guest supplied an email address, queues email notification.
+ * If email is not available, records unavailable status without blocking checkout or ticket issuance.
+ */
+function ncst_queue_outsider_account_notifications(PDO $pdo, array $outsiderData, array $ticketData, bool $immediateDispatch = true, ?string $activationLink = null, bool $triggerWorker = false): array {
+    $guestRef = trim($outsiderData['guestReference'] ?? ($outsiderData['guest_reference'] ?? ($outsiderData['accountId'] ?? '')));
+    $guestName = trim($outsiderData['name'] ?? 'Guest Attendee');
+    $userId = $outsiderData['userId'] ?? ($outsiderData['user_id'] ?? null);
+    $ticketId = $ticketData['id'] ?? ($ticketData['ticketNumber'] ?? null);
+    $expirationDate = $outsiderData['expirationDate'] ?? null;
+
+    $rawEmail = $outsiderData['email'] ?? null;
+    $cleanEmail = (!empty($rawEmail) && filter_var($rawEmail, FILTER_VALIDATE_EMAIL)) ? trim($rawEmail) : null;
+
+    $results = [
+        'sms' => [
+            'status' => 'unavailable',
+            'details' => 'Outsider SMS notifications are not enabled.',
+            'recipient' => null
+        ],
+        'email' => [
+            'status' => 'unavailable',
+            'details' => 'Guest email not provided; on-screen credentials displayed at cashier desk.',
+            'recipient' => null
+        ]
+    ];
+
+    $chkStmt = $pdo->prepare("
+        SELECT id, status, last_error FROM `notification_queue`
+        WHERE `recipient_type` = 'outsider' AND `channel` = 'email' AND `ticket_id` = ? AND `user_id` = ?
+        LIMIT 1
+    ");
+
+    $insStmt = $pdo->prepare("
+        INSERT INTO `notification_queue` (id, recipient_type, channel, recipient, subject, message, status, attempts, last_error, user_id, student_id, ticket_id)
+        VALUES (?, 'outsider', 'email', ?, ?, ?, ?, 0, ?, ?, ?, ?)
+    ");
+    $updStmt = $pdo->prepare("UPDATE `notification_queue` SET `status` = ?, `attempts` = `attempts` + 1, `last_error` = ? WHERE `id` = ?");
+
+    if ($cleanEmail) {
+        $chkStmt->execute([$ticketId, $userId]);
+        $existing = $chkStmt->fetch();
+
+        if ($existing) {
+            $results['email'] = [
+                'status' => $existing['status'],
+                'details' => 'Duplicate notification prevented; existing outsider email job reused.',
+                'recipient' => ncst_mask_email($cleanEmail)
+            ];
+        } else {
+            $emailJobId = 'notif-email-' . bin2hex(random_bytes(10));
+            $emailTemplate = ncst_build_outsider_email($guestName, $guestRef, $expirationDate, null, $activationLink);
+
+            $insStmt->execute([
+                $emailJobId,
+                $cleanEmail,
+                $emailTemplate['subject'],
+                $emailTemplate['body'],
+                'queued',
+                null,
+                $userId,
+                $guestRef,
+                $ticketId
+            ]);
+
+            if ($immediateDispatch) {
+                $emailDispatch = ncst_send_email($cleanEmail, $emailTemplate['subject'], $emailTemplate['body']);
+                $finalStatus = ($emailDispatch['status'] === 'simulated') ? 'simulated' : ($emailDispatch['success'] ? 'submitted' : 'queued');
+                $updStmt->execute([
+                    $finalStatus,
+                    $emailDispatch['success'] ? null : ($emailDispatch['details'] ?? 'SMTP failed; queued for background retry'),
+                    $emailJobId
+                ]);
+                $results['email'] = [
+                    'status' => $finalStatus,
+                    'details' => $emailDispatch['success'] ? $emailDispatch['details'] : 'Email dispatch failed immediately; queued for background retry.',
+                    'recipient' => ncst_mask_email($cleanEmail)
+                ];
+            } else {
+                $results['email'] = [
+                    'status' => 'queued',
+                    'details' => 'Guest account notification email queued for background dispatch.',
+                    'recipient' => ncst_mask_email($cleanEmail)
+                ];
+            }
+        }
+    } else {
+        $emailJobId = 'notif-email-' . bin2hex(random_bytes(10));
+        $insStmt->execute([
+            $emailJobId,
+            'N/A',
+            'Your NCST Event Guest Account Access',
+            'Email notification skipped: Guest email address not provided. Credentials provided on cashier screen.',
+            'unavailable',
+            'Guest email address not provided.',
+            $userId,
+            $guestRef,
+            $ticketId
+        ]);
+        $results['email'] = [
+            'status' => 'unavailable',
+            'details' => 'Guest email not provided; on-screen credentials displayed at cashier desk.',
+            'recipient' => null
+        ];
+    }
+
+    if ($triggerWorker && !$immediateDispatch) {
+        ncst_trigger_background_queue_worker();
+    }
+
     return $results;
 }
 
@@ -650,74 +873,114 @@ function ncst_queue_student_account_notifications(PDO $pdo, array $studentData, 
  * Generates credentials transiently on creation without sending SMS/Email.
  */
 function ncst_resolve_or_create_outsider_account(PDO $pdo, array $outsiderData, array $eventData): array {
-    $name = trim($outsiderData['name'] ?? 'Guest Attendee');
-    $contactNumber = trim($outsiderData['contactNumber'] ?? ($outsiderData['contact_number'] ?? ''));
-    $email = trim($outsiderData['email'] ?? '');
     $guestRef = trim($outsiderData['guestReference'] ?? ($outsiderData['guest_reference'] ?? ($outsiderData['studentId'] ?? '')));
-
     if (empty($guestRef)) {
         $guestRef = 'GUEST-' . rand(1000, 9999);
     }
     $cleanGuestRef = preg_replace('/\s+/', '', strtolower($guestRef));
 
-    // 1. Check if an account already exists for this guest
-    if (!empty($email)) {
-        $chkStmt = $pdo->prepare("
-            SELECT id, student_id, name, email, expires_at 
-            FROM `users` 
-            WHERE (LOWER(REPLACE(`student_id`, ' ', '')) = ? AND `role` IN ('outsider', 'student'))
-               OR (LOWER(`email`) = LOWER(?))
-            LIMIT 1
-        ");
-        $chkStmt->execute([$cleanGuestRef, $email]);
-    } else {
-        $chkStmt = $pdo->prepare("
-            SELECT id, student_id, name, email, expires_at 
-            FROM `users` 
-            WHERE LOWER(REPLACE(`student_id`, ' ', '')) = ? AND `role` IN ('outsider', 'student')
-            LIMIT 1
-        ");
-        $chkStmt->execute([$cleanGuestRef]);
+    // Determine First Name
+    $firstName = '';
+    if (!empty($outsiderData['first_name']) && is_string($outsiderData['first_name'])) {
+        $firstName = trim($outsiderData['first_name']);
+    } elseif (!empty($outsiderData['firstName']) && is_string($outsiderData['firstName'])) {
+        $firstName = trim($outsiderData['firstName']);
     }
+
+    // Determine Last Name / Surname
+    $authoritativeSurname = '';
+    if (!empty($outsiderData['last_name']) && is_string($outsiderData['last_name'])) {
+        $authoritativeSurname = trim($outsiderData['last_name']);
+    } elseif (!empty($outsiderData['lastName']) && is_string($outsiderData['lastName'])) {
+        $authoritativeSurname = trim($outsiderData['lastName']);
+    } elseif (!empty($outsiderData['surname']) && is_string($outsiderData['surname'])) {
+        $authoritativeSurname = trim($outsiderData['surname']);
+    }
+
+    // Fall back to split if only full name string was supplied
+    $rawName = trim($outsiderData['name'] ?? '');
+    if ((empty($firstName) || empty($authoritativeSurname)) && !empty($rawName)) {
+        if (empty($authoritativeSurname)) {
+            $authoritativeSurname = ncst_extract_surname($rawName);
+        }
+        if (empty($firstName)) {
+            $nameParts = preg_split('/\s+/', $rawName);
+            $firstName = (count($nameParts) > 1) ? $nameParts[0] : $rawName;
+        }
+    }
+
+    // Name Validation: First Name & Last Name must be non-empty, >= 2 chars, letters/spaces/hyphens/apostrophes only
+    $namePattern = "/^[a-zA-Z\s\-\.\'\ñ\Ñ]+$/u";
+    if (empty($firstName) || strlen($firstName) < 2 || !preg_match($namePattern, $firstName) || preg_match('/\d/', $firstName)) {
+        return [
+            'created' => false,
+            'error' => 'A valid First Name is required for guest account registration (at least 2 letters, no numbers).'
+        ];
+    }
+
+    if (empty($authoritativeSurname) || strlen($authoritativeSurname) < 2 || !preg_match($namePattern, $authoritativeSurname) || preg_match('/\d/', $authoritativeSurname)) {
+        return [
+            'created' => false,
+            'error' => 'A valid Last Name / Surname is required for guest account registration (at least 2 letters, no numbers).'
+        ];
+    }
+
+    $fullName = trim($firstName . ' ' . $authoritativeSurname);
+
+    // 1. Check if an account already exists for this guest (by Guest Code / Control Number)
+    $chkStmt = $pdo->prepare("
+        SELECT id, student_id, name, first_name, last_name, expires_at 
+        FROM `users` 
+        WHERE LOWER(REPLACE(`student_id`, ' ', '')) = ? AND `role` IN ('outsider', 'student')
+        LIMIT 1
+    ");
+    $chkStmt->execute([$cleanGuestRef]);
     $existing = $chkStmt->fetch();
 
     if ($existing) {
         // EXISTING OUTSIDER ACCOUNT:
-        // Do NOT reset password, do NOT reveal password, do NOT send notifications
+        // Do NOT reset password, do NOT reveal password, preserve existing credentials
         return [
             'created' => false,
             'userId' => $existing['id'],
             'accountId' => $existing['student_id'] ?: $existing['id'],
             'initialPassword' => null,
             'instructions' => null,
+            'first_name' => $existing['first_name'] ?: $firstName,
+            'last_name' => $existing['last_name'] ?: $authoritativeSurname,
+            'name' => $existing['name'] ?: $fullName,
             'expirationDate' => $existing['expires_at'] ?? null
         ];
     }
 
     // 2. NEW OUTSIDER ACCOUNT:
-    // Generate transient initial password to display to the Cashier for immediate handoff
-    $transientPassword = 'Guest@' . strtoupper(substr(bin2hex(random_bytes(3)), 0, 6));
-    $hashedPassword = ncst_hash_password($transientPassword);
+    $initialPassword = $authoritativeSurname;
+    $hashedPassword = ncst_hash_password($initialPassword);
     $newUserId = 'usr-guest-' . substr((string)time(), -6) . bin2hex(random_bytes(3));
-    $assignedEmail = !empty($email) ? $email : "{$cleanGuestRef}@guest.ncst.edu.ph";
+    $accountStatus = 'active';
 
-    // Calculate expiration date (e.g. event date or +7 days)
+    // Calculate expiration date (e.g. event date or +1 day)
     $eventDate = $eventData['date'] ?? date('Y-m-d');
     $expirationDate = date('Y-m-d 23:59:59', strtotime($eventDate . ' + 1 day'));
 
-    // Insert into users table
+    $optionalContact = !empty($outsiderData['contactNumber']) ? trim($outsiderData['contactNumber']) : (!empty($outsiderData['contact_number']) ? trim($outsiderData['contact_number']) : null);
+
+    // Insert into users table with must_change_password = 1, separate first_name and last_name
     $insStmt = $pdo->prepare("
-        INSERT INTO `users` (id, name, email, role, password, student_id, department, account_status, is_active, must_change_password, expires_at)
-        VALUES (?, ?, ?, 'outsider', ?, ?, 'General Public / Guest', 'active', 1, 0, ?)
+        INSERT INTO `users` (id, name, first_name, last_name, role, password, student_id, department, contact_number, account_status, is_active, must_change_password, expires_at)
+        VALUES (?, ?, ?, ?, 'outsider', ?, ?, 'General Public / Guest', ?, ?, 1, 1, ?)
     ");
-    $insStmt->execute([$newUserId, $name, $assignedEmail, $hashedPassword, $guestRef, $expirationDate]);
+    $insStmt->execute([$newUserId, $fullName, $firstName, $authoritativeSurname, $hashedPassword, $guestRef, $optionalContact, $accountStatus, $expirationDate]);
 
     return [
         'created' => true,
         'userId' => $newUserId,
         'accountId' => $guestRef,
-        'initialPassword' => $transientPassword,
-        'instructions' => 'Provide these credentials to the guest now for event portal access.',
+        'initialPassword' => $initialPassword,
+        'first_name' => $firstName,
+        'last_name' => $authoritativeSurname,
+        'name' => $fullName,
+        'instructions' => 'Provide these credentials to the guest now for event portal access. Initial password is their official surname. Password change is required upon first login.',
         'expirationDate' => date('M j, Y g:i A', strtotime($expirationDate))
     ];
 }

@@ -237,29 +237,6 @@ export function validateAttendeeName(rawName: string): PosValidationResult {
   return { isValid: true, normalized: trimmed };
 }
 
-/**
- * 7. EMAIL VALIDATION
- * Standard RFC email pattern
- */
-export function validateEmail(rawEmail: string, isRequired = false): PosValidationResult {
-  const trimmed = (rawEmail || '').trim();
-  if (!trimmed) {
-    if (isRequired) {
-      return { isValid: false, error: 'Email address is required.' };
-    }
-    return { isValid: true, normalized: '' };
-  }
-
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(trimmed)) {
-    return {
-      isValid: false,
-      error: 'Please enter a valid email address (e.g. user@example.com).',
-    };
-  }
-
-  return { isValid: true, normalized: trimmed.toLowerCase() };
-}
 
 /**
  * 8. GUEST REFERENCE CODE GENERATOR & VALIDATION
@@ -297,7 +274,6 @@ export interface PosTransactionData {
   yearLevel?: string;
   section?: string;
   contactNumber?: string;
-  email?: string;
   ticketPrice: number;
   cashReceived?: string | number;
 }
@@ -346,13 +322,6 @@ export function validatePosTransaction(data: PosTransactionData): {
       const phoneRes = validatePhoneNumber(data.contactNumber, false);
       if (!phoneRes.isValid && phoneRes.error) {
         errors.contactNumber = phoneRes.error;
-      }
-    }
-
-    if (data.email && data.email.trim()) {
-      const emailRes = validateEmail(data.email, false);
-      if (!emailRes.isValid && emailRes.error) {
-        errors.email = emailRes.error;
       }
     }
   }

@@ -80,4 +80,68 @@ assert.strictEqual(stoppedTrackCount, 2, 'Must stop all tracks in media stream')
 assert.strictEqual(mockVideoElement.srcObject, null, 'Must clear video srcObject reference');
 console.log('  ✔ Test 7: stopMediaTracks successfully stops all hardware tracks and clears video object');
 
-console.log('\n🎉 ALL 7 CAMERA UTILITY & ERROR DIAGNOSIS TESTS PASSED SUCCESSFULLY!\n');
+// Test 8: checkSecureContext rejects LAN HTTP with 'Switch to HTTPS' advice
+globalThis.window = {
+  location: {
+    hostname: '10.188.141.132',
+    protocol: 'http:',
+    href: 'http://10.188.141.132/NCST-Events-Tickets/'
+  },
+  isSecureContext: false
+};
+
+const originalNavigatorDesc = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+Object.defineProperty(globalThis, 'navigator', {
+  value: {
+    mediaDevices: {
+      getUserMedia: () => {}
+    }
+  },
+  configurable: true,
+  writable: true
+});
+
+const lanHttpCheck = checkSecureContext();
+assert.strictEqual(lanHttpCheck.isSecure, false, 'LAN HTTP must not be considered a secure context');
+assert.strictEqual(lanHttpCheck.error?.type, 'insecure_context', 'Must yield insecure_context error');
+assert.strictEqual(lanHttpCheck.error?.actionLabel, 'Switch to HTTPS', 'Must offer Switch to HTTPS action');
+assert.ok(lanHttpCheck.error?.tip.includes('HTTPS'), 'Tip must advise switching to HTTPS');
+console.log('  ✔ Test 8: checkSecureContext correctly flags unencrypted LAN HTTP and recommends Switch to HTTPS');
+
+// Test 9: checkSecureContext accepts LAN HTTPS with MediaDevices present
+globalThis.window = {
+  location: {
+    hostname: '10.188.141.132',
+    protocol: 'https:',
+    href: 'https://10.188.141.132/NCST-Events-Tickets/'
+  },
+  isSecureContext: true
+};
+
+const lanHttpsCheck = checkSecureContext();
+assert.strictEqual(lanHttpsCheck.isSecure, true, 'LAN HTTPS with valid secure context must pass');
+assert.strictEqual(lanHttpsCheck.error, undefined, 'Must not return error on valid secure context');
+console.log('  ✔ Test 9: checkSecureContext validates trusted LAN HTTPS context with full camera capability');
+
+// Test 10: checkSecureContext detects blocked MediaDevices (untrusted CA on mobile)
+Object.defineProperty(globalThis, 'navigator', {
+  value: {
+    mediaDevices: undefined
+  },
+  configurable: true,
+  writable: true
+});
+
+const blockedMediaCheck = checkSecureContext();
+assert.strictEqual(blockedMediaCheck.isSecure, false, 'Missing mediaDevices must fail secure check');
+assert.strictEqual(blockedMediaCheck.error?.title, 'Camera API Blocked or Unavailable', 'Must identify blocked camera API');
+assert.ok(blockedMediaCheck.error?.tip.includes('CA certificate'), 'Must recommend installing Root CA certificate');
+console.log('  ✔ Test 10: Missing mediaDevices correctly diagnosed with CA certificate installation instructions');
+
+// Cleanup globalThis mocks
+delete globalThis.window;
+if (originalNavigatorDesc) {
+  Object.defineProperty(globalThis, 'navigator', originalNavigatorDesc);
+}
+
+console.log('\n🎉 ALL 10 CAMERA UTILITY & ERROR DIAGNOSIS TESTS PASSED SUCCESSFULLY!\n');

@@ -1,35 +1,29 @@
 <template>
-  <div class="space-y-6 max-w-4xl mx-auto">
+  <div class="space-y-6 max-w-5xl mx-auto">
     <!-- ==================== 1. HEADER & OPERATOR CONTEXT ==================== -->
-    <div class="relative overflow-hidden rounded-3xl bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#2e2e2e] p-5 sm:p-7 shadow-xs transition-colors">
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div class="flex items-start gap-3.5">
-          <div class="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-            <TicketIcon class="w-6 h-6" />
+    <div class="relative overflow-hidden rounded-3xl bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#2e2e2e] p-5 sm:p-7 shadow-xs transition-colors space-y-5">
+      
+      <!-- Top Row: Station Badge, Operator Info & Secondary Navigation -->
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-[#282828] pb-3.5">
+        <div class="flex items-center gap-3 flex-wrap">
+          <div class="w-8 h-8 rounded-xl bg-[#1E3A5F]/10 dark:bg-blue-500/20 text-[#1E3A5F] dark:text-blue-400 flex items-center justify-center shrink-0">
+            <TicketIcon class="w-4 h-4" />
           </div>
-          <div class="space-y-1">
-            <div class="flex items-center gap-2 flex-wrap">
-              <span class="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                Ticket POS Station
-              </span>
-              <span class="text-xs text-slate-500 dark:text-[#a0a0a0]">
-                Operator: <strong class="text-slate-900 dark:text-white">{{ currentUser?.name || 'Cashier Desk' }}</strong>
-              </span>
-            </div>
-            <h1 class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-              Event Ticket POS & Pass Generator
-            </h1>
-            <p class="text-xs text-slate-500 dark:text-[#a0a0a0]">
-              Register an attendee, record payment with exact change calculation, and generate a printable QR ticket.
-            </p>
+          <span class="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-slate-100 dark:bg-[#252525] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-[#333]">
+            Ticket POS Station
+          </span>
+          <div class="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+            <span>Operator: <strong class="text-slate-900 dark:text-white font-bold">{{ currentUser?.name || 'Cashier Desk' }}</strong></span>
           </div>
         </div>
 
-        <!-- Quick Actions & Stats -->
-        <div class="flex items-center gap-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-[#2a2a2a] flex-wrap">
+        <!-- Quick Secondary Links -->
+        <div class="flex items-center gap-2 flex-wrap">
           <button
+            type="button"
             @click="$emit('navigate', 'qr_print_queue')"
-            class="flex items-center gap-1.5 px-3.5 py-2 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-xl text-xs font-bold transition cursor-pointer"
+            class="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-xl text-xs font-bold transition cursor-pointer"
             title="Open Dynamic QR Label Print Queue"
           >
             <Printer class="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
@@ -38,24 +32,28 @@
               {{ pendingQrTickets.length }}
             </span>
           </button>
+
           <button
+            type="button"
             @click="$emit('navigate', 'tickets')"
-            class="flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 dark:bg-[#252525] hover:bg-slate-200 dark:hover:bg-[#2e2e2e] text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition cursor-pointer"
+            class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-[#252525] hover:bg-slate-200 dark:hover:bg-[#2e2e2e] text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#333] rounded-xl text-xs font-bold transition cursor-pointer"
             title="Open Issued Tickets Registry"
           >
             <TicketIcon class="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
-            <span>Issued Registry →</span>
+            <span>Ticket Registry →</span>
           </button>
-          <div class="px-3 py-1.5 bg-slate-50 dark:bg-[#222222] border border-slate-200 dark:border-[#333333] rounded-xl text-center">
-            <span class="text-[9px] text-slate-400 uppercase font-extrabold block">Today's Sales</span>
-            <span class="text-sm font-black text-emerald-600 dark:text-emerald-400">{{ cashierIssuedCount }} passes</span>
-          </div>
-          <div v-if="selectedEventStock" class="px-3 py-1.5 bg-slate-50 dark:bg-[#222222] border border-slate-200 dark:border-[#333333] rounded-xl text-center" :title="`Shared Physical Stock: ${selectedEventStock.availableQuantity} available, ${selectedEventStock.reservedQuantity} reserved across all cashiers.`">
-            <span class="text-[9px] text-slate-400 uppercase font-extrabold block">Physical Stock</span>
-            <span class="text-sm font-black" :class="isStockDepleted ? 'text-rose-600 dark:text-rose-400' : (selectedEventStock.availableQuantity <= 20 ? 'text-amber-600 dark:text-amber-400' : 'text-blue-600 dark:text-blue-400')">
-              {{ selectedEventStock.availableQuantity }} left
-            </span>
-          </div>
+        </div>
+      </div>
+
+      <!-- Main Header Row: Spacious Title & Live Stat Badges -->
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div class="space-y-1">
+          <h1 class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-snug">
+            Event Ticket POS & Pass Generator
+          </h1>
+          <p class="text-xs text-slate-500 dark:text-[#a0a0a0] max-w-xl">
+            Register attendees, record payments with exact change calculation, and issue verified QR admission passes.
+          </p>
         </div>
       </div>
     </div>
@@ -65,25 +63,25 @@
       
       <!-- ==================== STEP 1: ATTENDEE INFORMATION ==================== -->
       <div class="space-y-4">
-        <div class="flex items-center justify-between border-b border-slate-100 dark:border-[#2a2a2a] pb-3">
-          <h2 class="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
-            <span class="w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] flex items-center justify-center font-black">1</span>
-            <span>Step 1 — Attendee Information</span>
+        <div class="flex items-center justify-between border-b border-slate-100 dark:border-[#282828] pb-3">
+          <h2 class="text-xs sm:text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-2.5">
+            <span class="w-6 h-6 rounded-lg bg-[#1E3A5F]/10 dark:bg-blue-500/20 text-[#1E3A5F] dark:text-blue-400 text-xs flex items-center justify-center font-black">01</span>
+            <span>Attendee Information</span>
           </h2>
           <span class="text-[11px] font-semibold text-slate-400">
-            Select type & specify details
+            Select attendee classification & verify details
           </span>
         </div>
 
-        <!-- Attendee Type Toggle -->
-        <div class="grid grid-cols-2 gap-3">
+        <!-- Attendee Type Segmented Control -->
+        <div class="p-1 bg-slate-100 dark:bg-[#141414] rounded-2xl border border-slate-200 dark:border-[#2a2a2a] grid grid-cols-2 gap-1.5">
           <button
             type="button"
             @click="setAttendeeType('student')"
-            class="py-3 px-4 rounded-2xl border text-xs font-extrabold transition flex items-center justify-center gap-2 cursor-pointer"
+            class="py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer"
             :class="attendeeType === 'student'
-              ? 'bg-slate-100 dark:bg-[#252525] border-[#1E3A5F] dark:border-blue-500 text-[#1E3A5F] dark:text-blue-300 ring-2 ring-[#1E3A5F]/20'
-              : 'bg-slate-50 dark:bg-[#222222] border-slate-200 dark:border-[#333333] text-[#475569] dark:text-slate-400 hover:border-slate-300 dark:hover:border-[#444444]'"
+              ? 'bg-white dark:bg-[#252525] text-[#1E3A5F] dark:text-white shadow-xs font-black'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'"
           >
             <GraduationCap class="w-4 h-4" />
             <span>Enrolled Student</span>
@@ -91,10 +89,10 @@
           <button
             type="button"
             @click="setAttendeeType('outsider')"
-            class="py-3 px-4 rounded-2xl border text-xs font-extrabold transition flex items-center justify-center gap-2 cursor-pointer"
+            class="py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer"
             :class="attendeeType === 'outsider'
-              ? 'bg-slate-100 dark:bg-[#252525] border-[#1E3A5F] dark:border-blue-500 text-[#1E3A5F] dark:text-blue-300 ring-2 ring-[#1E3A5F]/20'
-              : 'bg-slate-50 dark:bg-[#222222] border-slate-200 dark:border-[#333333] text-[#475569] dark:text-slate-400 hover:border-slate-300 dark:hover:border-[#444444]'"
+              ? 'bg-white dark:bg-[#252525] text-[#1E3A5F] dark:text-white shadow-xs font-black'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'"
           >
             <Users class="w-4 h-4" />
             <span>Outsider / Guest</span>
@@ -188,7 +186,37 @@
             <!-- Inline Feedback for Student ID / Guest Ref -->
             <div v-if="touched.studentId || formStudentId" class="mt-1 min-h-[16px]">
               <template v-if="attendeeType === 'student'">
-                <p v-if="studentIdValidation.isValid" class="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                <p v-if="isLookingUpStudent" class="text-[11px] text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-1">
+                  <RotateCw class="w-3 h-3 shrink-0 animate-spin" />
+                  <span>Checking authoritative student registry...</span>
+                </p>
+                <div v-else-if="matchedStudentRecord" class="space-y-0.5">
+                  <p v-if="matchedStudentRecord.accountStatus === 'active'" class="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                    <CheckCircle2 class="w-3 h-3 shrink-0" />
+                    <span>🟢 Registered Portal Account (Active) — Roster Verified</span>
+                  </p>
+                  <p v-else-if="matchedStudentRecord.accountStatus === 'pending_activation'" class="text-[11px] text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
+                    <CheckCircle2 class="w-3 h-3 shrink-0" />
+                    <span>🟡 Registered (Pending Activation) — Ticket Eligible</span>
+                  </p>
+                  <p v-else-if="matchedStudentRecord.accountStatus === 'unregistered'" class="text-[11px] text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-1">
+                    <CheckCircle2 class="w-3 h-3 shrink-0" />
+                    <span>🔵 Official Institutional Roster (Unregistered Account) — Ticket Eligible</span>
+                  </p>
+                  <p v-else-if="matchedStudentRecord.verificationStatus === 'pending'" class="text-[11px] text-orange-600 dark:text-orange-400 font-semibold flex items-center gap-1">
+                    <AlertCircle class="w-3 h-3 shrink-0" />
+                    <span>🟠 Self-Registered Account (Pending Official Roster Verification)</span>
+                  </p>
+                  <p v-else class="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                    <CheckCircle2 class="w-3 h-3 shrink-0" />
+                    <span>Authoritative Student Record Verified</span>
+                  </p>
+                </div>
+                <p v-else-if="studentLookupError" class="text-[11px] text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
+                  <AlertCircle class="w-3 h-3 shrink-0" />
+                  <span>⚠️ {{ studentLookupError }}</span>
+                </p>
+                <p v-else-if="studentIdValidation.isValid" class="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
                   <CheckCircle2 class="w-3 h-3 shrink-0" />
                   <span>Valid NCST Student ID format</span>
                 </p>
@@ -213,50 +241,187 @@
             </p>
           </div>
 
-          <!-- 2. FULL NAME -->
-          <div>
-            <div class="flex items-center justify-between mb-1">
-              <label class="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                Full Name *
-              </label>
-              <span v-if="attendeeType === 'student' && isAuthoritativeStudentMatch" class="text-[9px] font-black uppercase text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
-                🔒 Authoritative Record
-              </span>
-            </div>
-            <input
-              type="text"
-              v-model="formName"
-              @blur="touchField('name')"
-              @input="touchField('name')"
-              :readonly="attendeeType === 'student' && isAuthoritativeStudentMatch"
-              :placeholder="attendeeType === 'student' ? 'Juan Dela Cruz' : 'Guest Attendee Name'"
-              class="w-full px-3 py-2 bg-white dark:bg-[#1a1a1a] border rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none transition-colors"
-              :class="[
-                attendeeType === 'student' && isAuthoritativeStudentMatch ? 'bg-slate-50 dark:bg-[#202020] text-slate-700 dark:text-slate-300 cursor-not-allowed' : '',
-                touched.name && !nameValidation.isValid
-                  ? 'border-rose-500 dark:border-rose-500 bg-rose-50/20'
-                  : touched.name && nameValidation.isValid
-                  ? 'border-emerald-500 dark:border-emerald-500 bg-emerald-50/20'
-                  : 'border-slate-200 dark:border-[#333333] focus:border-blue-500'
-              ]"
-              required
-            />
+          <!-- 2. NAME FIELDS -->
+          <!-- STUDENT: Full Name + Official Surname -->
+          <template v-if="attendeeType === 'student'">
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label class="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  Full Name *
+                </label>
+                <span v-if="isAuthoritativeStudentMatch" class="text-[9px] font-black uppercase text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+                  🔒 Authoritative Record
+                </span>
+              </div>
+              <input
+                type="text"
+                v-model="formName"
+                @blur="touchField('name')"
+                @input="touchField('name')"
+                :readonly="isAuthoritativeStudentMatch"
+                placeholder="Juan Dela Cruz"
+                class="w-full px-3 py-2 bg-white dark:bg-[#1a1a1a] border rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none transition-colors"
+                :class="[
+                  isAuthoritativeStudentMatch ? 'bg-slate-50 dark:bg-[#202020] text-slate-700 dark:text-slate-300 cursor-not-allowed' : '',
+                  touched.name && !nameValidation.isValid
+                    ? 'border-rose-500 dark:border-rose-500 bg-rose-50/20'
+                    : touched.name && nameValidation.isValid
+                    ? 'border-emerald-500 dark:border-emerald-500 bg-emerald-50/20'
+                    : 'border-slate-200 dark:border-[#333333] focus:border-blue-500'
+                ]"
+                required
+              />
 
-            <!-- Inline Feedback for Name -->
-            <div v-if="touched.name || formName" class="mt-1 min-h-[16px]">
-              <p v-if="nameValidation.isValid" class="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
-                <CheckCircle2 class="w-3 h-3 shrink-0" />
-                <span>{{ attendeeType === 'student' && isAuthoritativeStudentMatch ? 'Verified from StudentRecord roster' : 'Valid Attendee Name' }}</span>
-              </p>
-              <p v-else-if="touched.name" class="text-[11px] text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-1">
-                <AlertCircle class="w-3 h-3 shrink-0" />
-                <span>{{ nameValidation.error }}</span>
+              <!-- Inline Feedback for Name -->
+              <div v-if="touched.name || formName" class="mt-1 min-h-[16px]">
+                <p v-if="nameValidation.isValid" class="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                  <CheckCircle2 class="w-3 h-3 shrink-0" />
+                  <span>{{ isAuthoritativeStudentMatch ? 'Full name for identification (StudentRecord)' : 'Valid Attendee Name' }}</span>
+                </p>
+                <p v-else-if="touched.name" class="text-[11px] text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-1">
+                  <AlertCircle class="w-3 h-3 shrink-0" />
+                  <span>{{ nameValidation.error }}</span>
+                </p>
+              </div>
+              <p v-else class="text-[10px] text-slate-400 mt-1">
+                Letters, spaces, hyphens, apostrophes (preserves suffixes like Jr., Sr., II, III)
               </p>
             </div>
-            <p v-else class="text-[10px] text-slate-400 mt-1">
-              Letters, spaces, hyphens, apostrophes (no numbers)
-            </p>
-          </div>
+
+            <!-- OFFICIAL SURNAME (STUDENT ONLY - SEPARATE AUTHORITATIVE FIELD) -->
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label class="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  Last Name / Surname *
+                </label>
+                <span v-if="isAuthoritativeStudentMatch && hasAuthoritativeSurname" class="text-[9px] font-black uppercase text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+                  🔒 Official Surname
+                </span>
+                <span v-else-if="isAuthoritativeStudentMatch && !hasAuthoritativeSurname" class="text-[9px] font-black uppercase text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800">
+                  ⚠️ Missing in Roster
+                </span>
+              </div>
+              <input
+                type="text"
+                v-model="formLastName"
+                @blur="touchField('lastName')"
+                @input="touchField('lastName')"
+                :readonly="isAuthoritativeStudentMatch && hasAuthoritativeSurname"
+                placeholder="e.g. Dela Cruz, Santos, De Los Santos"
+                class="w-full px-3 py-2 bg-white dark:bg-[#1a1a1a] border rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none transition-colors"
+                :class="[
+                  isAuthoritativeStudentMatch && hasAuthoritativeSurname ? 'bg-slate-50 dark:bg-[#202020] text-slate-700 dark:text-slate-300 cursor-not-allowed' : '',
+                  isAuthoritativeStudentMatch && !hasAuthoritativeSurname ? 'border-amber-400 dark:border-amber-500 bg-amber-50/20' : '',
+                  touched.lastName && !lastNameValidation.isValid
+                    ? 'border-rose-500 dark:border-rose-500 bg-rose-50/20'
+                    : touched.lastName && lastNameValidation.isValid && !(isAuthoritativeStudentMatch && !hasAuthoritativeSurname)
+                    ? 'border-emerald-500 dark:border-emerald-500 bg-emerald-50/20'
+                    : 'border-slate-200 dark:border-[#333333] focus:border-blue-500'
+                ]"
+                required
+              />
+
+              <!-- Inline Feedback for Last Name / Surname -->
+              <div class="mt-1 min-h-[16px]">
+                <p v-if="isAuthoritativeStudentMatch && hasAuthoritativeSurname" class="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                  <CheckCircle2 class="w-3 h-3 shrink-0" />
+                  <span>Official surname retrieved from authoritative StudentRecord</span>
+                </p>
+                <p v-else-if="isAuthoritativeStudentMatch && !hasAuthoritativeSurname" class="text-[11px] text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
+                  <AlertCircle class="w-3 h-3 shrink-0" />
+                  <span>Authoritative surname is missing from roster. Please input manually (no guessing).</span>
+                </p>
+                <p v-else-if="touched.lastName && lastNameValidation.isValid" class="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                  <CheckCircle2 class="w-3 h-3 shrink-0" />
+                  <span>Valid Last Name / Surname</span>
+                </p>
+                <p v-else-if="touched.lastName && !lastNameValidation.isValid" class="text-[11px] text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-1">
+                  <AlertCircle class="w-3 h-3 shrink-0" />
+                  <span>{{ lastNameValidation.error }}</span>
+                </p>
+                <p v-else class="text-[10px] text-slate-400">
+                  Official family name (supports multi-word surnames e.g. Dela Cruz)
+                </p>
+              </div>
+            </div>
+          </template>
+
+          <!-- OUTSIDER: First Name + Last Name / Surname in 2 columns -->
+          <template v-else>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <!-- First Name -->
+              <div>
+                <label class="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">
+                  First Name *
+                </label>
+                <input
+                  type="text"
+                  v-model="formFirstName"
+                  @blur="touchField('firstName')"
+                  @input="touchField('firstName')"
+                  placeholder="e.g. Maria"
+                  class="w-full px-3 py-2 bg-white dark:bg-[#1a1a1a] border rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none transition-colors"
+                  :class="[
+                    touched.firstName && !firstNameValidation.isValid
+                      ? 'border-rose-500 dark:border-rose-500 bg-rose-50/20'
+                      : touched.firstName && firstNameValidation.isValid
+                      ? 'border-emerald-500 dark:border-emerald-500 bg-emerald-50/20'
+                      : 'border-slate-200 dark:border-[#333333] focus:border-blue-500'
+                  ]"
+                  required
+                />
+                <div class="mt-1 min-h-[16px]">
+                  <p v-if="touched.firstName && firstNameValidation.isValid" class="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                    <CheckCircle2 class="w-3 h-3 shrink-0" />
+                    <span>Valid First Name</span>
+                  </p>
+                  <p v-else-if="touched.firstName && !firstNameValidation.isValid" class="text-[11px] text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-1">
+                    <AlertCircle class="w-3 h-3 shrink-0" />
+                    <span>{{ firstNameValidation.error }}</span>
+                  </p>
+                  <p v-else class="text-[10px] text-slate-400">
+                    Given name of attendee
+                  </p>
+                </div>
+              </div>
+
+              <!-- Last Name / Surname -->
+              <div>
+                <label class="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">
+                  Last Name / Surname *
+                </label>
+                <input
+                  type="text"
+                  v-model="formLastName"
+                  @blur="touchField('lastName')"
+                  @input="touchField('lastName')"
+                  placeholder="e.g. Santos, Dela Cruz"
+                  class="w-full px-3 py-2 bg-white dark:bg-[#1a1a1a] border rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none transition-colors"
+                  :class="[
+                    touched.lastName && !lastNameValidation.isValid
+                      ? 'border-rose-500 dark:border-rose-500 bg-rose-50/20'
+                      : touched.lastName && lastNameValidation.isValid
+                      ? 'border-emerald-500 dark:border-emerald-500 bg-emerald-50/20'
+                      : 'border-slate-200 dark:border-[#333333] focus:border-blue-500'
+                  ]"
+                  required
+                />
+                <div class="mt-1 min-h-[16px]">
+                  <p v-if="touched.lastName && lastNameValidation.isValid" class="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                    <CheckCircle2 class="w-3 h-3 shrink-0" />
+                    <span>Valid Last Name / Surname</span>
+                  </p>
+                  <p v-else-if="touched.lastName && !lastNameValidation.isValid" class="text-[11px] text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-1">
+                    <AlertCircle class="w-3 h-3 shrink-0" />
+                    <span>{{ lastNameValidation.error }}</span>
+                  </p>
+                  <p v-else class="text-[10px] text-slate-400">
+                    Family name (used as initial password)
+                  </p>
+                </div>
+              </div>
+            </div>
+          </template>
 
           <!-- STUDENT ONLY: Course, Year Level, Section -->
           <template v-if="attendeeType === 'student'">
@@ -362,83 +527,17 @@
             </div>
           </template>
 
-          <!-- OUTSIDER ONLY: Phone, Email -->
-          <template v-else>
-            <!-- Contact Number (Phone Validation) -->
-            <div>
-              <label class="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">
-                Philippine Mobile Number
-              </label>
-              <input
-                type="text"
-                v-model="formGuestPhone"
-                @blur="touchField('guestPhone')"
-                @input="touchField('guestPhone')"
-                placeholder="e.g. 09171234567"
-                class="w-full px-3 py-2 bg-white dark:bg-[#1a1a1a] border rounded-xl text-xs font-mono font-semibold text-slate-900 dark:text-white focus:outline-none transition-colors"
-                :class="[
-                  touched.guestPhone && formGuestPhone && !phoneValidation.isValid
-                    ? 'border-rose-500 dark:border-rose-500 bg-rose-50/20'
-                    : touched.guestPhone && formGuestPhone && phoneValidation.isValid
-                    ? 'border-emerald-500 dark:border-emerald-500 bg-emerald-50/20'
-                    : 'border-slate-200 dark:border-[#333333] focus:border-purple-500'
-                ]"
-              />
-              <div v-if="formGuestPhone" class="mt-1">
-                <p v-if="phoneValidation.isValid" class="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
-                  <CheckCircle2 class="w-3 h-3 shrink-0" />
-                  <span>Valid Philippine Mobile (09XX)</span>
-                </p>
-                <p v-else class="text-[10px] text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-1">
-                  <AlertCircle class="w-3 h-3 shrink-0" />
-                  <span>{{ phoneValidation.error }}</span>
-                </p>
-              </div>
-              <p v-else class="text-[10px] text-slate-400 mt-1">11 digits starting with 09 (e.g. 09171234567)</p>
-            </div>
 
-            <!-- Email (Email Validation) -->
-            <div class="sm:col-span-2">
-              <label class="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">
-                Guest Email Address (Optional)
-              </label>
-              <input
-                type="email"
-                v-model="formGuestEmail"
-                @blur="touchField('guestEmail')"
-                @input="touchField('guestEmail')"
-                placeholder="e.g. guest.attendee@gmail.com"
-                class="w-full px-3 py-2 bg-white dark:bg-[#1a1a1a] border rounded-xl text-xs font-semibold text-slate-900 dark:text-white focus:outline-none transition-colors"
-                :class="[
-                  touched.guestEmail && formGuestEmail && !emailValidation.isValid
-                    ? 'border-rose-500 dark:border-rose-500 bg-rose-50/20'
-                    : touched.guestEmail && formGuestEmail && emailValidation.isValid
-                    ? 'border-emerald-500 dark:border-emerald-500 bg-emerald-50/20'
-                    : 'border-slate-200 dark:border-[#333333] focus:border-purple-500'
-                ]"
-              />
-              <div v-if="formGuestEmail" class="mt-1">
-                <p v-if="emailValidation.isValid" class="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
-                  <CheckCircle2 class="w-3 h-3 shrink-0" />
-                  <span>Valid Email Format</span>
-                </p>
-                <p v-else class="text-[10px] text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-1">
-                  <AlertCircle class="w-3 h-3 shrink-0" />
-                  <span>{{ emailValidation.error }}</span>
-                </p>
-              </div>
-            </div>
-          </template>
 
         </div>
       </div>
 
       <!-- ==================== STEP 2: EVENT & CASH PAYMENT DETAILS ==================== -->
-      <div class="space-y-4 pt-4 border-t border-slate-100 dark:border-[#2a2a2a]">
-        <div class="flex items-center justify-between border-b border-slate-100 dark:border-[#2a2a2a] pb-3">
-          <h2 class="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
-            <span class="w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] flex items-center justify-center font-black">2</span>
-            <span>Step 2 — Event & Cash Payment Details</span>
+      <div class="space-y-4 pt-4 border-t border-slate-100 dark:border-[#282828]">
+        <div class="flex items-center justify-between border-b border-slate-100 dark:border-[#282828] pb-3">
+          <h2 class="text-xs sm:text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-2.5">
+            <span class="w-6 h-6 rounded-lg bg-[#1E3A5F]/10 dark:bg-blue-500/20 text-[#1E3A5F] dark:text-blue-400 text-xs flex items-center justify-center font-black">02</span>
+            <span>Event & Cash Payment Details</span>
           </h2>
           <span class="text-[11px] font-semibold text-slate-400">
             Select event, input cash, calculate change
@@ -494,14 +593,6 @@
               <p class="text-slate-500 dark:text-[#a0a0a0] text-[11px] font-medium mt-0.5">
                 {{ selectedEvent.date }} • {{ selectedEvent.venue }} • <span class="font-bold text-blue-600 dark:text-blue-400">A.Y. {{ selectedEvent.academicYear || '2026-2027' }} {{ selectedEvent.semester || '1st Semester' }}</span>
               </p>
-              <div v-if="selectedEventStock" class="flex items-center gap-2 mt-2 flex-wrap">
-                <span class="text-[11px] font-bold px-2 py-0.5 rounded-md" :class="isStockDepleted ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300' : (selectedEventStock.availableQuantity <= 20 ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300' : 'bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300')">
-                  📦 Physical Stock: {{ selectedEventStock.availableQuantity }} / {{ selectedEventStock.totalQuantity }} blank passes available
-                </span>
-                <span v-if="selectedEvent.capacity" class="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-                  • Venue Capacity: {{ selectedEvent.capacity }} attendees max
-                </span>
-              </div>
             </div>
             <div class="text-right">
               <span class="text-[10px] uppercase font-extrabold text-slate-400 block">Amount Due</span>
@@ -650,158 +741,147 @@
     <Modal
       :is-open="!!lastIssuedTicket"
       @close="handleSuccessModalClose"
-      title="✅ Ticket Issued Successfully"
-      subtitle="NCST Official Workflow: Pass record created. Print dynamic QR label to attach to pre-printed ticket stock."
+      title="Ticket Issued Successfully"
+      subtitle="Pass record created and ready for QR sticker printing."
       max-width="md"
     >
-      <div v-if="lastIssuedTicket" class="space-y-4">
-        <!-- Success Summary Card -->
-        <div class="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 space-y-3 text-xs">
-          <div class="flex items-center justify-between">
+      <div v-if="lastIssuedTicket" class="space-y-3.5">
+        <!-- Main Ticket Details Card -->
+        <div class="p-4 rounded-2xl bg-slate-50 dark:bg-[#202020] border border-slate-200 dark:border-[#333333] space-y-3 text-xs">
+          <!-- Top Row: Ticket Number & QR Status -->
+          <div class="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-200 dark:border-[#2e2e2e]">
             <div class="flex items-center gap-2">
-              <span class="w-7 h-7 rounded-full bg-emerald-600 text-white flex items-center justify-center font-black text-xs">✓</span>
+              <span class="w-6 h-6 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-black text-xs shrink-0">
+                ✓
+              </span>
               <div>
-                <span class="text-[10px] font-extrabold uppercase text-emerald-800 dark:text-emerald-300 block">Ticket Number</span>
+                <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Ticket No.</span>
                 <span class="font-mono font-black text-slate-900 dark:text-white text-sm">
                   {{ lastIssuedTicket.ticketNumber || lastIssuedTicket.id }}
                 </span>
               </div>
             </div>
-            <span class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-amber-100 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
-              QR: PENDING PRINT
+            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 shrink-0">
+              Pending Print
             </span>
           </div>
 
-          <div class="grid grid-cols-2 gap-2.5 pt-2 border-t border-emerald-200 dark:border-emerald-800/60">
+          <!-- Middle Details Grid -->
+          <div class="grid grid-cols-2 gap-x-4 gap-y-2.5">
             <div>
-              <span class="text-[10px] uppercase font-bold text-slate-400 block">Attendee</span>
-              <span class="font-bold text-slate-900 dark:text-white">{{ lastIssuedTicket.currentAttendeeName }}</span>
+              <span class="text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500 block">Attendee</span>
+              <span class="font-bold text-slate-900 dark:text-white text-xs block truncate">{{ lastIssuedTicket.currentAttendeeName }}</span>
             </div>
             <div>
-              <span class="text-[10px] uppercase font-bold text-slate-400 block">Type</span>
-              <span class="font-bold text-blue-600 dark:text-blue-400">{{ lastIssuedTicket.attendeeType || 'STUDENT' }}</span>
+              <span class="text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500 block">Admission Type</span>
+              <span class="font-bold text-xs" :class="lastIssuedTicket.attendeeType === 'OUTSIDER' ? 'text-purple-600 dark:text-purple-400' : 'text-blue-600 dark:text-blue-400'">
+                {{ lastIssuedTicket.attendeeType === 'OUTSIDER' ? 'Guest / Outsider' : 'NCST Student' }}
+              </span>
             </div>
-            <div>
-              <span class="text-[10px] uppercase font-bold text-slate-400 block">Event</span>
-              <span class="font-bold text-slate-800 dark:text-slate-200 truncate block">{{ selectedEvent?.title || 'Event Pass' }}</span>
+            <div class="col-span-2 sm:col-span-1">
+              <span class="text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500 block">Event</span>
+              <span class="font-bold text-slate-800 dark:text-slate-200 text-xs block leading-tight">{{ selectedEvent?.title || 'Event Pass' }}</span>
             </div>
-            <div>
-              <span class="text-[10px] uppercase font-bold text-slate-400 block">Payment</span>
-              <span class="font-bold text-emerald-600 dark:text-emerald-400 capitalize">{{ lastIssuedTicket.paymentStatus }}</span>
+            <div class="col-span-2 sm:col-span-1">
+              <span class="text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500 block">Payment</span>
+              <span class="font-bold text-emerald-600 dark:text-emerald-400 text-xs capitalize flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
+                <span>{{ lastIssuedTicket.paymentStatus === 'free' ? 'Free Admission' : (lastIssuedTicket.price ? `₱${lastIssuedTicket.price}.00 Paid` : 'Paid') }}</span>
+              </span>
             </div>
-          </div>
-
-          <div class="pt-2 border-t border-emerald-200/60 dark:border-emerald-800/40 text-[10px] text-emerald-800 dark:text-emerald-300 font-bold text-center">
-            NCST Event Pass Successfully Issued
           </div>
         </div>
 
-        <!-- Student Portal Account Notification Status Card -->
-        <div v-if="accountCreationInfo?.isStudent && accountCreationInfo?.created" class="p-4 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 space-y-2.5 text-xs text-left">
-          <div class="flex items-center justify-between">
-            <span class="text-[11px] font-black uppercase tracking-wider text-blue-900 dark:text-blue-200 flex items-center gap-1.5">
-              <KeyRound class="w-4 h-4 text-blue-600 dark:text-blue-400" />
-              Student Portal Account Created
+        <!-- Student Portal Account Notification Status Card (When Account Was Provisioned) -->
+        <div v-if="accountCreationInfo?.isStudent && accountCreationInfo?.created" class="p-3.5 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-900/60 space-y-2 text-xs text-left">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-[11px] font-bold text-blue-900 dark:text-blue-200 flex items-center gap-1.5">
+              <KeyRound class="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+              <span>Student Portal Account Created</span>
             </span>
             <span class="font-mono text-[11px] font-bold text-blue-700 dark:text-blue-300">
               ID: {{ accountCreationInfo.studentId }}
             </span>
           </div>
 
-          <p class="text-[10.5px] text-blue-800/90 dark:text-blue-300/90 leading-relaxed">
-            Initial password is the student's official surname. The student must set a new personal password on their first login.
+          <p class="text-[10.5px] text-blue-800/80 dark:text-blue-300/80 leading-relaxed">
+            Activation link and instructions dispatched to student's verified institutional email.
           </p>
 
-          <div class="pt-2 border-t border-blue-200/80 dark:border-blue-800/50 space-y-1.5">
-            <!-- SMS Status -->
-            <div class="flex items-center justify-between text-[11px]">
-              <span class="text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
-                <Smartphone class="w-3.5 h-3.5 text-slate-400" />
-                <span>SMS Notification:</span>
-              </span>
-              <span class="font-semibold flex items-center gap-1" :class="getStatusBadgeClass(accountCreationInfo.notifications?.sms?.status)">
-                <component :is="getStatusIcon(accountCreationInfo.notifications?.sms?.status)" class="w-3 h-3" />
-                <span>{{ accountCreationInfo.notifications?.sms?.details || 'SMS notification queued.' }}</span>
-              </span>
-            </div>
-
-            <!-- Email Status -->
-            <div class="flex items-center justify-between text-[11px]">
-              <span class="text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
-                <Mail class="w-3.5 h-3.5 text-slate-400" />
-                <span>Official NCST Email:</span>
-              </span>
-              <span class="font-semibold flex items-center gap-1" :class="getStatusBadgeClass(accountCreationInfo.notifications?.email?.status)">
-                <component :is="getStatusIcon(accountCreationInfo.notifications?.email?.status)" class="w-3 h-3" />
-                <span>{{ accountCreationInfo.notifications?.email?.details || 'Official email queued.' }}</span>
-              </span>
-            </div>
+          <div class="pt-1.5 border-t border-blue-200/60 dark:border-blue-800/40 flex flex-wrap items-center justify-between gap-2 text-[10.5px]">
+            <span class="text-slate-500 dark:text-slate-400 flex items-center gap-1">
+              <Mail class="w-3 h-3 text-slate-400" />
+              <span>Notification:</span>
+            </span>
+            <span class="font-semibold flex items-center gap-1" :class="getStatusBadgeClass(accountCreationInfo.notifications?.email?.status)">
+              <component :is="getStatusIcon(accountCreationInfo.notifications?.email?.status)" class="w-3 h-3" />
+              <span>{{ accountCreationInfo.notifications?.email?.details || 'Queued for dispatch.' }}</span>
+            </span>
           </div>
         </div>
 
         <!-- Outsider Account Confirmation Card (On-Screen Credentials Only) -->
-        <div v-if="accountCreationInfo?.isOutsider && accountCreationInfo?.created" class="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/80 space-y-2.5 text-xs text-left">
-          <div class="flex items-center justify-between">
-            <span class="text-[11px] font-black uppercase tracking-wider text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
-              <Users class="w-4 h-4 text-amber-600 dark:text-amber-400" />
-              Outsider Account Created Successfully
+        <div v-if="accountCreationInfo?.isOutsider && accountCreationInfo?.created" class="p-3.5 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-900/60 space-y-2.5 text-xs text-left">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-[11px] font-bold text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+              <Users class="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+              <span>Guest Account Generated</span>
             </span>
-            <span v-if="accountCreationInfo.outsiderAccount?.expirationDate" class="text-[10px] font-bold text-amber-700 dark:text-amber-300">
+            <span v-if="accountCreationInfo.outsiderAccount?.expirationDate" class="text-[10px] text-amber-700 dark:text-amber-300">
               Expires: {{ accountCreationInfo.outsiderAccount.expirationDate }}
             </span>
           </div>
 
-          <div class="p-3 bg-white dark:bg-[#1a1a1a] rounded-xl border border-amber-200 dark:border-amber-900/60 space-y-2">
-            <div class="flex items-center justify-between">
-              <span class="text-slate-500 text-[10.5px]">Account ID / Username:</span>
-              <span class="font-mono font-black text-slate-900 dark:text-white text-xs select-all">
+          <div class="p-2.5 bg-white dark:bg-[#1a1a1a] rounded-lg border border-amber-200/80 dark:border-amber-900/40 grid grid-cols-2 gap-2 text-[11px]">
+            <div>
+              <span class="text-slate-400 text-[10px] block">Login ID (Guest Code):</span>
+              <span class="font-mono font-bold text-slate-900 dark:text-white select-all">
                 {{ accountCreationInfo.outsiderAccount?.accountId }}
               </span>
             </div>
-
-            <div v-if="accountCreationInfo.outsiderAccount?.initialPassword" class="flex items-center justify-between">
-              <span class="text-slate-500 text-[10.5px]">Initial Password:</span>
-              <span class="font-mono font-black text-amber-600 dark:text-amber-400 text-xs px-2 py-0.5 bg-amber-100 dark:bg-amber-950/60 rounded border border-amber-300/50 select-all">
+            <div v-if="accountCreationInfo.outsiderAccount?.initialPassword">
+              <span class="text-slate-400 text-[10px] block">Initial Password (Surname):</span>
+              <span class="font-mono font-bold text-amber-600 dark:text-amber-400 select-all">
                 {{ accountCreationInfo.outsiderAccount?.initialPassword }}
               </span>
             </div>
           </div>
-
-          <p class="text-[10.5px] text-amber-800/90 dark:text-amber-300/90 leading-relaxed">
-            {{ accountCreationInfo.outsiderAccount?.instructions || 'Provide these credentials to the guest now for event portal access.' }}
-          </p>
         </div>
 
-          <!-- Primary Actions: Print QR Label, Open Print Queue, Next Sale -->
-        <div class="space-y-2">
-          <!-- Primary Action: Print QR Label -->
-          <button
-            type="button"
-            @click="handlePrintSingleQrLabel(lastIssuedTicket)"
-            class="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
-          >
-            <Printer class="w-4 h-4" />
-            <span>Print QR Label</span>
-          </button>
+        <!-- Action Button Row: 2 Primary side-by-side buttons + subtle text link -->
+        <div class="pt-2 space-y-2.5">
+          <div class="flex items-center gap-2.5">
+            <!-- Primary Action: Print QR Label -->
+            <button
+              type="button"
+              @click="handlePrintSingleQrLabel(lastIssuedTicket)"
+              class="flex-1 py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <Printer class="w-4 h-4" />
+              <span>Print QR Label</span>
+            </button>
 
-          <!-- Secondary Action: Open Print Queue -->
-          <button
-            type="button"
-            @click="handleGoToPrintQueue"
-            class="w-full py-2.5 px-3 bg-slate-100 dark:bg-[#282828] hover:bg-slate-200 dark:hover:bg-[#333333] text-slate-800 dark:text-slate-200 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer"
-          >
-            <Printer class="w-4 h-4 text-slate-500" />
-            <span>Open Print Queue →</span>
-          </button>
+            <!-- Next Sale Button (Side-by-side) -->
+            <button
+              type="button"
+              @click="handleSuccessModalClose"
+              class="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-[#282828] dark:hover:bg-[#333333] text-slate-800 dark:text-slate-200 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <span>+ Next Sale</span>
+            </button>
+          </div>
 
-          <!-- Next Sale Button -->
-          <button
-            type="button"
-            @click="handleResetForm"
-            class="w-full py-2.5 px-4 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-xs font-black uppercase rounded-xl transition cursor-pointer"
-          >
-            + Next Sale
-          </button>
+          <!-- Secondary subtle link to Print Queue -->
+          <div class="text-center">
+            <button
+              type="button"
+              @click="handleGoToPrintQueue"
+              class="text-xs text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white transition inline-flex items-center gap-1 cursor-pointer"
+            >
+              <span>Open Print Queue</span>
+              <span>→</span>
+            </button>
+          </div>
         </div>
       </div>
     </Modal>
@@ -817,7 +897,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted, nextTick } from 'vue';
+import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import {
   Ticket as TicketIcon,
   Search,
@@ -860,15 +940,19 @@ const {
   currentEvent,
   users,
   studentRecords,
+  tickets,
   transactions,
   pendingQrTickets,
   ticketStock,
   purchaseTicket,
   registerStudent,
+  lookupStudentRecord,
   availableSections,
   academicPeriods,
   activeAcademicPeriod
 } = useAppStore();
+
+
 
 const attendeeType = ref<'student' | 'outsider'>('student');
 const searchInputRef = ref<HTMLInputElement | null>(null);
@@ -877,11 +961,11 @@ const isSearching = ref(false);
 
 const formStudentId = ref('');
 const formName = ref('');
+const formFirstName = ref('');
+const formLastName = ref('');
 const formCourse = ref('BSIT');
 const formYearLevel = ref('1st Year');
 const formSection = ref('11M1');
-const formGuestPhone = ref('');
-const formGuestEmail = ref('');
 const formCashReceived = ref('');
 
 // Authoritative Eligible Events (exclude archived periods and cancelled/completed events)
@@ -901,6 +985,7 @@ const eligibleEvents = computed<EventItem[]>(() => {
 const selectedEventId = ref(
   (eligibleEvents.value.some(e => e.id === currentEvent.value?.id) ? currentEvent.value?.id : eligibleEvents.value[0]?.id) || ''
 );
+
 const lastIssuedTicket = ref<Ticket | null>(null);
 const accountCreationInfo = ref<{
   isStudent: boolean;
@@ -956,11 +1041,11 @@ const getStatusIcon = (status?: string) => {
 const touched = reactive({
   studentId: false,
   name: false,
+  firstName: false,
+  lastName: false,
   course: false,
   yearLevel: false,
   section: false,
-  guestPhone: false,
-  guestEmail: false,
   cashReceived: false,
 });
 
@@ -998,20 +1083,82 @@ const setCashAmount = (amount: number) => {
   touched.cashReceived = true;
 };
 
-// Authoritative Student Record Match
+// Authoritative Student Record Match & Server Lookup Integration
+const serverStudentRecord = ref<any>(null);
+const isLookingUpStudent = ref(false);
+const studentLookupError = ref('');
+
 const matchedStudentRecord = computed(() => {
   if (attendeeType.value !== 'student' || !formStudentId.value.trim()) return null;
   const clean = formStudentId.value.trim().toLowerCase();
   return studentRecords.value.find(r => r.studentId && r.studentId.trim().toLowerCase() === clean) ||
          users.value.find(u => u.role === 'student' && u.studentId && u.studentId.trim().toLowerCase() === clean) ||
+         (serverStudentRecord.value && serverStudentRecord.value.studentId && serverStudentRecord.value.studentId.trim().toLowerCase() === clean ? serverStudentRecord.value : null) ||
          null;
 });
 
 const isAuthoritativeStudentMatch = computed(() => !!matchedStudentRecord.value);
 
+const hasAuthoritativeSurname = computed(() => {
+  if (!matchedStudentRecord.value) return false;
+  const sName = matchedStudentRecord.value.lastName || (matchedStudentRecord.value as any).last_name;
+  return !!(sName && sName.trim());
+});
+
+let studentLookupDebounce: any = null;
+const performStudentLookup = async (id: string) => {
+  const clean = id.trim();
+  if (!clean || attendeeType.value !== 'student') {
+    serverStudentRecord.value = null;
+    studentLookupError.value = '';
+    return;
+  }
+  
+  if (!validateStudentId(clean).isValid) {
+    serverStudentRecord.value = null;
+    return;
+  }
+
+  isLookingUpStudent.value = true;
+  studentLookupError.value = '';
+  try {
+    const res = await lookupStudentRecord(clean);
+    if (res && res.found && res.student) {
+      serverStudentRecord.value = res.student;
+      formName.value = res.student.name;
+      formLastName.value = (res.student.lastName || (res.student as any).last_name || '').trim();
+      formCourse.value = res.student.course || 'BSIT';
+      formYearLevel.value = res.student.yearLevel || '1st Year';
+      formSection.value = res.student.section || '11M1';
+      studentLookupError.value = '';
+    } else {
+      serverStudentRecord.value = null;
+      studentLookupError.value = res?.message || 'Student ID not found in official institutional roster.';
+    }
+  } catch {
+    serverStudentRecord.value = null;
+  } finally {
+    isLookingUpStudent.value = false;
+  }
+};
+
+watch(formStudentId, (newId) => {
+  if (studentLookupDebounce) clearTimeout(studentLookupDebounce);
+  if (!newId || attendeeType.value !== 'student') {
+    serverStudentRecord.value = null;
+    studentLookupError.value = '';
+    return;
+  }
+  studentLookupDebounce = setTimeout(() => {
+    performStudentLookup(newId);
+  }, 350);
+});
+
 watch(matchedStudentRecord, rec => {
   if (rec && attendeeType.value === 'student') {
     formName.value = rec.name;
+    // Set official surname directly from authoritative StudentRecord without blind splitting:
+    formLastName.value = (rec.lastName || (rec as any).last_name || '').trim();
     formCourse.value = rec.course || 'BSIT';
     formYearLevel.value = rec.yearLevel || '1st Year';
     formSection.value = rec.section || '11M1';
@@ -1021,11 +1168,44 @@ watch(matchedStudentRecord, rec => {
 // ==================== FIELD-LEVEL VALIDATION COMPUTEDS ====================
 const studentIdValidation = computed(() => validateStudentId(formStudentId.value));
 const nameValidation = computed(() => validateAttendeeName(formName.value));
+const firstNameValidation = computed(() => {
+  if (attendeeType.value !== 'outsider') {
+    return { isValid: true, error: null };
+  }
+  const val = formFirstName.value.trim();
+  if (!val) {
+    return { isValid: false, error: 'First Name is required.' };
+  }
+  if (val.length < 2) {
+    return { isValid: false, error: 'First Name must be at least 2 characters.' };
+  }
+  if (/\d/.test(val)) {
+    return { isValid: false, error: 'First Name cannot contain numbers.' };
+  }
+  if (!/^[a-zA-ZñÑ\s\-'.]+$/.test(val)) {
+    return { isValid: false, error: 'First Name contains invalid characters.' };
+  }
+  return { isValid: true, error: null };
+});
+const lastNameValidation = computed(() => {
+  const val = formLastName.value.trim();
+  if (!val) {
+    return { isValid: false, error: 'Last Name / Surname is required.' };
+  }
+  if (val.length < 2) {
+    return { isValid: false, error: 'Last Name / Surname must be at least 2 characters.' };
+  }
+  if (/\d/.test(val)) {
+    return { isValid: false, error: 'Last Name / Surname cannot contain numbers.' };
+  }
+  if (!/^[a-zA-ZñÑ\s\-'.]+$/.test(val)) {
+    return { isValid: false, error: 'Last Name / Surname contains invalid characters.' };
+  }
+  return { isValid: true, error: null };
+});
 const yearLevelValidation = computed(() => validateYearLevel(formYearLevel.value));
 const sectionValidation = computed(() => validateSection(formSection.value));
 const guestRefValidation = computed(() => validateGuestReference(formStudentId.value));
-const phoneValidation = computed(() => validatePhoneNumber(formGuestPhone.value, false));
-const emailValidation = computed(() => validateEmail(formGuestEmail.value, false));
 
 const cashValidation = computed(() => {
   const price = isEventPaid.value ? (selectedEvent.value?.ticketPrice ?? 0) : 0;
@@ -1039,19 +1219,18 @@ const isFormValid = computed(() => {
     return false;
   }
 
-  // Common Name check
-  if (!nameValidation.value.isValid) return false;
-
   // Mode-specific checks
   if (attendeeType.value === 'student') {
+    if (!nameValidation.value.isValid) return false;
     if (!studentIdValidation.value.isValid) return false;
+    if (!lastNameValidation.value.isValid) return false;
     if (!yearLevelValidation.value.isValid) return false;
     if (!sectionValidation.value.isValid) return false;
     if (!formCourse.value.trim()) return false;
   } else {
     if (!guestRefValidation.value.isValid) return false;
-    if (formGuestPhone.value && !phoneValidation.value.isValid) return false;
-    if (formGuestEmail.value && !emailValidation.value.isValid) return false;
+    if (!firstNameValidation.value.isValid) return false;
+    if (!lastNameValidation.value.isValid) return false;
   }
 
   // Payment check for paid events
@@ -1067,18 +1246,22 @@ const formValidationHint = computed(() => {
   if (isStockDepleted.value) {
     return '⚠️ Physical ticket stock is depleted for this event. No blank tickets available.';
   }
-  if (!formName.value.trim()) return '⚠️ Attendee Full Name is required.';
-  if (!nameValidation.value.isValid) return `⚠️ ${nameValidation.value.error}`;
   
   if (attendeeType.value === 'student') {
+    if (!formName.value.trim()) return '⚠️ Student Full Name is required.';
+    if (!nameValidation.value.isValid) return `⚠️ ${nameValidation.value.error}`;
     if (!formStudentId.value.trim()) return '⚠️ Student ID Number is required (e.g. 2026-00125).';
     if (!studentIdValidation.value.isValid) return `⚠️ ${studentIdValidation.value.error}`;
+    if (!formLastName.value.trim()) return '⚠️ Last Name / Surname is required.';
+    if (!lastNameValidation.value.isValid) return `⚠️ ${lastNameValidation.value.error}`;
     if (!sectionValidation.value.isValid) return `⚠️ ${sectionValidation.value.error}`;
     if (!formCourse.value.trim()) return '⚠️ Course / Program is required.';
   } else {
     if (!guestRefValidation.value.isValid) return `⚠️ ${guestRefValidation.value.error}`;
-    if (formGuestPhone.value && !phoneValidation.value.isValid) return `⚠️ ${phoneValidation.value.error}`;
-    if (formGuestEmail.value && !emailValidation.value.isValid) return `⚠️ ${emailValidation.value.error}`;
+    if (!formFirstName.value.trim()) return '⚠️ Guest First Name is required.';
+    if (!firstNameValidation.value.isValid) return `⚠️ ${firstNameValidation.value.error}`;
+    if (!formLastName.value.trim()) return '⚠️ Guest Last Name / Surname is required.';
+    if (!lastNameValidation.value.isValid) return `⚠️ ${lastNameValidation.value.error}`;
   }
 
   if (isEventPaid.value && !cashValidation.value.isValid) {
@@ -1095,9 +1278,13 @@ const setAttendeeType = (type: 'student' | 'outsider') => {
     formCourse.value = 'BSIT';
     formYearLevel.value = '1st Year';
     formSection.value = '11M1';
+    formFirstName.value = '';
+    formLastName.value = '';
     if (formStudentId.value.startsWith('GUEST-')) formStudentId.value = '';
   } else {
     formStudentId.value = generateUniqueGuestReference();
+    formFirstName.value = '';
+    formLastName.value = '';
     formCourse.value = 'Guest / Outsider';
     formYearLevel.value = 'General Public';
     formSection.value = 'Outsider';
@@ -1113,8 +1300,8 @@ const handleResetForm = () => {
   lastIssuedTicket.value = null;
   searchQuery.value = '';
   formName.value = '';
-  formGuestPhone.value = '';
-  formGuestEmail.value = '';
+  formFirstName.value = '';
+  formLastName.value = '';
   formCashReceived.value = '';
   
   // Reset touched flags
@@ -1130,16 +1317,11 @@ const handleResetForm = () => {
   }
 };
 
-const cashierIssuedCount = computed(() => {
-  return transactions.value.filter(t => t.cashierName && t.cashierName === currentUser.value?.name).length ||
-         transactions.value.length;
-});
-
 const suggestedStudents = computed(() => {
   if (!searchQuery.value.trim()) return [];
   const q = searchQuery.value.toLowerCase().trim();
   const seenIds = new Set<string>();
-  const results: { id: string; name: string; studentId: string; course: string; yearLevel: string; section: string }[] = [];
+  const results: { id: string; name: string; studentId: string; lastName?: string; course: string; yearLevel: string; section: string }[] = [];
 
   // 1. Authoritative Student Records from Enrollment Roster
   studentRecords.value.forEach(r => {
@@ -1151,6 +1333,7 @@ const suggestedStudents = computed(() => {
           id: r.id,
           name: r.name,
           studentId: r.studentId,
+          lastName: r.lastName || (r as any).last_name || '',
           course: r.course || 'BSIT',
           yearLevel: r.yearLevel || '1st Year',
           section: r.section || '11M1',
@@ -1169,6 +1352,7 @@ const suggestedStudents = computed(() => {
           id: u.id,
           name: u.name,
           studentId: u.studentId,
+          lastName: u.lastName || (u as any).last_name || '',
           course: u.course || 'BSIT',
           yearLevel: u.yearLevel || '1st Year',
           section: u.section || '11M1',
@@ -1180,7 +1364,7 @@ const suggestedStudents = computed(() => {
   return results.slice(0, 6);
 });
 
-const handleSearchInput = () => {
+const handleSearchInput = async () => {
   isSearching.value = true;
   const q = searchQuery.value.trim().toLowerCase();
   const exactRec = studentRecords.value.find(r => r.studentId && r.studentId.toLowerCase() === q);
@@ -1188,6 +1372,7 @@ const handleSearchInput = () => {
     selectStudent({
       name: exactRec.name,
       studentId: exactRec.studentId,
+      lastName: exactRec.lastName || (exactRec as any).last_name || '',
       course: exactRec.course || 'BSIT',
       yearLevel: exactRec.yearLevel || '1st Year',
       section: exactRec.section || '11M1',
@@ -1199,16 +1384,37 @@ const handleSearchInput = () => {
     selectStudent({
       name: exact.name,
       studentId: exact.studentId || '',
+      lastName: exact.lastName || (exact as any).last_name || '',
       course: exact.course || 'BSIT',
       yearLevel: exact.yearLevel || '1st Year',
       section: exact.section || '11M1',
     });
+    return;
+  }
+
+  // Also query server for exact student ID if not found in memory
+  if (/^\d{4}-\d{4,5}$/.test(q)) {
+    try {
+      const res = await lookupStudentRecord(q);
+      if (res && res.found && res.student) {
+        serverStudentRecord.value = res.student;
+        selectStudent({
+          name: res.student.name,
+          studentId: res.student.studentId,
+          lastName: res.student.lastName || (res.student as any).last_name || '',
+          course: res.student.course || 'BSIT',
+          yearLevel: res.student.yearLevel || '1st Year',
+          section: res.student.section || '11M1',
+        });
+      }
+    } catch {}
   }
 };
 
-const selectStudent = (student: { name: string; studentId: string; course: string; yearLevel: string; section: string }) => {
+const selectStudent = (student: { name: string; studentId: string; lastName?: string; course: string; yearLevel: string; section: string }) => {
   formStudentId.value = student.studentId || '';
   formName.value = student.name || '';
+  formLastName.value = (student.lastName || '').trim();
   formCourse.value = student.course || 'BSIT';
   formYearLevel.value = student.yearLevel || '1st Year';
   formSection.value = student.section || '11M1';
@@ -1218,6 +1424,7 @@ const selectStudent = (student: { name: string; studentId: string; course: strin
   // Mark touched
   touched.studentId = true;
   touched.name = true;
+  touched.lastName = true;
   touched.section = true;
 };
 
@@ -1231,14 +1438,16 @@ const handleGenerateTicket = async () => {
     const finalCourse = isOutsider ? undefined : formCourse.value.trim();
     const finalYear = isOutsider ? undefined : formYearLevel.value.trim();
     const finalSection = isOutsider ? undefined : formSection.value.trim();
-    const contactInfo = isOutsider ? (formGuestPhone.value.trim() || undefined) : undefined;
-    const emailInfo = isOutsider ? (formGuestEmail.value.trim() || undefined) : undefined;
+    const finalFirstName = isOutsider ? formFirstName.value.trim() : undefined;
+    const finalLastName = formLastName.value.trim();
+    const finalFullName = isOutsider ? `${finalFirstName} ${finalLastName}` : formName.value.trim();
 
     // 1. If enrolled student, register/sync in student database
     if (!isOutsider && finalId) {
       registerStudent({
-        name: formName.value.trim(),
+        name: finalFullName,
         studentId: finalId,
+        lastName: finalLastName,
         course: finalCourse || 'BSIT',
         yearLevel: finalYear || '1st Year',
         section: finalSection || '11M1',
@@ -1255,14 +1464,15 @@ const handleGenerateTicket = async () => {
       undefined,
       currentUser.value?.name || 'Cashier Desk',
       {
-        studentId: finalId,
-        name: formName.value.trim(),
+        studentId: isOutsider ? formStudentId.value.trim() : finalId,
+        guestReference: isOutsider ? formStudentId.value.trim() : undefined,
+        name: finalFullName,
+        firstName: finalFirstName,
+        lastName: finalLastName,
         course: finalCourse,
         yearLevel: finalYear,
         section: finalSection,
         attendeeType: isOutsider ? 'OUTSIDER' : 'STUDENT',
-        contactNumber: contactInfo,
-        email: emailInfo,
         cashReceived: isEventPaid.value ? formCashReceived.value : undefined,
       },
       price
@@ -1299,8 +1509,8 @@ const resetForm = () => {
   searchQuery.value = '';
   formStudentId.value = '';
   formName.value = '';
-  formGuestPhone.value = '';
-  formGuestEmail.value = '';
+  formFirstName.value = '';
+  formLastName.value = '';
   formCashReceived.value = '';
   Object.keys(touched).forEach(k => {
     touched[k as keyof typeof touched] = false;

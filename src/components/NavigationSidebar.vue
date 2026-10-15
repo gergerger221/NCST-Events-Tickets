@@ -225,7 +225,9 @@ import {
   Activity,
   Archive,
   Clock,
-  Search
+  Search,
+  BarChart3,
+  KeyRound
 } from 'lucide-vue-next';
 import { useAppStore } from '../composables/useAppStore';
 
@@ -347,6 +349,7 @@ const navGroups = computed<NavGroup[]>(() => {
           title: 'REPORTS',
           items: [
             { id: 'reports', label: 'Reports & Excel Export', icon: FileSpreadsheet, badge: logs.value.length },
+            { id: 'sales_summary', label: 'Sales Summary', icon: BarChart3 },
           ]
         }
       ];
@@ -357,6 +360,7 @@ const navGroups = computed<NavGroup[]>(() => {
           title: 'TICKETING',
           items: [
             { id: 'cashier_pos', label: 'Ticket POS', icon: CreditCard },
+            { id: 'sales_summary', label: 'Sales Summary', icon: BarChart3 },
             { id: 'qr_print_queue', label: 'QR Print Queue', icon: Tag, badge: pendingQrTickets.value.length },
             { id: 'tickets', label: 'Ticket Registry', icon: TicketIcon, badge: tickets.value.length },
           ]
@@ -397,6 +401,7 @@ const navGroups = computed<NavGroup[]>(() => {
       ];
 
     case 'student':
+    case 'outsider':
       if (currentUser.value?.mustChangePassword) {
         return [
           {
@@ -405,7 +410,7 @@ const navGroups = computed<NavGroup[]>(() => {
               {
                 id: 'student_dashboard',
                 label: 'Password Setup',
-                icon: QrCode,
+                icon: KeyRound,
               }
             ]
           }
@@ -415,17 +420,19 @@ const navGroups = computed<NavGroup[]>(() => {
         {
           title: 'MY EVENTS',
           items: [
-            {
-              id: 'calendar',
-              label: 'Events Calendar',
-              icon: CalendarDays,
-              badge: events.value.length
-            },
+            ...(currentUser.value?.role === 'student' ? [
+              {
+                id: 'calendar',
+                label: 'Events Calendar',
+                icon: CalendarDays,
+                badge: events.value.length
+              }
+            ] : []),
             {
               id: 'student_dashboard',
-              label: 'My Passes & Attendance',
+              label: currentUser.value?.role === 'outsider' ? 'My Guest Pass' : 'My Passes & Attendance',
               icon: QrCode,
-              badge: tickets.value.filter(t => t.currentAttendeeId === currentUser.value?.id || (currentUser.value?.studentId && t.attendeeStudentId === currentUser.value?.studentId)).length
+              badge: tickets.value.filter(t => t.currentAttendeeId === currentUser.value?.id || (currentUser.value?.studentId && (t.attendeeStudentId === currentUser.value?.studentId || t.outsiderId === currentUser.value?.studentId))).length
             },
           ]
         }

@@ -78,7 +78,7 @@
                 v-model="loginIdentifier"
                 type="text"
                 required
-                placeholder="Enter your ID (Student ID, Employee ID, or 2026-)"
+                placeholder="Enter your ID (Student ID, Guest Code, or Control #)"
                 class="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-xl text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
               />
             </div>
@@ -152,14 +152,14 @@
             </button>
           </div>
 
-          <!-- First-Time Student Notice Card -->
+          <!-- First-Time Login Notice Card -->
           <div class="mt-4 p-3 bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-800/50 rounded-2xl text-left space-y-1">
             <div class="flex items-center gap-1.5 text-xs font-bold text-blue-900 dark:text-blue-200">
               <KeyRound class="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
-              <span>First-Time Student Login</span>
+              <span>First-Time Student or Guest Login</span>
             </div>
             <p class="text-[10.5px] text-blue-700/90 dark:text-blue-300/90 leading-relaxed">
-              If your student account was created when you purchased a ticket at the Cashier, sign in using your Student ID and your official surname as your temporary password. You must create a new password before accessing the student portal.
+              If your account was provisioned when purchasing a ticket at the Cashier, sign in using your Student ID or Guest Code and your official surname as your initial password. You will be prompted to set a new password on first login.
             </p>
           </div>
         </form>
@@ -645,205 +645,15 @@
           </div>
         </div>
 
-        <!-- System Utilities / SMTP Diagnostics -->
-        <div class="mt-5 pt-3.5 border-t border-slate-200/70 dark:border-[#333333] flex items-center justify-between text-[11px] text-slate-400 dark:text-slate-500">
-          <span class="flex items-center gap-1.5 font-medium">
-            <span class="w-1.5 h-1.5 rounded-full bg-blue-500" />
-            <span>NCST System Diagnostics</span>
-          </span>
-          <button
-            type="button"
-            @click="isSmtpTesterOpen = true"
-            class="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-bold transition cursor-pointer hover:underline"
-          >
-            <Mail class="w-3.5 h-3.5" />
-            <span>SMTP Diagnostics &rarr;</span>
-          </button>
-        </div>
       </div>
     </div>
 
-    <!-- SMTP Connection Tester Modal -->
-    <SmtpTesterModal
-      :is-open="isSmtpTesterOpen"
-      @close="isSmtpTesterOpen = false"
+    <!-- Self-Service 4-Digit PIN Forgot Password Modal -->
+    <ForgotPasswordModal
+      :is-open="isForgotPasswordOpen"
+      @close="closeForgotPassword"
+      @success="handlePasswordResetSuccess"
     />
-
-    <!-- Verified Forgot Password Modal -->
-    <div
-      v-if="isForgotPasswordOpen"
-      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in"
-    >
-      <div class="bg-white dark:bg-[#242424] border border-slate-200 dark:border-[#333333] rounded-3xl w-full max-w-md p-6 shadow-2xl relative transition-all">
-        <!-- Close Button -->
-        <button
-          type="button"
-          @click="closeForgotPassword"
-          class="absolute top-5 right-5 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 cursor-pointer transition p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-[#333333]"
-        >
-          <X class="w-5 h-5" />
-        </button>
-
-        <!-- Header -->
-        <div class="flex items-center gap-3 mb-5">
-          <div class="p-2.5 rounded-2xl bg-blue-100 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900/50">
-            <KeyRound class="w-6 h-6" />
-          </div>
-          <div>
-            <h3 class="text-lg font-extrabold text-slate-900 dark:text-white">
-              Reset Your Password
-            </h3>
-            <p class="text-xs text-slate-500 dark:text-[#b3b3b3]">
-              Enter your registered email address to receive an OTP verification code
-            </p>
-          </div>
-        </div>
-
-        <!-- Alert in Modal -->
-        <div
-          v-if="fpError"
-          class="mb-4 p-3 bg-rose-50 dark:bg-rose-950/70 border border-rose-200 dark:border-rose-500/40 rounded-xl text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2"
-        >
-          <AlertCircle class="w-4 h-4 flex-shrink-0" />
-          <span>{{ fpError }}</span>
-        </div>
-
-        <!-- Info / Success in Modal -->
-        <div
-          v-if="fpInfoMessage"
-          class="mb-4 p-3 bg-blue-50 dark:bg-blue-950/70 border border-blue-200 dark:border-blue-500/40 rounded-xl text-blue-700 dark:text-blue-300 text-xs flex items-center gap-2"
-        >
-          <CheckCircle2 class="w-4 h-4 flex-shrink-0" />
-          <span>{{ fpInfoMessage }}</span>
-        </div>
-
-        <!-- Password Reset Form -->
-        <form @submit.prevent="handleUnifiedResetSubmit" class="space-y-3.5">
-          <div>
-            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-              Registered Email Address *
-            </label>
-            <input
-              v-model="fpEmail"
-              type="email"
-              required
-              placeholder="e.g. juan@student.ncst.edu.ph or personal@gmail.com"
-              class="w-full px-3.5 py-2 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-xl text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:border-blue-500 transition"
-            />
-            <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-              Institutional or personal email registered with your Student, Employee, or Guest account.
-            </p>
-          </div>
-
-          <div>
-            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-              Account ID / Student ID / Guest Reference <span class="font-normal text-slate-400">(Optional)</span>
-            </label>
-            <input
-              v-model="fpAccountIdentifier"
-              type="text"
-              placeholder="e.g. 2026-00125, TCH-001, or GUEST-8421"
-              class="w-full px-3.5 py-2 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-xl text-xs font-mono text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:border-blue-500 transition"
-            />
-            <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-              Required only if multiple accounts share the same registered email address.
-            </p>
-          </div>
-
-          <div>
-            <div class="flex items-center justify-between mb-1">
-              <label class="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                6-Digit Verification Code *
-              </label>
-              <button
-                type="button"
-                @click="handleRequestCode"
-                :disabled="fpLoading || !fpEmail.trim() || !fpEmail.includes('@')"
-                class="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer disabled:opacity-40 disabled:no-underline"
-              >
-                {{ codeSent ? 'Resend Code' : 'Send Code to Email' }}
-              </button>
-            </div>
-            <input
-              v-model="fpVerificationCode"
-              type="text"
-              maxlength="6"
-              placeholder="Enter 6-digit code (or click Send Code)"
-              class="w-full px-3.5 py-2 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-xl text-center text-sm font-mono tracking-widest font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 transition"
-            />
-            <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-              A 6-digit one-time PIN (OTP) valid for 15 minutes is sent to verify ownership.
-            </p>
-          </div>
-
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-            <div>
-              <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                New Password *
-              </label>
-              <div class="relative">
-                <input
-                  v-model="fpNewPassword"
-                  :type="showFpNewPassword ? 'text' : 'password'"
-                  required
-                  placeholder="••••••••"
-                  class="w-full pl-3.5 pr-10 py-2 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 transition"
-                />
-                <button
-                  type="button"
-                  @click="showFpNewPassword = !showFpNewPassword"
-                  class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition cursor-pointer"
-                >
-                  <EyeOff v-if="showFpNewPassword" class="w-4 h-4" />
-                  <Eye v-else class="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-            <div>
-              <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                Confirm Password *
-              </label>
-              <div class="relative">
-                <input
-                  v-model="fpConfirmPassword"
-                  :type="showFpConfirmPassword ? 'text' : 'password'"
-                  required
-                  placeholder="••••••••"
-                  class="w-full pl-3.5 pr-10 py-2 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 transition"
-                />
-                <button
-                  type="button"
-                  @click="showFpConfirmPassword = !showFpConfirmPassword"
-                  class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition cursor-pointer"
-                >
-                  <EyeOff v-if="showFpConfirmPassword" class="w-4 h-4" />
-                  <Eye v-else class="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div class="flex items-center gap-2 pt-3 border-t border-slate-200 dark:border-[#333333]">
-            <button
-              type="button"
-              @click="closeForgotPassword"
-              class="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-[#333333] dark:hover:bg-[#3d3d3d] text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl transition cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              :disabled="fpLoading || !fpEmail.trim() || !fpNewPassword.trim()"
-              class="flex-1 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold rounded-xl shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-            >
-              <span v-if="fpLoading" class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              <CheckCircle2 v-else class="w-3.5 h-3.5" />
-              <span>Verify & Reset</span>
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
 
     <!-- 3. Separate Outsider / Guest Ticket Retrieval Modal -->
     <div
@@ -902,21 +712,6 @@
             </p>
           </div>
 
-          <div>
-            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-              Contact Number (Required Verification) *
-            </label>
-            <input
-              v-model="guestContactNumber"
-              type="text"
-              required
-              placeholder="e.g. 09171234567"
-              class="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-300 dark:border-[#3a3a3a] rounded-xl text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:border-blue-500 transition"
-            />
-            <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-              Required: Must match the mobile number registered during ticket purchase for ownership verification.
-            </p>
-          </div>
 
           <div class="p-3 bg-slate-50 dark:bg-[#1e1e1e] rounded-xl border border-slate-200 dark:border-[#333] text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
             Guest ticket retrieval displays only the verified event pass details. It does not grant Student Portal access.
@@ -1048,7 +843,7 @@ import {
 import { useAppStore } from '../../composables/useAppStore';
 import { apiUrl } from '../../utils/apiUrl';
 import ThemeToggle from '../common/ThemeToggle.vue';
-import SmtpTesterModal from './SmtpTesterModal.vue';
+import ForgotPasswordModal from './ForgotPasswordModal.vue';
 import { UserRole, StudentRecord } from '../../types';
 import {
   NCST_DEPARTMENTS,
@@ -1321,16 +1116,8 @@ const onStudentIdBlur = () => {
   }
 };
 
-// SMTP Diagnostics State
-const isSmtpTesterOpen = ref(false);
-
 onMounted(() => {
   document.addEventListener('click', handleClickOutsideSection);
-  // Auto-open SMTP tester if ?smtp=test or #smtp-test is present in URL
-  const params = new URLSearchParams(window.location.search);
-  if (params.get('smtp') === 'test' || window.location.hash === '#smtp-test') {
-    isSmtpTesterOpen.value = true;
-  }
 });
 
 onUnmounted(() => {
@@ -1370,6 +1157,11 @@ const closeForgotPassword = () => {
   isForgotPasswordOpen.value = false;
 };
 
+const handlePasswordResetSuccess = () => {
+  successMessage.value = 'Password reset successful! Please sign in with your new password.';
+  errorMessage.value = '';
+};
+
 const handleRequestCode = async () => {
   fpError.value = '';
   fpInfoMessage.value = '';
@@ -1396,9 +1188,7 @@ const handleRequestCode = async () => {
     if (res.ok && data.success) {
       codeSent.value = true;
       fpInfoMessage.value = data.message || 'Verification code sent to your email!';
-      if (data.dev_verification_code) {
-        fpVerificationCode.value = data.dev_verification_code;
-      }
+      fpVerificationCode.value = '';
     } else {
       fpError.value = data.error || 'Failed to request verification code. Please check your registered email.';
     }
@@ -1507,14 +1297,9 @@ const handleGuestLookup = async () => {
     return;
   }
 
-  if (!guestContactNumber.value.trim()) {
-    guestLookupError.value = 'Please enter your registered Contact Number for ownership verification.';
-    return;
-  }
-
   guestLookupLoading.value = true;
   try {
-    const res = await lookupGuestTicket(guestControlNumber.value.trim(), guestContactNumber.value.trim());
+    const res = await lookupGuestTicket(guestControlNumber.value.trim());
     guestLookupLoading.value = false;
     if (res.success && res.ticket) {
       guestTicketData.value = res.ticket;
@@ -1531,44 +1316,44 @@ const handleGuestLookup = async () => {
 const testAccounts = [
   {
     role: 'Admin',
-    name: 'Engr. Mark Santos',
-    idNumber: 'EMP-00101',
-    identifier: 'EMP-00101',
+    name: 'System Administrator',
+    idNumber: 'ADM-001',
+    identifier: 'ADM-001',
     roleClass: 'bg-purple-100 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-500/30'
   },
   {
     role: 'Event Staff',
-    name: 'Alex Rivera',
-    idNumber: 'EMP-00103',
-    identifier: 'EMP-00103',
+    name: 'Juan Gate Staff',
+    idNumber: 'STF-001',
+    identifier: 'STF-001',
     roleClass: 'bg-indigo-100 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-500/30'
   },
   {
     role: 'Cashier',
-    name: 'Carla Gomez',
-    idNumber: 'EMP-00102',
-    identifier: 'EMP-00102',
+    name: 'Maria Clara Santos',
+    idNumber: 'CSH-001',
+    identifier: 'CSH-001',
     roleClass: 'bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-500/30'
   },
   {
     role: 'Teacher',
-    name: 'Prof. Ramon Reyes',
-    idNumber: 'EMP-00125',
-    identifier: 'EMP-00125',
+    name: 'Prof. Roberto D. Reyes',
+    idNumber: 'TCH-001',
+    identifier: 'TCH-001',
     roleClass: 'bg-cyan-100 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-300 border border-cyan-300 dark:border-cyan-500/30'
   },
   {
     role: 'Student',
     name: 'Juan Dela Cruz',
-    idNumber: '2026-00125',
-    identifier: '2026-00125',
+    idNumber: '2024-58566',
+    identifier: '2024-58566',
     roleClass: 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/30'
   },
   {
     role: 'Outsider / Guest',
     name: 'Jed (Guest)',
-    idNumber: '09156833859',
-    identifier: '09156833859',
+    idNumber: 'GUEST-1001',
+    identifier: 'GUEST-1001',
     roleClass: 'bg-orange-100 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border border-orange-300 dark:border-orange-500/30'
   },
 ];
@@ -1582,6 +1367,7 @@ const fillCredentials = (identifier: string, pass: string) => {
 };
 
 const handleLogin = async () => {
+  if (isLoading.value) return;
   errorMessage.value = '';
   successMessage.value = '';
   isLoading.value = true;

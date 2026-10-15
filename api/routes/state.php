@@ -30,7 +30,12 @@ if ($path === '/api/state' || str_starts_with($path, '/api/state?')) {
         $tsStmt = $pdo->query("
             SELECT GREATEST(
                 COALESCE((SELECT UNIX_TIMESTAMP(MAX(`created_at`)) FROM `users`), 0),
+                COALESCE((SELECT UNIX_TIMESTAMP(MAX(`deleted_at`)) FROM `users`), 0),
+                COALESCE((SELECT UNIX_TIMESTAMP(MAX(`deleted_at`)) FROM `deleted_user_tombstones`), 0),
+                COALESCE((SELECT UNIX_TIMESTAMP(MAX(`created_at`)) FROM `student_records`), 0),
                 COALESCE((SELECT UNIX_TIMESTAMP(MAX(`created_at`)) FROM `events`), 0),
+                COALESCE((SELECT UNIX_TIMESTAMP(MAX(`deleted_at`)) FROM `events`), 0),
+                COALESCE((SELECT UNIX_TIMESTAMP(MAX(`deleted_at`)) FROM `deleted_event_tombstones`), 0),
                 COALESCE((SELECT UNIX_TIMESTAMP(MAX(`purchase_date`)) FROM `tickets`), 0),
                 COALESCE((SELECT UNIX_TIMESTAMP(MAX(`time_in_iso`)) FROM `tickets`), 0),
                 COALESCE((SELECT UNIX_TIMESTAMP(MAX(`timestamp`)) FROM `attendance_logs`), 0),
@@ -91,6 +96,8 @@ if ($path === '/api/state' || str_starts_with($path, '/api/state?')) {
             $e['bannerUrl'] = $e['banner_url'] ?? ($e['bannerUrl'] ?? '');
             $e['ticketDesignUrl'] = $e['ticket_design_url'] ?? ($e['ticketDesignUrl'] ?? null);
             $e['ticketDesignOffsetY'] = isset($e['ticket_design_offset_y']) ? (int)$e['ticket_design_offset_y'] : (isset($e['ticketDesignOffsetY']) ? (int)$e['ticketDesignOffsetY'] : 20);
+            $e['isDeleted'] = !empty($e['is_deleted']);
+            $e['deletedAt'] = $e['deleted_at'] ?? null;
             return $e;
         };
 
@@ -111,7 +118,6 @@ if ($path === '/api/state' || str_starts_with($path, '/api/state?')) {
             $t['lastName'] = $t['last_name'] ?? ($t['lastName'] ?? '');
             $t['attendeeStudentId'] = $t['attendee_student_id'] ?? ($t['attendeeStudentId'] ?? null);
             $t['outsiderId'] = $t['outsider_id'] ?? ($t['outsiderId'] ?? null);
-            $t['attendeeEmail'] = $t['attendee_email'] ?? ($t['attendeeEmail'] ?? null);
             $t['attendeeDepartment'] = $t['attendee_department'] ?? ($t['attendeeDepartment'] ?? null);
             $t['yearLevel'] = $t['year_level'] ?? ($t['yearLevel'] ?? null);
             $t['contactNumber'] = $t['contact_number'] ?? ($t['contactNumber'] ?? null);
@@ -158,7 +164,6 @@ if ($path === '/api/state' || str_starts_with($path, '/api/state?')) {
             $x['userName'] = $x['user_name'] ?? ($x['userName'] ?? '');
             $x['attendeeType'] = $x['attendee_type'] ?? ($x['attendeeType'] ?? 'STUDENT');
             $x['studentId'] = $x['student_id'] ?? ($x['studentId'] ?? null);
-            $x['userEmail'] = $x['user_email'] ?? ($x['userEmail'] ?? null);
             $x['eventId'] = $x['event_id'] ?? ($x['eventId'] ?? '');
             $x['eventTitle'] = $x['event_title'] ?? ($x['eventTitle'] ?? '');
             $x['ticketId'] = $x['ticket_id'] ?? ($x['ticketId'] ?? '');
@@ -187,14 +192,16 @@ if ($path === '/api/state' || str_starts_with($path, '/api/state?')) {
             ];
         };
 
-        // Fetch events
-        $eventsStmt = $pdo->query("SELECT * FROM `events` ORDER BY `date` ASC");
+        // Fetch active (non-deleted) events
+        $eventsStmt = $pdo->query("SELECT * FROM `events` WHERE COALESCE(`is_deleted`, 0) = 0 ORDER BY `date` ASC");
         $events = array_map($formatEvent, $eventsStmt->fetchAll());
 
         // Admin: Return full state
         if ($role === 'admin') {
-            $usersStmt = $pdo->query("SELECT * FROM `users` ORDER BY `created_at` DESC");
+            $usersStmt = $pdo->query("SELECT * FROM `users` WHERE COALESCE(`is_deleted`, 0) = 0 ORDER BY `created_at` DESC");
             $users = array_map('sanitizeUser', $usersStmt->fetchAll());
+
+            $tombstones = $pdo->query("SELECT `user_id` FROM `deleted_user_tombstones`")->fetchAll(PDO::FETCH_COLUMN);
 
             $recordsStmt = $pdo->query("SELECT * FROM `student_records` ORDER BY `name` ASC");
             $records = array_map($formatRecord, $recordsStmt->fetchAll());
@@ -215,6 +222,7 @@ if ($path === '/api/state' || str_starts_with($path, '/api/state?')) {
                 'success' => true,
                 'role' => 'admin',
                 'users' => $users,
+                'deletedUserIds' => $tombstones,
                 'studentRecords' => $records,
                 'events' => $events,
                 'tickets' => $tickets,
@@ -230,7 +238,7 @@ if ($path === '/api/state' || str_starts_with($path, '/api/state?')) {
 
         // Cashier: Return ticketing and POS data
         if ($role === 'cashier') {
-            $studentUsers = $pdo->query("SELECT * FROM `users` WHERE `role` = 'student'");
+            $studentUsers = $pdo->query("SELECT * FROM `users` WHERE `role` = 'student' AND COALESCE(`is_deleted`, 0) = 0");
             $users = array_map('sanitizeUser', array_merge([$authUser], $studentUsers->fetchAll()));
 
             $recordsStmt = $pdo->query("SELECT * FROM `student_records` ORDER BY `name` ASC");
@@ -262,8 +270,8 @@ if ($path === '/api/state' || str_starts_with($path, '/api/state?')) {
             exit;
         }
 
-        // Student: Return personal tickets and records
-        if ($role === 'student') {
+        // Student & Outsider / Guest: Return personal tickets and records
+        if ($role === 'student' || $role === 'outsider') {
             $studentId = $authUser['studentId'] ?? $authUser['student_id'] ?? '';
             $userId = $authUser['id'];
 
@@ -271,7 +279,7 @@ if ($path === '/api/state' || str_starts_with($path, '/api/state?')) {
             if ((int)($authUser['must_change_password'] ?? 0) === 1) {
                 echo json_encode([
                     'success' => true,
-                    'role' => 'student',
+                    'role' => $role,
                     'users' => [sanitizeUser($authUser)],
                     'studentRecords' => [],
                     'events' => $events,
@@ -279,6 +287,7 @@ if ($path === '/api/state' || str_starts_with($path, '/api/state?')) {
                     'logs' => [],
                     'transactions' => [],
                     'mustChangePassword' => true,
+                    'hasRecoveryPin' => !empty($authUser['recovery_pin_hash']),
                     'academicPeriods' => $formattedPeriods,
                     'activeAcademicPeriod' => $activeAcadPeriod,
                     'timestamp' => $stateTimestamp
@@ -286,17 +295,40 @@ if ($path === '/api/state' || str_starts_with($path, '/api/state?')) {
                 exit;
             }
 
-            $tixStmt = $pdo->prepare("SELECT * FROM `tickets` WHERE `current_attendee_id` = ? OR `attendee_student_id` = ?");
-            $tixStmt->execute([$userId, $studentId]);
+            $cleanStdId = preg_replace('/\s+/', '', strtolower($studentId ?? ''));
+            $tixStmt = $pdo->prepare("
+                SELECT * FROM `tickets` 
+                WHERE `current_attendee_id` = ? 
+                   OR `original_owner_id` = ?
+                   OR (LOWER(REPLACE(COALESCE(`attendee_student_id`, ''), ' ', '')) = ? AND ? != '')
+                   OR (LOWER(REPLACE(COALESCE(`outsider_id`, ''), ' ', '')) = ? AND ? != '')
+            ");
+            $tixStmt->execute([$userId, $userId, $cleanStdId, $cleanStdId, $cleanStdId, $cleanStdId]);
             $tickets = array_map($formatTicket, $tixStmt->fetchAll());
 
-            $logStmt = $pdo->prepare("SELECT * FROM `attendance_logs` WHERE `student_id` = ?");
-            $logStmt->execute([$studentId]);
+            $ticketIds = array_filter(array_column($tickets, 'id'));
+            $ticketNumbers = array_filter(array_column($tickets, 'ticketNumber'));
+            
+            $logSql = "SELECT * FROM `attendance_logs` WHERE (LOWER(REPLACE(COALESCE(`student_id`, ''), ' ', '')) = ? AND ? != '')";
+            $logParams = [$cleanStdId, $cleanStdId];
+            if (!empty($ticketIds)) {
+                $inTix = implode(',', array_fill(0, count($ticketIds), '?'));
+                $logSql .= " OR `ticket_id` IN ($inTix)";
+                $logParams = array_merge($logParams, $ticketIds);
+            }
+            if (!empty($ticketNumbers)) {
+                $inNums = implode(',', array_fill(0, count($ticketNumbers), '?'));
+                $logSql .= " OR `ticket_number` IN ($inNums)";
+                $logParams = array_merge($logParams, $ticketNumbers);
+            }
+            $logSql .= " ORDER BY `timestamp` DESC";
+            $logStmt = $pdo->prepare($logSql);
+            $logStmt->execute($logParams);
             $logs = array_map($formatLog, $logStmt->fetchAll());
 
             echo json_encode([
                 'success' => true,
-                'role' => 'student',
+                'role' => $role,
                 'users' => [sanitizeUser($authUser)],
                 'studentRecords' => [],
                 'events' => $events,
@@ -304,6 +336,7 @@ if ($path === '/api/state' || str_starts_with($path, '/api/state?')) {
                 'logs' => $logs,
                 'transactions' => [],
                 'mustChangePassword' => false,
+                'hasRecoveryPin' => !empty($authUser['recovery_pin_hash']),
                 'academicPeriods' => $formattedPeriods,
                 'activeAcademicPeriod' => $activeAcadPeriod,
                 'timestamp' => $stateTimestamp
@@ -511,25 +544,36 @@ if ($path === '/api/state' || str_starts_with($path, '/api/state?')) {
         try {
             // 1. Safe User Account Preservation and Onboarding during Ticket Issuance (Admin & Cashier only)
             if (($authUser['role'] === 'admin' || $authUser['role'] === 'cashier') && !empty($body['users']) && is_array($body['users'])) {
+                $userTombstones = $pdo->query("SELECT user_id, student_id FROM `deleted_user_tombstones`")->fetchAll(PDO::FETCH_ASSOC);
+                $tombstoneUserIds = [];
+                $tombstoneStudentIds = [];
+                foreach ($userTombstones as $ut) {
+                    $tombstoneUserIds[$ut['user_id']] = true;
+                    if (!empty($ut['student_id'])) {
+                        $tombstoneStudentIds[strtolower(preg_replace('/\s+/', '', $ut['student_id']))] = true;
+                    }
+                }
+
                 foreach ($body['users'] as $u) {
                     if (empty($u['id']) || empty($u['studentId']) || ($u['role'] ?? '') !== 'student') continue;
                     $cleanId = preg_replace('/\s+/', '', strtolower($u['studentId']));
-                    $check = $pdo->prepare("SELECT id FROM `users` WHERE LOWER(REPLACE(`student_id`, ' ', '')) = ? LIMIT 1");
+                    // Strict protection: do not resurrect deleted accounts from client snapshots
+                    if (isset($tombstoneUserIds[$u['id']]) || isset($tombstoneStudentIds[$cleanId])) continue;
+
+                    $check = $pdo->prepare("SELECT id, is_deleted FROM `users` WHERE LOWER(REPLACE(`student_id`, ' ', '')) = ? LIMIT 1");
                     $check->execute([$cleanId]);
                     $existing = $check->fetch();
 
                     if ($existing) {
+                        if ((int)($existing['is_deleted'] ?? 0) === 1) continue;
                         // Strictly preserve password, must_change_password, verification_status
-                        $newEmail = !empty($u['email']) ? trim($u['email']) : null;
                         $pdo->prepare("
                             UPDATE `users` SET 
                                 name = COALESCE(:name, name),
                                 course = COALESCE(:course, course),
                                 year_level = COALESCE(:year_level, year_level),
                                 section = COALESCE(:section, section),
-                                department = COALESCE(:department, department),
-                                recovery_email_verified = CASE WHEN :email IS NOT NULL AND :email != '' AND (email IS NULL OR LOWER(email) != LOWER(:email)) THEN 0 ELSE recovery_email_verified END,
-                                email = COALESCE(:email, email)
+                                department = COALESCE(:department, department)
                             WHERE id = :id
                         ")->execute([
                             ':name' => $u['name'] ?? null,
@@ -537,39 +581,137 @@ if ($path === '/api/state' || str_starts_with($path, '/api/state?')) {
                             ':year_level' => $u['yearLevel'] ?? ($u['year_level'] ?? null),
                             ':section' => $u['section'] ?? null,
                             ':department' => $u['department'] ?? null,
-                            ':email' => $newEmail,
                             ':id' => $existing['id']
                         ]);
+
+                        // Ensure student_records.user_id is linked
+                        $pdo->prepare("UPDATE `student_records` SET `user_id` = ? WHERE LOWER(REPLACE(`student_id`, ' ', '')) = ? AND (`user_id` IS NULL OR `user_id` = '')")
+                            ->execute([$existing['id'], $cleanId]);
+                    } else if ($authUser['role'] === 'admin' || $authUser['role'] === 'cashier') {
+                        // Admin or Cashier-provisioned new student account: Insert into MySQL users and link with student_records
+                        $srStmt = $pdo->prepare("SELECT * FROM `student_records` WHERE LOWER(REPLACE(`student_id`, ' ', '')) = ? LIMIT 1");
+                        $srStmt->execute([$cleanId]);
+                        $matchedRecord = $srStmt->fetch();
+
+                        $uId = $u['id'] ?? ("usr-student-" . substr(strval(time()), -6) . rand(10, 99));
+                        $uName = $matchedRecord['name'] ?? trim($u['name'] ?? '');
+                        $uFirstName = $matchedRecord['first_name'] ?? ($u['firstName'] ?? null);
+                        $uMiddleName = $matchedRecord['middle_name'] ?? ($u['middleName'] ?? null);
+                        $uLastName = $matchedRecord['last_name'] ?? ($u['lastName'] ?? null);
+                        $uCourse = $matchedRecord['course'] ?? ($u['course'] ?? 'BSIT');
+                        $uSec = $matchedRecord['section'] ?? ($u['section'] ?? '11M1');
+                        $uYear = $matchedRecord['year_level'] ?? ($u['yearLevel'] ?? ($u['year_level'] ?? '1st Year'));
+                        $uDept = $matchedRecord['department'] ?? ($u['department'] ?? 'CSD');
+
+                        $isAuthoritative = !empty($matchedRecord);
+                        $acctStatus = 'active';
+                        $verStatus = 'verified';
+                        $isVer = 1;
+
+                        // Authoritative surname resolution: never guess blindly from unverified browser fields
+                        $officialSurname = !empty($matchedRecord['last_name'])
+                            ? trim($matchedRecord['last_name'])
+                            : (!empty($uLastName) ? trim($uLastName) : ncst_extract_surname($uName));
+
+                        if (!empty($u['password'])) {
+                            $passHash = ncst_hash_password($u['password']);
+                            $mustChange = 0;
+                        } else {
+                            $initialPass = !empty($officialSurname) ? $officialSurname : ('NCST-' . $cleanId);
+                            $passHash = ncst_hash_password($initialPass);
+                            $mustChange = 1;
+                        }
+
+                        $insUser = $pdo->prepare("
+                            INSERT INTO `users` (id, name, first_name, middle_name, last_name, role, password, student_id, department, course, year_level, section, account_status, verification_status, is_verified, is_active, must_change_password)
+                            VALUES (?, ?, ?, ?, ?, 'student', ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+                            ON DUPLICATE KEY UPDATE id = id
+                        ");
+                        $insUser->execute([$uId, $uName, $uFirstName, $uMiddleName, $uLastName, $passHash, $u['studentId'], $uDept, $uCourse, $uYear, $uSec, $acctStatus, $verStatus, $isVer, $mustChange]);
+
+                        if ($isAuthoritative) {
+                            $pdo->prepare("UPDATE `student_records` SET `user_id` = ? WHERE `id` = ?")
+                                ->execute([$uId, $matchedRecord['id']]);
+                        } else {
+                            $pdo->prepare("
+                                INSERT INTO `student_records` (id, student_id, name, last_name, course, year_level, section, department, user_id)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                ON DUPLICATE KEY UPDATE user_id = VALUES(user_id)
+                            ")->execute(["rec-{$cleanId}", $u['studentId'], $uName, $uLastName, $uCourse, $uYear, $uSec, $uDept, $uId]);
+                        }
                     }
+                }
+            }
+
+            // 1b. Admin Student Records Persistence
+            if ($authUser['role'] === 'admin' && !empty($body['studentRecords']) && is_array($body['studentRecords'])) {
+                $srUpsert = $pdo->prepare("
+                    INSERT INTO `student_records` (id, student_id, name, first_name, middle_name, last_name, department, course, year_level, section, contact_number, user_id)
+                    VALUES (:id, :student_id, :name, :first_name, :middle_name, :last_name, :department, :course, :year_level, :section, :contact_number, :user_id)
+                    ON DUPLICATE KEY UPDATE
+                        name = VALUES(name),
+                        first_name = COALESCE(VALUES(first_name), first_name),
+                        middle_name = COALESCE(VALUES(middle_name), middle_name),
+                        last_name = COALESCE(VALUES(last_name), last_name),
+                        department = VALUES(department),
+                        course = VALUES(course),
+                        year_level = VALUES(year_level),
+                        section = VALUES(section),
+                        contact_number = COALESCE(VALUES(contact_number), contact_number),
+                        user_id = COALESCE(VALUES(user_id), user_id)
+                ");
+                foreach ($body['studentRecords'] as $sr) {
+                    if (empty($sr['studentId'])) continue;
+                    $cleanSrId = preg_replace('/\s+/', '', strtolower($sr['studentId']));
+                    $srUpsert->execute([
+                        ':id' => $sr['id'] ?? "rec-{$cleanSrId}",
+                        ':student_id' => $sr['studentId'],
+                        ':name' => $sr['name'] ?? '',
+                        ':first_name' => $sr['firstName'] ?? null,
+                        ':middle_name' => $sr['middleName'] ?? null,
+                        ':last_name' => $sr['lastName'] ?? null,
+                        ':department' => $sr['department'] ?? 'CSD',
+                        ':course' => $sr['course'] ?? 'BSIT',
+                        ':year_level' => $sr['yearLevel'] ?? ($sr['year_level'] ?? '1st Year'),
+                        ':section' => $sr['section'] ?? '11M1',
+                        ':contact_number' => $sr['contactNumber'] ?? null,
+                        ':user_id' => $sr['userId'] ?? null,
+                    ]);
                 }
             }
 
             // 1b. Admin Event Management Persistence with strict Academic Period association
             if ($authUser['role'] === 'admin' && !empty($body['events']) && is_array($body['events'])) {
+                // Fetch tombstones and soft-deleted IDs to prevent stale client state from resurrecting deleted events
+                $tombstones = $pdo->query("SELECT `event_id` FROM `deleted_event_tombstones`")->fetchAll(PDO::FETCH_COLUMN);
+                $tombstoneSet = array_flip($tombstones);
+
                 $evStmt = $pdo->prepare("
-                    INSERT INTO `events` (id, title, code, description, category, venue, date, start_time, end_time, capacity, ticket_price, status, allowed_areas, banner_url, ticket_design_url, organizer, academic_year, semester)
-                    VALUES (:id, :title, :code, :description, :category, :venue, :date, :start_time, :end_time, :capacity, :ticket_price, :status, :allowed_areas, :banner_url, :ticket_design_url, :organizer, :academic_year, :semester)
+                    INSERT INTO `events` (id, title, code, description, category, venue, date, start_time, end_time, capacity, ticket_price, status, allowed_areas, banner_url, ticket_design_url, organizer, academic_year, semester, is_deleted)
+                    VALUES (:id, :title, :code, :description, :category, :venue, :date, :start_time, :end_time, :capacity, :ticket_price, :status, :allowed_areas, :banner_url, :ticket_design_url, :organizer, :academic_year, :semester, 0)
                     ON DUPLICATE KEY UPDATE
-                        title = VALUES(title),
-                        code = VALUES(code),
-                        description = VALUES(description),
-                        category = VALUES(category),
-                        venue = VALUES(venue),
-                        date = VALUES(date),
-                        start_time = VALUES(start_time),
-                        end_time = VALUES(end_time),
-                        capacity = VALUES(capacity),
-                        ticket_price = VALUES(ticket_price),
-                        status = VALUES(status),
-                        allowed_areas = VALUES(allowed_areas),
-                        banner_url = VALUES(banner_url),
-                        ticket_design_url = VALUES(ticket_design_url),
-                        organizer = VALUES(organizer),
-                        academic_year = VALUES(academic_year),
-                        semester = VALUES(semester)
+                        title = IF(is_deleted = 1, title, VALUES(title)),
+                        code = IF(is_deleted = 1, code, VALUES(code)),
+                        description = IF(is_deleted = 1, description, VALUES(description)),
+                        category = IF(is_deleted = 1, category, VALUES(category)),
+                        venue = IF(is_deleted = 1, venue, VALUES(venue)),
+                        date = IF(is_deleted = 1, date, VALUES(date)),
+                        start_time = IF(is_deleted = 1, start_time, VALUES(start_time)),
+                        end_time = IF(is_deleted = 1, end_time, VALUES(end_time)),
+                        capacity = IF(is_deleted = 1, capacity, VALUES(capacity)),
+                        ticket_price = IF(is_deleted = 1, ticket_price, VALUES(ticket_price)),
+                        status = IF(is_deleted = 1, status, VALUES(status)),
+                        allowed_areas = IF(is_deleted = 1, allowed_areas, VALUES(allowed_areas)),
+                        banner_url = IF(is_deleted = 1, banner_url, VALUES(banner_url)),
+                        ticket_design_url = IF(is_deleted = 1, ticket_design_url, VALUES(ticket_design_url)),
+                        organizer = IF(is_deleted = 1, organizer, VALUES(organizer)),
+                        academic_year = IF(is_deleted = 1, academic_year, VALUES(academic_year)),
+                        semester = IF(is_deleted = 1, semester, VALUES(semester))
                 ");
                 foreach ($body['events'] as $e) {
                     if (empty($e['id']) || empty($e['title'])) continue;
+                    // Strict protection: do not resurrect deleted events
+                    if (isset($tombstoneSet[$e['id']])) continue;
                     $eAcadYear = trim($e['academicYear'] ?? ($e['academic_year'] ?? '2026-2027'));
                     $eSem = trim($e['semester'] ?? '1st Semester');
                     $evStmt->execute([
@@ -607,12 +749,13 @@ if ($path === '/api/state' || str_starts_with($path, '/api/state?')) {
             // Case C: Outsider -> No student account created.
             if (!empty($body['tickets']) && is_array($body['tickets'])) {
                 $tStmt = $pdo->prepare("
-                    INSERT INTO `tickets` (id, ticket_number, qr_token, event_id, event_title, ticket_type, attendee_type, original_owner_id, original_owner_name, current_attendee_id, current_attendee_name, attendee_student_id, attendee_email, attendee_department, course, year_level, section, contact_number, price, ticket_status, payment_status, attendance_status, time_in, academic_year, semester, qr_print_status, qr_printed_at, qr_print_count)
-                    VALUES (:id, :ticket_number, :qr_token, :event_id, :event_title, :ticket_type, :attendee_type, :original_owner_id, :original_owner_name, :current_attendee_id, :current_attendee_name, :attendee_student_id, :attendee_email, :attendee_department, :course, :year_level, :section, :contact_number, :price, :ticket_status, :payment_status, :attendance_status, :time_in, :academic_year, :semester, :qr_print_status, :qr_printed_at, :qr_print_count)
+                    INSERT INTO `tickets` (id, ticket_number, qr_token, event_id, event_title, ticket_type, attendee_type, original_owner_id, original_owner_name, current_attendee_id, current_attendee_name, attendee_student_id, attendee_department, course, year_level, section, contact_number, price, ticket_status, payment_status, attendance_status, time_in, academic_year, semester, qr_print_status, qr_printed_at, qr_print_count)
+                    VALUES (:id, :ticket_number, :qr_token, :event_id, :event_title, :ticket_type, :attendee_type, :original_owner_id, :original_owner_name, :current_attendee_id, :current_attendee_name, :attendee_student_id, :attendee_department, :course, :year_level, :section, :contact_number, :price, :ticket_status, :payment_status, :attendance_status, :time_in, :academic_year, :semester, :qr_print_status, :qr_printed_at, :qr_print_count)
                     ON DUPLICATE KEY UPDATE
                         ticket_status = VALUES(ticket_status),
                         attendance_status = VALUES(attendance_status),
                         time_in = VALUES(time_in),
+                        time_in_iso = CASE WHEN VALUES(attendance_status) = 'present' AND (time_in_iso IS NULL OR time_in_iso = '') THEN NOW() ELSE time_in_iso END,
                         payment_status = VALUES(payment_status),
                         qr_print_status = VALUES(qr_print_status),
                         qr_printed_at = VALUES(qr_printed_at),
@@ -656,7 +799,6 @@ if ($path === '/api/state' || str_starts_with($path, '/api/state?')) {
                             $sCourse = !empty($sr['course']) ? $sr['course'] : ($t['course'] ?? 'BSIT');
                             $sYear = !empty($sr['year_level']) ? $sr['year_level'] : ($t['yearLevel'] ?? '1st Year');
                             $sSec = !empty($sr['section']) ? $sr['section'] : ($t['section'] ?? '11M1');
-                            $sEmail = !empty($sr['email']) ? $sr['email'] : ($t['attendeeEmail'] ?? null);
                             $sPhone = $t['contactNumber'] ?? (!empty($sr['contact_number']) ? $sr['contact_number'] : null);
                             
                             // Official Surname as initial temporary password
@@ -674,23 +816,23 @@ if ($path === '/api/state' || str_starts_with($path, '/api/state?')) {
                             $hashedInitialPass = ncst_hash_password($officialSurname);
 
                             $insStmt = $pdo->prepare("
-                                INSERT INTO `users` (id, name, email, role, password, student_id, department, course, year_level, section, contact_number, account_status, verification_status, is_verified, is_active, must_change_password, recovery_email, recovery_email_verified)
-                                VALUES (?, ?, ?, 'student', ?, ?, ?, ?, ?, ?, ?, 'active', 'verified', 1, 1, 1, ?, 0)
+                                INSERT INTO `users` (id, name, role, password, student_id, department, course, year_level, section, contact_number, account_status, verification_status, is_verified, is_active, must_change_password)
+                                VALUES (?, ?, 'student', ?, ?, ?, ?, ?, ?, ?, 'active', 'verified', 1, 1, 1)
                                 ON DUPLICATE KEY UPDATE id = id
                             ");
-                            $insStmt->execute([$newUserId, $sName, $sEmail, $hashedInitialPass, $rawStdId, $sDept, $sCourse, $sYear, $sSec, $sPhone, $sEmail]);
+                            $insStmt->execute([$newUserId, $sName, $hashedInitialPass, $rawStdId, $sDept, $sCourse, $sYear, $sSec, $sPhone]);
 
                             $resolvedOwnerId = $newUserId;
 
                             if ($sr) {
-                                $pdo->prepare("UPDATE `student_records` SET `user_id` = ?, `email` = ?, `contact_number` = COALESCE(?, `contact_number`) WHERE `id` = ?")
-                                    ->execute([$resolvedOwnerId, $sEmail, $sPhone, $sr['id']]);
+                                $pdo->prepare("UPDATE `student_records` SET `user_id` = ?, `contact_number` = COALESCE(?, `contact_number`) WHERE `id` = ?")
+                                    ->execute([$resolvedOwnerId, $sPhone, $sr['id']]);
                             } else {
                                 $pdo->prepare("
-                                    INSERT INTO `student_records` (id, student_id, name, course, year_level, section, department, email, contact_number, user_id)
-                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                    INSERT INTO `student_records` (id, student_id, name, course, year_level, section, department, contact_number, user_id)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                                     ON DUPLICATE KEY UPDATE user_id = VALUES(user_id)
-                                ")->execute(["rec-{$cleanStdId}", $rawStdId, $sName, $sCourse, $sYear, $sSec, $sDept, $sEmail, $sPhone, $resolvedOwnerId]);
+                                ")->execute(["rec-{$cleanStdId}", $rawStdId, $sName, $sCourse, $sYear, $sSec, $sDept, $sPhone, $resolvedOwnerId]);
                             }
 
                             // Collect student notification data for post-commit dispatch
@@ -700,8 +842,7 @@ if ($path === '/api/state' || str_starts_with($path, '/api/state?')) {
                                     'name' => $sName,
                                     'surname' => $officialSurname,
                                     'userId' => $resolvedOwnerId,
-                                    'contactNumber' => $sPhone,
-                                    'email' => $sEmail
+                                    'contactNumber' => $sPhone
                                 ],
                                 'ticketData' => [
                                     'id' => $t['id'],
@@ -737,7 +878,6 @@ if ($path === '/api/state' || str_starts_with($path, '/api/state?')) {
                         ':current_attendee_id' => $resolvedOwnerId,
                         ':current_attendee_name' => $t['currentAttendeeName'] ?? ($t['originalOwnerName'] ?? 'Student'),
                         ':attendee_student_id' => $t['attendeeStudentId'] ?? null,
-                        ':attendee_email' => $t['attendeeEmail'] ?? null,
                         ':attendee_department' => $t['attendeeDepartment'] ?? null,
                         ':course' => $t['course'] ?? null,
                         ':year_level' => $t['yearLevel'] ?? null,
@@ -811,16 +951,40 @@ if ($path === '/api/state' || str_starts_with($path, '/api/state?')) {
                 }
             }
 
-            $pdo->commit();
-
-            // POST-TRANSACTION NOTIFICATIONS: Dispatched only after commit succeeds
-            if (!empty($newStudentsToNotify)) {
-                foreach ($newStudentsToNotify as $n) {
-                    try {
-                        ncst_queue_student_account_notifications($pdo, $n['studentData'], $n['ticketData']);
-                    } catch (\Throwable) {}
+            // Persist attendance logs safely with strict deduplication
+            if (!empty($body['logs']) && is_array($body['logs'])) {
+                $lStmt = $pdo->prepare("
+                    INSERT INTO `attendance_logs` (id, ticket_id, ticket_number, event_id, event_title, attendee_type, attendee_name, student_id, course, year_level, section, time_in, verified_by_id, verified_by_name, status, academic_year, semester)
+                    VALUES (:id, :ticket_id, :ticket_number, :event_id, :event_title, :attendee_type, :attendee_name, :student_id, :course, :year_level, :section, :time_in, :verified_by_id, :verified_by_name, :status, :academic_year, :semester)
+                    ON DUPLICATE KEY UPDATE
+                        status = VALUES(status),
+                        time_in = VALUES(time_in)
+                ");
+                foreach ($body['logs'] as $lg) {
+                    if (empty($lg['id']) || empty($lg['ticketId'])) continue;
+                    $lStmt->execute([
+                        ':id' => $lg['id'],
+                        ':ticket_id' => $lg['ticketId'],
+                        ':ticket_number' => $lg['ticketNumber'] ?? $lg['ticketId'],
+                        ':event_id' => $lg['eventId'] ?? '',
+                        ':event_title' => $lg['eventTitle'] ?? 'NCST Event',
+                        ':attendee_type' => $lg['attendeeType'] ?? 'STUDENT',
+                        ':attendee_name' => $lg['attendeeName'] ?? 'Attendee',
+                        ':student_id' => $lg['studentId'] ?? null,
+                        ':course' => $lg['course'] ?? null,
+                        ':year_level' => $lg['yearLevel'] ?? null,
+                        ':section' => $lg['section'] ?? null,
+                        ':time_in' => $lg['timeIn'] ?? '',
+                        ':verified_by_id' => $lg['verifiedById'] ?? 'sys',
+                        ':verified_by_name' => $lg['verifiedByName'] ?? 'Staff',
+                        ':status' => $lg['status'] ?? 'valid',
+                        ':academic_year' => $lg['academicYear'] ?? '2026-2027',
+                        ':semester' => $lg['semester'] ?? '1st Semester',
+                    ]);
                 }
             }
+
+            $pdo->commit();
 
             echo json_encode(['success' => true, 'timestamp' => time() * 1000]);
             exit;

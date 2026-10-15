@@ -18,7 +18,7 @@ export interface User {
   firstName?: string;
   middleName?: string;
   lastName?: string;
-  email: string;
+  suffix?: string;
   role: UserRole;
   password?: string;
   studentId?: string;
@@ -47,9 +47,7 @@ export interface User {
   mustChangePassword?: boolean;
   temporaryPassword?: string;
   contactNumber?: string;
-  recoveryEmail?: string;
-  recoveryEmailVerified?: boolean;
-  recoveryEmailVerifiedAt?: string;
+  hasRecoveryPin?: boolean;
 }
 
 // Authoritative Enrollment Roster Record (Identity distinct from Login Account)
@@ -60,12 +58,11 @@ export interface StudentRecord {
   firstName?: string;
   middleName?: string;
   lastName?: string;
+  suffix?: string;
   course: string;
   yearLevel: string;
   section: string;
   department?: string;
-  email?: string;
-  maskedEmail?: string;
   contactNumber?: string;
   photoUrl?: string;
   createdAt: string;
@@ -121,6 +118,8 @@ export interface EventItem {
   academicYear?: string;
   academic_year?: string;
   semester?: string;
+  isDeleted?: boolean;
+  deletedAt?: string;
 }
 
 export type TicketType = 'digital' | 'physical';
@@ -140,7 +139,6 @@ export interface PurchaseTransaction {
   yearLevel?: string;
   section?: string;
   contactNumber?: string;
-  userEmail?: string;
   eventId: string;
   eventTitle: string;
   ticketId: string;
@@ -164,7 +162,6 @@ export interface TransferRecord {
   toUserId?: string;
   toUserName: string;
   toStudentId?: string;
-  toEmail?: string;
   reason: string;
   verifiedBy: string;
 }
@@ -192,7 +189,6 @@ export interface Ticket {
   lastName?: string;
   attendeeStudentId?: string;
   outsiderId?: string;
-  attendeeEmail?: string;
   attendeeDepartment?: string;
   course?: string;
   yearLevel?: string;
@@ -315,5 +311,53 @@ export interface FilterState {
   yearLevel?: string;
   section?: string;
   dateRange?: string;
+}
+
+export interface EventSalesBreakdown {
+  eventId: string;
+  eventTitle: string;
+  eventCode: string;
+  academicYear?: string;
+  semester?: string;
+  eventPrice: number;
+  paidStudentTickets: number;
+  paidOutsiderTickets: number;
+  totalPaidTickets: number;
+  freeTicketsIssued: number;
+  totalValidPasses: number;
+  totalCollectedSales: number;
+}
+
+export interface SectionSalesBreakdown {
+  course: string;
+  yearLevel: string;
+  section: string;
+  paidStudentTickets: number;
+  freeStudentTickets: number;
+  totalStudentPasses: number;
+  totalCollectedSales: number;
+}
+
+export interface TicketSalesSummary {
+  paidStudentTicketsSold: number;
+  paidOutsiderTicketsSold: number;
+  totalPaidTicketsSold: number;
+  freeTicketsIssued: number;
+  freeStudentTickets: number;
+  freeOutsiderTickets: number;
+  totalValidTicketsIssued: number;
+  totalCollectedSales: number;
+  totalStudentTickets: number;
+  totalOutsiderTickets: number;
+  studentTicketsSold?: number;
+  outsiderTicketsSold?: number;
+  totalTicketsSold?: number;
+  paidTicketsSold?: number;
+  freeTicketsSold?: number;
+  totalRevenue?: number;
+  breakdowns?: {
+    byEvent?: EventSalesBreakdown[];
+    bySection?: SectionSalesBreakdown[];
+  };
 }
 
